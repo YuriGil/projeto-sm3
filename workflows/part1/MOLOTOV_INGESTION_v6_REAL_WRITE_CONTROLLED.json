@@ -1,0 +1,1108 @@
+{
+  "name": "MOLOTOV — 01 — INGESTION — v6 REAL WRITE CONTROLLED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eb258ff8-94eb-445f-b42a-73a52d0ab33a",
+      "name": "MANUAL — TEST"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        220,
+        0
+      ],
+      "id": "3c61ac18-fd5a-4701-bddd-502a9a7ac7a1",
+      "name": "DISCOVER — 00_BRUTOS",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i => {\n  const name = String(i.json.name || '').trim();\n  const isProject = /^TATTOO_\\d{4}$/i.test(name);\n  const isContainer = !isProject && /^\\d{4}$/.test(name);\n  return { json: {\n    ...i.json,\n    molotov_type: isProject ? 'PROJECT' : isContainer ? 'CONTAINER' : 'IGNORE',\n    project_id: isProject ? name.toUpperCase() : null,\n    project_folder_id: isProject ? i.json.id : null,\n    discovered_at: new Date().toISOString()\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "70b829e0-a495-4bba-b6c3-43f41ca071e8",
+      "name": "CLASSIFY — ROOT"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "PROJECT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "07f37cf1-38a5-49ba-a7a9-c3cce782c3aa"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PROJECT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "CONTAINER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c07c8d78-c620-48c5-8061-230f5de93330"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CONTAINER"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        0
+      ],
+      "id": "b60f0f4e-422d-475f-907c-282c84f5fe34",
+      "name": "ROUTE — ROOT"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.id + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        880,
+        180
+      ],
+      "id": "84e7a58a-b260-4283-a40a-219f221798c8",
+      "name": "EXPLORE — CONTAINER",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all()\n  .filter(i => /^TATTOO_\\d{4}$/i.test(String(i.json.name || '').trim()))\n  .map(i => ({ json: {\n    ...i.json,\n    molotov_type: 'PROJECT',\n    project_id: String(i.json.name).trim().toUpperCase(),\n    project_folder_id: i.json.id,\n    discovered_at: new Date().toISOString()\n  }}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        180
+      ],
+      "id": "248a7c74-12b1-448e-a7fe-fd935d5dadc2",
+      "name": "FILTER — PROJECTS IN CONTAINER"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,project_id:i.json.project_id||String(i.json.name||'').toUpperCase(),project_folder_id:i.json.project_folder_id||i.json.id}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "a15f3f99-4a9b-4a76-8527-897eb3c73ae5",
+      "name": "PREPARE — PROJECT CONTEXT"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.project_folder_id + \"' in parents and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "95b3fc0c-5ada-4f80-b671-6afc746fdad7",
+      "name": "LIST — PROJECT MEDIA",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOLOTOV SOCIAL OS — MULTIPROJECT LINKED NORMALIZATION\n// Each media item is linked back to the project context that generated it.\n\nconst inputItems = $input.all();\n\nfunction extension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1 ? parts.pop().toLowerCase() : '';\n}\n\nfunction mediaType(name) {\n  const ext = extension(name);\n  if (['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(ext)) return 'IMAGE';\n  if (['mp4','mov','m4v','avi','mkv','webm'].includes(ext)) return 'VIDEO';\n  return 'OTHER';\n}\n\nreturn inputItems.map((item, index) => {\n  const file = item.json;\n\n  const linkedProject =\n    $('PREPARE — PROJECT CONTEXT').itemMatching(index)?.json;\n\n  if (!linkedProject?.project_id || !linkedProject?.project_folder_id) {\n    throw new Error(\n      `PROJECT_LINK_NOT_FOUND: arquivo=${file.name || file.id} index=${index}`\n    );\n  }\n\n  const type = mediaType(file.name);\n  const now = new Date().toISOString();\n\n  return {\n    json: {\n      project_id: linkedProject.project_id,\n      project_folder_id: linkedProject.project_folder_id,\n      parent_folder_id: linkedProject.project_folder_id,\n\n      drive_file_id: file.id,\n      file_name: file.name,\n      extension: extension(file.name),\n\n      media_type: type,\n      is_supported_media: type === 'IMAGE' || type === 'VIDEO',\n\n      mime_type: file.mimeType || '',\n      file_size_bytes: file.size || '',\n      drive_modified_at: file.modifiedTime || '',\n      relative_path: file.name || '',\n\n      source: 'GOOGLE_DRIVE',\n      storage_status: 'ONLINE',\n      ingestion_status: 'DISCOVERED',\n      ingestion_key: `gdrive:${file.id}`,\n\n      discovery_index: index + 1,\n      discovered_at: now\n    },\n    pairedItem: { item: index }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "d0db8db7-80f4-403a-8d54-e678f361fdd4",
+      "name": "NORMALIZE — MEDIA"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "ea60c88b-968b-4cd8-ae38-72f317f74cd3",
+      "name": "READ — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const discovered = $('NORMALIZE — MEDIA').all().map(i => i.json);\nconst existing = $input.all().map(i => i.json);\n\nfunction extractDriveId(url) {\n  if (!url) return null;\n  for (const r of [/\\/file\\/d\\/([^/]+)/, /[?&]id=([^&]+)/, /\\/d\\/([^/]+)/]) {\n    const m = String(url).match(r);\n    if (m?.[1]) return m[1];\n  }\n  return null;\n}\n\nconst driveIds = new Set();\nconst projectNames = new Set();\n\nfor (const row of existing) {\n  const d = extractDriveId(row.LINK_DRIVE);\n  if (d) driveIds.add(d);\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  const fn = String(row.ARQUIVO || '').trim().toLowerCase();\n  if (pid && fn) projectNames.add(`${pid}::${fn}`);\n}\n\nreturn discovered.map(a => {\n  const scoped = `${String(a.project_id || '').toUpperCase()}::${String(a.file_name || '').trim().toLowerCase()}`;\n  const byDrive = Boolean(a.drive_file_id && driveIds.has(a.drive_file_id));\n  const byScopedName = Boolean(a.project_id && a.file_name && projectNames.has(scoped));\n  const exists = byDrive || byScopedName;\n  return { json: {\n    ...a,\n    already_exists: exists,\n    match_method: byDrive ? 'DRIVE_ID' : byScopedName ? 'PROJECT_FILE_NAME' : 'NONE',\n    ingestion_action: exists ? 'SKIP' : 'INSERT'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "73a5258c-d130-42e7-abb9-458f86d294ee",
+      "name": "IDEMPOTENCY — PROJECT SCOPED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst stats = {};\nfor (const x of items) {\n  const p = x.project_id || 'NO_PROJECT';\n  stats[p] ??= {total:0, INSERT:0, SKIP:0};\n  stats[p].total++;\n  stats[p][x.ingestion_action] = (stats[p][x.ingestion_action] || 0) + 1;\n}\nreturn items.map(x => ({json:{...x, isolation_audit: stats}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "id": "082f55de-3678-4a20-a174-2953d182988b",
+      "name": "AUDIT — PROJECT ISOLATION"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "INSERT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6203e57a-3a09-48c6-8805-d44e8fe049a1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INSERT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "SKIP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0bc104b0-8139-4ec4-8594-10b0024e9ce9"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SKIP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        0
+      ],
+      "id": "f44d6fea-bf3a-45ee-b230-c5919e29ba4a",
+      "name": "ROUTE — INGESTION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2640,
+        160
+      ],
+      "id": "857ddedb-1e87-4602-927d-19e3381d7bba",
+      "name": "READ — 01_PROJETOS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOLOTOV SOCIAL OS — WRITE PLAN\n// Still only calculates rows. Actual writing is armed by the next safety node.\n\nconst projectRows = $input.all().map(i => i.json);\nconst projectContexts = $('PREPARE — PROJECT CONTEXT').all().map(i => i.json);\nconst media = $('AUDIT — PROJECT ISOLATION').all().map(i => i.json);\nconst existingMediaRows = $('READ — 03_MIDIAS').all().map(i => i.json);\n\nconst now = new Date().toISOString();\nconst today = now.slice(0, 10);\n\nconst existingProjects = new Set(\n  projectRows\n    .map(r => String(r.ID_PROJETO || '').trim().toUpperCase())\n    .filter(Boolean)\n);\n\nconst uniqueProjects = new Map();\nfor (const p of projectContexts) {\n  const id = String(p.project_id || '').trim().toUpperCase();\n  if (!id) continue;\n  uniqueProjects.set(id, p);\n}\n\nconst newProjects = [];\nfor (const [id, p] of uniqueProjects.entries()) {\n  if (existingProjects.has(id)) continue;\n\n  newProjects.push({\n    ID_PROJETO: id,\n    NOME: id,\n    TIPO: 'Tattoo',\n    STATUS: 'EM TRIAGEM',\n    'SESSÕES': '',\n    DATA_INICIAL: '',\n    DATA_FINAL: '',\n    PASTA_BRUTOS: `https://drive.google.com/drive/folders/${p.project_folder_id}`,\n    'ANÁLISE_VISUAL': 'PENDENTE',\n    PRIORIDADE: '',\n    'OBSERVAÇÕES': 'Cadastro automático de projeto descoberto em 00_BRUTOS.',\n    ATUALIZADO_EM: today,\n\n    DRIVE_FOLDER_ID: p.project_folder_id,\n    STORAGE_STATUS: 'ONLINE',\n    FIRST_SEEN_AT: now,\n    LAST_SEEN_AT: now,\n    OFFLINE_AT: ''\n  });\n}\n\nlet maxMediaNumber = 0;\nfor (const r of existingMediaRows) {\n  const m = String(r.ID_MIDIA || '').trim().match(/^M(\\d+)$/i);\n  if (m) maxMediaNumber = Math.max(maxMediaNumber, Number(m[1]));\n}\n\nconst inserts = media.filter(m => m.ingestion_action === 'INSERT');\n\nconst mediaRows = inserts.map((m, index) => {\n  const id = `M${String(maxMediaNumber + index + 1).padStart(4, '0')}`;\n\n  return {\n    ID_MIDIA: id,\n    ID_PROJETO: m.project_id,\n    ARQUIVO: m.file_name,\n    LINK_DRIVE: `https://drive.google.com/file/d/${m.drive_file_id}/view`,\n    TIPO: m.media_type === 'IMAGE' ? 'FOTO' : m.media_type === 'VIDEO' ? 'VÍDEO' : m.media_type,\n    DATA_CAPTURA: '',\n    'SESSÃO': '',\n    TAMANHO: m.file_size_bytes || '',\n    TRIAGEM: 'PENDENTE',\n    QUALIDADE: '',\n    'CONTEÚDO_VISUAL': '',\n    MELHOR_TRECHO: '',\n    USAR_EM: '',\n    'OBSERVAÇÕES': 'Ingestão automática pelo MOLOTOV SOCIAL OS.',\n\n    DRIVE_FILE_ID: m.drive_file_id,\n    PROJECT_FOLDER_ID: m.project_folder_id,\n    PARENT_FOLDER_ID: m.parent_folder_id || m.project_folder_id,\n    RELATIVE_PATH: m.relative_path || m.file_name,\n    MIME_TYPE: m.mime_type || '',\n    FILE_SIZE_BYTES: m.file_size_bytes || '',\n    DRIVE_MODIFIED_AT: m.drive_modified_at || '',\n    INGESTION_KEY: m.ingestion_key,\n    CONTENT_HASH: '',\n    STORAGE_STATUS: 'ONLINE',\n    FIRST_SEEN_AT: now,\n    LAST_SEEN_AT: now,\n    OFFLINE_AT: ''\n  };\n});\n\nreturn [{\n  json: {\n    dry_run: true,\n    generated_at: now,\n    summary: {\n      discovered_projects: uniqueProjects.size,\n      existing_projects: existingProjects.size,\n      new_projects_to_insert: newProjects.length,\n      media_total_discovered: media.length,\n      media_existing_skip: media.filter(m => m.ingestion_action === 'SKIP').length,\n      media_new_to_insert: mediaRows.length,\n      next_media_id_start: mediaRows.length ? mediaRows[0].ID_MIDIA : null,\n      next_media_id_end: mediaRows.length ? mediaRows[mediaRows.length - 1].ID_MIDIA : null\n    },\n    project_rows_to_insert: newProjects,\n    media_rows_to_insert: mediaRows\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        160
+      ],
+      "id": "35a3841b-6224-4a65-ac0b-1ce2c8a4e42e",
+      "name": "PLAN — REAL WRITES"
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $input.first().json;\n\nconst projects = Array.isArray(plan.project_rows_to_insert)\n  ? plan.project_rows_to_insert : [];\nconst media = Array.isArray(plan.media_rows_to_insert)\n  ? plan.media_rows_to_insert : [];\n\nfunction fail(msg) {\n  throw new Error(`WRITE_SAFETY_BLOCK: ${msg}`);\n}\n\nif (!plan.dry_run) fail('planner contract invalid');\n\nconst mediaIds = media.map(r => String(r.ID_MIDIA || '').trim());\nif (new Set(mediaIds).size !== mediaIds.length) fail('duplicate ID_MIDIA in write batch');\n\nconst driveIds = media.map(r => String(r.DRIVE_FILE_ID || '').trim()).filter(Boolean);\nif (new Set(driveIds).size !== driveIds.length) fail('duplicate DRIVE_FILE_ID in write batch');\n\nfor (const p of projects) {\n  if (!p.ID_PROJETO || !p.DRIVE_FOLDER_ID || p.STORAGE_STATUS !== 'ONLINE') {\n    fail(`invalid project row ${JSON.stringify(p)}`);\n  }\n}\n\nfor (const m of media) {\n  if (!m.ID_MIDIA || !m.ID_PROJETO || !m.DRIVE_FILE_ID || !m.INGESTION_KEY) {\n    fail(`invalid media row ${JSON.stringify(m)}`);\n  }\n  if (m.STORAGE_STATUS !== 'ONLINE') fail(`media ${m.ID_MIDIA} is not ONLINE`);\n}\n\nreturn [{\n  json: {\n    ...plan,\n    write_authorized: true,\n    write_authorized_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        160
+      ],
+      "id": "3ccaf68b-2c4d-4c29-9558-5d8a1441ca1f",
+      "name": "ARM — WRITE SAFETY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.write_authorized)throw new Error('WRITE_NOT_AUTHORIZED');return (p.project_rows_to_insert||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        60
+      ],
+      "id": "58e288ac-ef5a-40c8-a3ad-f8352138f5e8",
+      "name": "EXPAND — PROJECT ROWS"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.write_authorized)throw new Error('WRITE_NOT_AUTHORIZED');return (p.media_rows_to_insert||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        260
+      ],
+      "id": "dc5f639c-9b28-4724-8677-db68f60f55cb",
+      "name": "EXPAND — MEDIA ROWS"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOME",
+              "displayName": "NOME",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TIPO",
+              "displayName": "TIPO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÕES",
+              "displayName": "SESSÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_INICIAL",
+              "displayName": "DATA_INICIAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_FINAL",
+              "displayName": "DATA_FINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PASTA_BRUTOS",
+              "displayName": "PASTA_BRUTOS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANÁLISE_VISUAL",
+              "displayName": "ANÁLISE_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRIORIDADE",
+              "displayName": "PRIORIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATUALIZADO_EM",
+              "displayName": "ATUALIZADO_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FOLDER_ID",
+              "displayName": "DRIVE_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        60
+      ],
+      "id": "d9937d5a-35bc-40c9-aeca-edc5fb6addab",
+      "name": "APPEND — 01_PROJETOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ARQUIVO",
+              "displayName": "ARQUIVO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LINK_DRIVE",
+              "displayName": "LINK_DRIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TIPO",
+              "displayName": "TIPO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÃO",
+              "displayName": "SESSÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TAMANHO",
+              "displayName": "TAMANHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FILE_ID",
+              "displayName": "DRIVE_FILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_FOLDER_ID",
+              "displayName": "PROJECT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PARENT_FOLDER_ID",
+              "displayName": "PARENT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELATIVE_PATH",
+              "displayName": "RELATIVE_PATH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_MODIFIED_AT",
+              "displayName": "DRIVE_MODIFIED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INGESTION_KEY",
+              "displayName": "INGESTION_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        260
+      ],
+      "id": "83290439-a40f-4cca-a353-7cd8cd237f99",
+      "name": "APPEND — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "MANUAL — TEST": {
+      "main": [
+        [
+          {
+            "node": "DISCOVER — 00_BRUTOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DISCOVER — 00_BRUTOS": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — ROOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — ROOT": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — ROOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ROOT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "EXPLORE — CONTAINER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPLORE — CONTAINER": {
+      "main": [
+        [
+          {
+            "node": "FILTER — PROJECTS IN CONTAINER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FILTER — PROJECTS IN CONTAINER": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — PROJECT CONTEXT": {
+      "main": [
+        [
+          {
+            "node": "LIST — PROJECT MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — PROJECT MEDIA": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE — MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "IDEMPOTENCY — PROJECT SCOPED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IDEMPOTENCY — PROJECT SCOPED": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PROJECT ISOLATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — PROJECT ISOLATION": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — INGESTION",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "READ — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 01_PROJETOS": {
+      "main": [
+        [
+          {
+            "node": "PLAN — REAL WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLAN — REAL WRITES": {
+      "main": [
+        [
+          {
+            "node": "ARM — WRITE SAFETY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARM — WRITE SAFETY": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT ROWS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — MEDIA ROWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_GEOMETRY_PREVIEW_V1",
+  "title": "Projeto SM3 Geometry-Aware Preview Manifest V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ok", "contract_version", "renderer_version", "composition_plan_contract",
+    "composition_planner_version", "project_id", "content_id", "edit_session_id",
+    "revision", "state_etag", "plan_sha256", "composition_id", "source_hashes",
+    "geometry_record_hashes", "identity_decisions", "render_fingerprint",
+    "preview_sha256", "preview_bytes", "segments", "rendered_operations",
+    "experimental_geometry_preview", "canonical_edit_preview_unchanged",
+    "no_new_edit_revision", "final_render", "publish_from_preview_forbidden"
+  ],
+  "properties": {
+    "ok": {"const": true},
+    "contract_version": {"const": "SM3_GEOMETRY_PREVIEW_V1"},
+    "renderer_version": {"const": "2.12.0"},
+    "composition_plan_contract": {"const": "SM3_COMPOSITION_PLAN_V1"},
+    "composition_planner_version": {"const": "SM3_GEOMETRY_AWARE_COMPOSITOR_V1"},
+    "state_etag": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "preview_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "preview_bytes": {"type": "integer", "minimum": 1000},
+    "experimental_geometry_preview": {"const": true},
+    "canonical_edit_preview_unchanged": {"const": true},
+    "no_new_edit_revision": {"const": true},
+    "final_render": {"const": false},
+    "publish_from_preview_forbidden": {"const": true}
+  }
+}

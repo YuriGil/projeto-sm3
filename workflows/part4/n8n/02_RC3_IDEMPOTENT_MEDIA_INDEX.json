@@ -1,0 +1,94 @@
+{
+  "name": "MOLOTOV SOCIAL OS RC3 - Idempotent Media Index",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "TESTE MANUAL",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{project_id:'TATTOO_0001',drive_file_id:'EXAMPLE_NEW_FILE_ID',file_name:'example.jpg'}}];"
+      },
+      "id": "e",
+      "name": "Incoming Drive Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;if(!/^TATTOO_\\d{4}$/.test(x.project_id)) throw new Error('INVALID_PROJECT_ID');return [{json:{...x,idempotency_key:'gdrive:'+x.drive_file_id,next:'LOOKUP_03_MIDIAS_BY_DRIVE_ID'}}];"
+      },
+      "id": "k",
+      "name": "Build Idempotency Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'READY_FOR_LOOKUP_AND_CONDITIONAL_APPEND',mutation:false}}];"
+      },
+      "id": "s",
+      "name": "Safe Stop Before Write",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TESTE MANUAL": {
+      "main": [
+        [
+          {
+            "node": "Incoming Drive Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incoming Drive Event": {
+      "main": [
+        [
+          {
+            "node": "Build Idempotency Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Idempotency Key": {
+      "main": [
+        [
+          {
+            "node": "Safe Stop Before Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "contract_version": "SM3_ART_DIRECTION_GRAMMAR_V1",
+  "purpose": "Generate multiple non-publishing art-direction hypotheses from the same verified source, geometry and editorial intent; learn from human comparisons without contaminating factual geometry.",
+  "foundation_invariants": [
+    "TATTOO_PHOTO_IS_CONTENT",
+    "NO_GENERATIVE_TATTOO_REPLACEMENT",
+    "NO_OVERLAY_ON_PROTECTED_SUBJECT",
+    "NO_REDUNDANT_STAGE_LABELS",
+    "NO_GENERIC_FOOTER",
+    "NO_FORCED_IDENTITY",
+    "NO_MECHANICAL_REPETITION",
+    "HUMAN_REVIEW_REQUIRED"
+  ],
+  "axes": [
+    "PHOTO_SCALE",
+    "NEGATIVE_SPACE",
+    "ASYMMETRY",
+    "IDENTITY_DENSITY",
+    "TEXTURE_DENSITY",
+    "COLOR_TREATMENT",
+    "CROSS_SLIDE_RHYTHM"
+  ],
+  "strategies": {
+    "PHOTO_DOMINANT": {
+      "intent": "Let the photography lead; minimum packaging.",
+      "identity_policy": "NONE_UNLESS_OUTSIDE_PHOTO",
+      "text_policy": "NONE",
+      "fallback": "GALLERY_INSET_NEUTRAL"
+    },
+    "EDITORIAL_MOLOTOV": {
+      "intent": "Use negative space and verified identity assets as structural packaging, never stickers over tattoo.",
+      "identity_policy": "TEXTURE_IN_MARGIN_AND_CLOSING_STAMP_ONLY",
+      "text_policy": "NONE",
+      "layout": "ASYMMETRIC"
+    },
+    "RAW_ARCHIVE": {
+      "intent": "Documentary/tactile presentation with paper field and restrained signature.",
+      "identity_policy": "CLOSING_STAMP_ONLY",
+      "text_policy": "NONE",
+      "layout": "ARCHIVE_INSET"
+    }
+  },
+  "learning": {
+    "shared_foundation": true,
+    "profile_specific_preferences": true,
+    "content_specific_overrides": true,
+    "social_metrics_can_adjust_tactics": true,
+    "social_metrics_cannot_override_foundation": true
+  }
+}

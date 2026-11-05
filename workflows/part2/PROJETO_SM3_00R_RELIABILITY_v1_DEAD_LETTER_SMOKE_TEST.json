@@ -1,0 +1,142 @@
+{
+  "name": "PROJETO SM3 — 00R — RELIABILITY — v1 DEAD LETTER SMOKE TEST",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        0
+      ],
+      "id": "ec565403-9e55-46d2-ab90-6a2467e5ac53",
+      "name": "MANUAL — RELIABILITY TEST"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nreturn [{\n  json: {\n    workflow: 'PROJETO_SM3_00R_RELIABILITY_SMOKE',\n    node: 'SYNTHETIC_FAILURE',\n    stage: 'SMOKE_TEST',\n    entity_type: 'SYSTEM_TEST',\n    entity_id: 'SMOKE_TEST',\n    error_code: 'SM3_SYNTHETIC_TEST',\n    error_message: 'Evento sintético criado propositalmente para validar o dead-letter local.',\n    attempt_count: 3,\n    max_tries: 3,\n    retryable: false,\n    disposition: 'TEST_ONLY',\n    execution_id: String($execution.id || ''),\n    created_at: now,\n    payload: {\n      test_only: true,\n      expected_contract: 'SM3_RELIABILITY_V1'\n    },\n    version: 'SM3_RELIABILITY_V1'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        0
+      ],
+      "id": "60d1cd4b-6208-437f-bd20-b6b4e370e268",
+      "name": "BUILD — SYNTHETIC FAILURE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/ops/dead-letter",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "02a154aa-19e0-4367-b2b1-f497394411af",
+      "name": "POST — DEAD LETTER TEST",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/ops/dead-letter/stats",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        140,
+        0
+      ],
+      "id": "3b002bee-199b-4d31-9f96-a3714115da69",
+      "name": "GET — DEAD LETTER STATS",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x = $input.first().json;\nconst ok =\n  x.ok === true &&\n  x.reliability_contract === 'SM3_RELIABILITY_V1' &&\n  x.dead_letter_primary === 'LOCAL_JSONL' &&\n  Number(x.event_count || 0) >= 1 &&\n  x.file_exists === true;\n\nif (!ok) {\n  throw new Error('SM3_RELIABILITY_SMOKE_FAILED: ' + JSON.stringify(x));\n}\n\nreturn [{\n  json: {\n    status: 'SM3_RELIABILITY_PASS',\n    reliability_contract: x.reliability_contract,\n    dead_letter_primary: x.dead_letter_primary,\n    dead_letter_path: x.dead_letter_path,\n    event_count: x.event_count,\n    file_bytes: x.file_bytes,\n    last_event_id: x.last_event_id,\n    checked_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "id": "c5fa3162-4250-4cc2-b555-490376694192",
+      "name": "ASSERT — RELIABILITY"
+    }
+  ],
+  "connections": {
+    "MANUAL — RELIABILITY TEST": {
+      "main": [
+        [
+          {
+            "node": "BUILD — SYNTHETIC FAILURE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — SYNTHETIC FAILURE": {
+      "main": [
+        [
+          {
+            "node": "POST — DEAD LETTER TEST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST — DEAD LETTER TEST": {
+      "main": [
+        [
+          {
+            "node": "GET — DEAD LETTER STATS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET — DEAD LETTER STATS": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — RELIABILITY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

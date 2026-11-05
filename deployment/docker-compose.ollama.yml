@@ -1,0 +1,5 @@
+services:
+  media-worker:
+    environment:
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434/v1"
+      OLLAMA_MODEL: "gemma3:1b"

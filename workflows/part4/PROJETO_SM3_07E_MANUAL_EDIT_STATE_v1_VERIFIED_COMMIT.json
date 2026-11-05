@@ -1,0 +1,578 @@
+{
+  "name": "PROJETO SM3 — 07E — MANUAL EDIT STATE — v1 VERIFIED COMMIT",
+  "nodes": [
+    {
+      "name": "MANUAL — RECONCILE MANUAL EDITS",
+      "id": "75107f3a-a0bd-4680-9664-7f3094ba20ab",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1500,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "WORKER — HEALTH 2.5.0",
+      "id": "7091fc7c-03b7-4ba7-8eaa-f08225003204",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1300,
+        0
+      ],
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "name": "ASSERT — SAFE SAVE CONTRACT",
+      "id": "78398d2e-e7c2-409f-b1ad-22404155fef4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1100,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h=$json;const errors=[];\nif(h.ok!==true||h.service!=='sm3-media-worker')errors.push('service');\nif(h.version!=='2.5.0')errors.push('version');\nif(h.production_edit_contract!=='SM3_PRODUCTION_EDIT_V1')errors.push('production_contract');\nif(h.editor_workspace_contract!=='SM3_EDITOR_WORKSPACE_V1')errors.push('workspace_contract');\nif(h.edit_session_save_safe!==true||h.edit_session_save_contract!=='SM3_EDIT_SAVE_V1')errors.push('save_contract');\nif(errors.length)throw new Error('SM3_07E_WORKER_CONTRACT:'+errors.join(','));\nreturn {json:{health:'SM3_07E_WORKER_VERIFIED'}};"
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -900,
+        0
+      ],
+      "id": "aab1ad13-c668-420e-8e28-417b434356c1",
+      "name": "READ — EDIT SESSION CONTROL STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "BUILD — EDIT SESSION QUEUE",
+      "id": "482aa261-2495-42df-85f0-908fe05ed7a9",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows=$input.all().map(x=>x.json),text=x=>String(x??'').trim(),upper=x=>text(x).toUpperCase();\nconst counts=new Map();for(const row of rows){const k=text(row.ID_CONTEÚDO);if(k)counts.set(k,(counts.get(k)||0)+1)}\nconst work=[],errors=[];\nfor(const row of rows){const session=text(row.EDIT_SESSION_ID),pipeline=upper(row.PIPELINE_STATE),review=upper(row.VARIANT_REVIEW_STATUS);\nif(!session&&pipeline!=='EDIT_SESSION_READY')continue;\nconst id=text(row.ID_CONTEÚDO),project=text(row.ID_PROJETO),status=upper(row.EDIT_SESSION_STATUS),variant=upper(row.SELECTED_VARIANT_ID),setId=text(row.VARIANT_SET_ID),problem=[];\nif(counts.get(id)!==1)problem.push('CONTENT_NOT_UNIQUE');if(!project)problem.push('PROJECT_EMPTY');\nif(!/^ES_[A-Za-z0-9_-]+$/.test(session))problem.push('SESSION_INVALID');\nif(!/^VS_[A-Za-z0-9_-]+$/.test(setId))problem.push('VARIANT_SET_INVALID');\nif(!/^V\\d{2}$/.test(variant))problem.push('VARIANT_INVALID');\nif(pipeline!=='EDIT_SESSION_READY'||review!=='OPEN_EDITOR')problem.push('PIPELINE_INVALID');\nif(!['OPEN','SAVED'].includes(status))problem.push('CONTROL_STATUS_INVALID');\nif(text(row.EDIT_RECIPE_VERSION)!=='SM3_EDIT_RECIPE_V1'||text(row.PRODUCTION_CONTRACT_VERSION)!=='SM3_PRODUCTION_EDIT_V1'||text(row.STATE_VERSION)!=='SM3_STATE_V5')problem.push('CONTRACT_INVALID');\nif(problem.length){errors.push({content_id:id,problems:problem});continue}\nwork.push({route:'CHECK',project_id:project,content_id:id,edit_session_id:session,variant_set_id:setId,base_variant_id:variant,sheet_status:status})}\nif(errors.length)throw new Error('SM3_07E_CONTROL_STATE_BLOCKED:'+JSON.stringify(errors));\nif(!work.length)return [{json:{route:'NO_WORK',status:'NO_EDIT_SESSION_TO_RECONCILE'}}];\nreturn work.map(x=>({json:x}));"
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "CHECK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bf596274-b10a-450d-945e-b0d3f00e8237"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CHECK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2052dba8-b104-485f-9158-78a495b8f7cb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "d74a70cf-225a-41d8-a06f-3e3cf8f57e77",
+      "name": "ROUTE — SESSION QUEUE"
+    },
+    {
+      "name": "WORKER — GET EDIT SESSION WORKSPACE",
+      "id": "4e60716d-4ed3-4e6b-a8c4-242647ce5525",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -260,
+        -180
+      ],
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/editor-workspace/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "name": "ASSERT — SAVED REVISION",
+      "id": "e01f125f-48b5-4b34-b019-d15abbebe1b2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        -180
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const w=$json;\nconst row=$('BUILD — EDIT SESSION QUEUE').all().map(x=>x.json).find(x=>x.edit_session_id===w.edit_session_id);\nif(!row)throw new Error('SM3_07E_ROW_NOT_FOUND');\nif(w.ok!==true||w.version!=='2.5.0'||w.workspace_contract_version!=='SM3_EDITOR_WORKSPACE_V1'||w.save_contract_version!=='SM3_EDIT_SAVE_V1')throw new Error('SM3_07E_WORKSPACE_CONTRACT');\nfor(const key of ['project_id','content_id','edit_session_id','variant_set_id','base_variant_id'])if(w[key]!==row[key])throw new Error('SM3_07E_WORKSPACE_MISMATCH:'+key);\nif(w.preview?.verified!==true||!(/^[a-f0-9]{64}$/.test(String(w.preview?.sha256||'')))||!(/^[a-f0-9]{64}$/.test(String(w.state_etag||''))))throw new Error('SM3_07E_PREVIEW_OR_ETAG');\nif(w.status==='OPEN'&&row.sheet_status==='OPEN')return {json:{route:'NO_WRITE',content_id:w.content_id,reason:'SESSION_STILL_OPEN'}};\nif(w.status==='SAVED'&&Number(w.current_revision)>=2&&row.sheet_status==='SAVED')return {json:{route:'NO_WRITE',content_id:w.content_id,reason:'ALREADY_RECONCILED'}};\nif(w.status==='SAVED'&&Number(w.current_revision)>=2&&row.sheet_status==='OPEN')return {json:{route:'WRITE',ID_CONTEÚDO:w.content_id,EDIT_SESSION_STATUS:'SAVED',REVISION_MODE:'MANUAL_EDIT',PIPELINE_STATE:'EDIT_SESSION_READY',STATE_VERSION:'SM3_STATE_V5',STATE_UPDATED_AT:new Date().toISOString(),edit_session_id:w.edit_session_id,current_revision:w.current_revision,state_etag:w.state_etag}};\nthrow new Error('SM3_07E_SESSION_CONTROL_CONFLICT:'+w.content_id+':'+w.status+':'+row.sheet_status);"
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "WRITE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bf596274-b10a-450d-945e-b0d3f00e8237"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WRITE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WRITE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2052dba8-b104-485f-9158-78a495b8f7cb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WRITE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        200,
+        -180
+      ],
+      "id": "27550965-5a26-486e-a557-8e8c12433ffa",
+      "name": "ROUTE — REVISION STATE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "EDIT_SESSION_STATUS": "={{ $json.EDIT_SESSION_STATUS }}",
+            "REVISION_MODE": "={{ $json.REVISION_MODE }}",
+            "PIPELINE_STATE": "={{ $json.PIPELINE_STATE }}",
+            "STATE_VERSION": "={{ $json.STATE_VERSION }}",
+            "STATE_UPDATED_AT": "={{ $json.STATE_UPDATED_AT }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_MODE",
+              "displayName": "REVISION_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDIT_SESSION_STATUS",
+              "displayName": "EDIT_SESSION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PIPELINE_STATE",
+              "displayName": "PIPELINE_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_UPDATED_AT",
+              "displayName": "STATE_UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_VERSION",
+              "displayName": "STATE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        -300
+      ],
+      "id": "600e1f2a-02a9-48f6-af1c-1d90f85b28af",
+      "name": "UPDATE — MANUAL EDIT CONTROL STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        660,
+        -300
+      ],
+      "id": "99a31f15-d969-4c73-9fee-c48e8757ec26",
+      "name": "VERIFY READ — MANUAL EDIT STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "ASSERT — MANUAL EDIT COMMITTED",
+      "id": "8b31404c-dcbc-485a-84fb-d0050a44817e",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows=$input.all().map(i=>i.json),expected=$('ASSERT — SAVED REVISION').all().map(i=>i.json).filter(x=>x.route==='WRITE');\nconst counts=new Map();for(const row of rows){const id=String(row.ID_CONTEÚDO||'');counts.set(id,(counts.get(id)||0)+1)}\nfor(const e of expected){const row=rows.find(r=>String(r.ID_CONTEÚDO||'')===e.ID_CONTEÚDO);\nif(!row||counts.get(e.ID_CONTEÚDO)!==1)throw new Error('SM3_07E_COMMITTED_ROW_NOT_UNIQUE:'+e.ID_CONTEÚDO);\nfor(const [key,value] of Object.entries({EDIT_SESSION_STATUS:'SAVED',REVISION_MODE:'MANUAL_EDIT',PIPELINE_STATE:'EDIT_SESSION_READY',STATE_VERSION:'SM3_STATE_V5',EDIT_SESSION_ID:e.edit_session_id}))if(String(row[key]||'')!==value)throw new Error('SM3_07E_PERSISTENCE_MISMATCH:'+e.ID_CONTEÚDO+':'+key);\nif(!String(row.STATE_UPDATED_AT||''))throw new Error('SM3_07E_TIMESTAMP_MISSING:'+e.ID_CONTEÚDO)}\nreturn [{json:{status:'MANUAL_EDIT_CONTROL_COMMITTED',committed_count:expected.length,committed:expected.map(e=>({content_id:e.ID_CONTEÚDO,edit_session_id:e.edit_session_id,current_revision:e.current_revision,state_etag:e.state_etag}))}}];"
+      }
+    },
+    {
+      "name": "AUDIT — NO MANUAL EDIT PENDING",
+      "id": "20abba70-c9ee-4235-b315-2923c8640b67",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -40
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'NO_MANUAL_EDIT_TO_RECONCILE',content_id:$json.content_id||null,reason:$json.reason||'NO_EDIT_SESSION'}};"
+      }
+    },
+    {
+      "name": "AUDIT — NO EDIT SESSIONS",
+      "id": "86e08643-37c4-4e63-874f-9ca1547d2edb",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'NO_EDIT_SESSION_TO_RECONCILE'}};"
+      }
+    }
+  ],
+  "connections": {
+    "MANUAL — RECONCILE MANUAL EDITS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.5.0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.5.0": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — SAFE SAVE CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — SAFE SAVE CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — EDIT SESSION CONTROL STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — EDIT SESSION CONTROL STATE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — EDIT SESSION QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — EDIT SESSION QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SESSION QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SESSION QUEUE": {
+      "main": [
+        [
+          {
+            "node": "WORKER — GET EDIT SESSION WORKSPACE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO EDIT SESSIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — GET EDIT SESSION WORKSPACE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — SAVED REVISION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — SAVED REVISION": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — REVISION STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — REVISION STATE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — MANUAL EDIT CONTROL STATE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO MANUAL EDIT PENDING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — MANUAL EDIT CONTROL STATE": {
+      "main": [
+        [
+          {
+            "node": "VERIFY READ — MANUAL EDIT STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VERIFY READ — MANUAL EDIT STATE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — MANUAL EDIT COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9363ab96-0240-4a43-8d14-98f72549f1c1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

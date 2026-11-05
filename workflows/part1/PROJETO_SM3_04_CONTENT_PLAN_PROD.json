@@ -1,0 +1,1332 @@
+{
+  "name": "PROJETO SM3 — 04 — CONTENT PLAN — PROD",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2ff9f4df-6a2b-458d-84f3-619655c254f0",
+      "name": "MANUAL — CONTENT PLAN"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "fe16208b-0ada-414c-b554-c6e9bbc2f890",
+      "name": "READ — CURATED PROJECTS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        0
+      ],
+      "id": "3a528b2b-f190-467d-a501-d6857f6647be",
+      "name": "READ — CURATED MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1648364747,
+          "mode": "list",
+          "cachedResultName": "10_TEMPLATES"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        660,
+        0
+      ],
+      "id": "e04ec227-f3e2-4cff-9591-041b184c0daa",
+      "name": "READ — ACTIVE TEMPLATES",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "id": "00fec41c-1e6d-4963-b1ef-92aaf48af3ee",
+      "name": "READ — EXISTING CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — CONTENT PLAN QUEUE v2\n// Source of truth for idempotency:\n// a current plan EXISTS only if 04_CONTEUDOS contains rows with:\n// PLAN_STATUS=AI_PLANNED + PLAN_VERSION=current + CURATION_RUN_ID=current.\n//\n// If rows exist but 01_PROJETOS state is stale/missing, route to REPAIR\n// without calling AI again.\n\nconst projects = $('READ — CURATED PROJECTS').all().map(i => i.json);\nconst mediaRows = $('READ — CURATED MEDIA').all().map(i => i.json);\nconst templates = $('READ — ACTIVE TEMPLATES').all().map(i => i.json);\nconst contentRows = $('READ — EXISTING CONTENT').all().map(i => i.json);\n\nconst PLAN_VERSION = 'SM3_CONTENT_PLAN_V1';\n\nconst activeTemplates = templates\n  .filter(t => String(t.STATUS || '').trim().toUpperCase() === 'ATIVO')\n  .map(t => ({\n    template_id: t.ID_TEMPLATE,\n    name: t.NOME,\n    format: t.FORMATO,\n    dimension: t.DIMENSAO || '',\n    media_zone: t.ZONA_MIDIA || '',\n    text_zone: t.ZONA_TEXTO || '',\n    signature: t.ASSINATURA || '',\n    crop_rule: t.REGRA_CROP || '',\n    text_rule: t.REGRA_TEXTO || ''\n  }));\n\nconst out = [];\nconst audit = [];\n\nfor (const p of projects) {\n  const pid = String(p.ID_PROJETO || '').trim();\n  if (!pid) continue;\n\n  const reasons = [];\n  const storage = String(p.STORAGE_STATUS || '').trim().toUpperCase();\n  const curationStatus = String(p.CURATION_STATUS || '').trim().toUpperCase();\n  const curationRun = String(p.CURATION_RUN_ID || '').trim();\n\n  if (storage !== 'ONLINE') reasons.push(`STORAGE_STATUS=${storage || 'EMPTY'}`);\n  if (curationStatus !== 'AI_CURATED') reasons.push(`CURATION_STATUS=${curationStatus || 'EMPTY'}`);\n  if (!curationRun) reasons.push('CURATION_RUN_ID=EMPTY');\n\n  const curated = mediaRows\n    .filter(m =>\n      String(m.ID_PROJETO || '').trim() === pid &&\n      String(m.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE' &&\n      String(m.CURATION_STATUS || '').trim().toUpperCase() === 'AI_CURATED' &&\n      String(m.CURATION_ROLE || '').trim().toUpperCase() !== 'DISCARD'\n    )\n    .map(m => {\n      const type = String(m.TIPO || '').toUpperCase();\n      const kind = type.includes('VÍDEO') || type.includes('VIDEO') ? 'video' : 'image';\n      return {\n        media_id: m.ID_MIDIA,\n        kind,\n        curation_role: m.CURATION_ROLE || '',\n        curation_rank: Number(m.CURATION_RANK || 0) || null,\n        stage: m.ANALYSIS_STAGE || '',\n        shot_type: m.SHOT_TYPE || '',\n        visual_summary: m['CONTEÚDO_VISUAL'] || '',\n        recommended_use: m.USAR_EM || '',\n        best_moment: m.MELHOR_TRECHO || ''\n      };\n    })\n    .sort((a, b) => (a.curation_rank || 999) - (b.curation_rank || 999));\n\n  if (curated.length === 0) reasons.push('NO_NON_DISCARD_CURATED_MEDIA');\n\n  const matchingPlanRows = contentRows.filter(r =>\n    String(r.ID_PROJETO || '').trim() === pid &&\n    String(r.PLAN_STATUS || '').trim().toUpperCase() === 'AI_PLANNED' &&\n    String(r.PLAN_VERSION || '').trim() === PLAN_VERSION &&\n    String(r.CURATION_RUN_ID || '').trim() === curationRun\n  );\n\n  const projectStateCurrent =\n    String(p.CONTENT_PLAN_STATUS || '').trim().toUpperCase() === 'AI_PLANNED' &&\n    String(p.CONTENT_PLAN_VERSION || '').trim() === PLAN_VERSION &&\n    String(p.CONTENT_PLAN_CURATED_FROM || '').trim() === curationRun;\n\n  let route = 'SKIP';\n  if (reasons.length === 0) {\n    if (matchingPlanRows.length === 0) route = 'PLAN';\n    else if (!projectStateCurrent) route = 'REPAIR';\n    else route = 'CURRENT';\n  }\n\n  audit.push({\n    project_id: pid,\n    eligible_base: reasons.length === 0,\n    exclusion_reasons: reasons,\n    matching_plan_rows: matchingPlanRows.length,\n    project_state_current: projectStateCurrent,\n    route\n  });\n\n  if (reasons.length > 0 || route === 'CURRENT') continue;\n\n  if (route === 'REPAIR') {\n    const first = matchingPlanRows[0] || {};\n    out.push({\n      json: {\n        route_key: 'REPAIR',\n        project_id: pid,\n        project_write: {\n          ID_PROJETO: pid,\n          CONTENT_PLAN_STATUS: 'AI_PLANNED',\n          CONTENT_PLAN_VERSION: PLAN_VERSION,\n          CONTENT_PLAN_RUN_ID: first.PLAN_RUN_ID || '',\n          CONTENT_PLAN_CURATED_FROM: curationRun,\n          CONTENT_PLAN_AT: first.GENERATED_AT || new Date().toISOString(),\n          CONTENT_PLAN_COUNT: matchingPlanRows.length,\n          CONTENT_PLAN_PROVIDER: first.PLAN_PROVIDER || '',\n          CONTENT_PLAN_MODEL: first.PLAN_MODEL || ''\n        },\n        eligibility_audit: audit\n      }\n    });\n    continue;\n  }\n\n  out.push({\n    json: {\n      route_key: 'PLAN',\n      no_work: false,\n      project_id: pid,\n      curation_run_id: curationRun,\n      hero_id: p.CURATION_HERO_ID || '',\n      narrative: p.CURATION_NARRATIVE || '',\n      carousel_order: String(p.CURATION_CAROUSEL_ORDER || '')\n        .split(',').map(x => x.trim()).filter(Boolean),\n      reel_candidate_ids: String(p.CURATION_REEL_IDS || '')\n        .split(',').map(x => x.trim()).filter(Boolean),\n      media: curated,\n      templates: activeTemplates,\n      context:\n        'Planejar conteúdo social sem publicar/agendar. Manter aprovação humana obrigatória antes de qualquer publicação.',\n      eligibility_audit: audit\n    }\n  });\n}\n\nif (out.length === 0) {\n  return [{\n    json: {\n      route_key: 'NO_WORK',\n      no_work: true,\n      status: 'CONTENT_PLAN_CURRENT_OR_NOT_ELIGIBLE',\n      message: 'Nenhum projeto precisa de novo plano de conteúdo.',\n      eligibility_audit: audit,\n      checked_at: new Date().toISOString()\n    }\n  }];\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "c1be2b68-576d-4076-8e1c-f78fc98da1c3",
+      "name": "BUILD — CONTENT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c29ecb6c-7598-42f9-b6ad-50f686eee96c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "PLAN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d4b09258-3f12-43bc-8a5a-a7c5bc663f09"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PLAN"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "REPAIR",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d5862366-7ff9-44b3-802e-207610e45ca0"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REPAIR"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1460,
+        0
+      ],
+      "id": "e4b5f793-3e04-4874-808a-831f6a02d27c",
+      "name": "ROUTE — CONTENT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:{\n  ...i.json,\n  completed:true,\n  status:'NO_CHANGES',\n  message:'Plano de conteúdo já está atual ou o projeto não é elegível; nenhuma chamada de IA foi necessária.'\n}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -120
+      ],
+      "id": "625d50fe-4b22-462b-bed0-0fb1b2a9766f",
+      "name": "NO WORK — CONTENT PLAN CURRENT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/plan-content",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,curation_run_id:$json.curation_run_id,hero_id:$json.hero_id,narrative:$json.narrative,carousel_order:$json.carousel_order,reel_candidate_ids:$json.reel_candidate_ids,media:$json.media,templates:$json.templates,context:$json.context} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1680,
+        100
+      ],
+      "id": "acf0d6ab-0768-4223-9708-5e65f3a78f24",
+      "name": "AI — PLAN CONTENT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => {\n  const x = i.json;\n  const p = x.plan || {};\n  const plans = Array.isArray(p.plans) ? p.plans : [];\n\n  if (!x.project_id || !x.curation_run_id || !x.response_id) {\n    throw new Error('CONTENT_PLAN_WRITE_BLOCK: missing project/curation/response identity');\n  }\n  if (plans.length < 1 || plans.length > 4) {\n    throw new Error(`CONTENT_PLAN_WRITE_BLOCK: invalid plan count ${plans.length}`);\n  }\n\n  const seen = new Set();\n  for (const plan of plans) {\n    const key = String(plan.plan_key || '').trim();\n    if (!key || seen.has(key)) {\n      throw new Error(`CONTENT_PLAN_WRITE_BLOCK: invalid/duplicate plan_key ${key}`);\n    }\n    seen.add(key);\n\n    if (!Array.isArray(plan.media_ids) || plan.media_ids.length === 0) {\n      throw new Error(`CONTENT_PLAN_WRITE_BLOCK: no media for ${key}`);\n    }\n    if (!String(plan.template_id || '').trim()) {\n      throw new Error(`CONTENT_PLAN_WRITE_BLOCK: no template for ${key}`);\n    }\n  }\n\n  return {\n    json: {\n      project_id: x.project_id,\n      curation_run_id: x.curation_run_id,\n      provider: x.provider,\n      model: x.model,\n      response_id: x.response_id,\n      project_strategy: p.project_strategy || '',\n      confidence: Number(p.confidence || 0),\n      plans\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        100
+      ],
+      "id": "77751e78-d203-4400-a0b5-768e9372251e",
+      "name": "VALIDATE — CONTENT PLAN"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    ...i.json,\n    route_key: i.json.route_key || (i.json.no_work === true ? 'NO_WORK' : 'PLAN')\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        0
+      ],
+      "id": "d4f6e008-2c17-4e6b-abfe-4ae8c58c9f5a",
+      "name": "AUDIT — CONTENT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — BUILD CONTENT ROWS\n// Generates collision-free IDs against the existing 04_CONTEUDOS snapshot.\n// Human approval is ALWAYS PENDENTE.\n\nconst inputs = $input.all().map(i => i.json);\nconst existing = $('READ — EXISTING CONTENT').all().map(i => i.json);\nconst mediaRows = $('READ — CURATED MEDIA').all().map(i => i.json);\n\nconst PLAN_VERSION = 'SM3_CONTENT_PLAN_V1';\nconst now = new Date().toISOString();\n\nconst counters = {\n  REEL: 0,\n  CARROSSEL: 0,\n  POST: 0,\n  STORY: 0\n};\n\nfor (const r of existing) {\n  const id = String(r.ID_CONTEÚDO || '').trim().toUpperCase();\n  const m = id.match(/^(REEL|CARROSSEL|POST|STORY)_(\\d+)$/);\n  if (!m) continue;\n  counters[m[1]] = Math.max(counters[m[1]], Number(m[2]) || 0);\n}\n\nconst mediaById = new Map(\n  mediaRows\n    .filter(r => String(r.ID_MIDIA || '').trim())\n    .map(r => [String(r.ID_MIDIA).trim(), r])\n);\n\nfunction prefixFor(format) {\n  const f = String(format || '').trim().toUpperCase();\n  if (f === 'REEL') return 'REEL';\n  if (f === 'CARROSSEL') return 'CARROSSEL';\n  if (f === 'STORY') return 'STORY';\n  if (f === 'FOTO') return 'POST';\n  throw new Error(`CONTENT_PLAN_WRITE_BLOCK: unsupported format ${format}`);\n}\n\nfunction normalizePriority(v) {\n  const p = String(v || '').trim().toUpperCase();\n  if (p === 'MEDIA') return 'MÉDIA';\n  return ['ALTA','MÉDIA','BAIXA'].includes(p) ? p : 'MÉDIA';\n}\n\nfunction deriveSessions(mediaIds) {\n  const sessions = new Set();\n  for (const id of mediaIds) {\n    const r = mediaById.get(id) || {};\n    let s = String(r['SESSÃO'] || '').trim();\n    if (!s) {\n      const rel = String(r.RELATIVE_PATH || '').trim();\n      const m = rel.match(/(?:^|\\/)(S\\d{2,3})(?:\\/|$)/i);\n      if (m) s = m[1].toUpperCase();\n    }\n    if (s) sessions.add(s);\n  }\n  return [...sessions].sort().join(',');\n}\n\nconst out = [];\n\nfor (const x of inputs) {\n  const projectWrite = {\n    ID_PROJETO: x.project_id,\n    CONTENT_PLAN_STATUS: 'AI_PLANNED',\n    CONTENT_PLAN_VERSION: PLAN_VERSION,\n    CONTENT_PLAN_RUN_ID: x.response_id,\n    CONTENT_PLAN_CURATED_FROM: x.curation_run_id,\n    CONTENT_PLAN_AT: now,\n    CONTENT_PLAN_COUNT: x.plans.length,\n    CONTENT_PLAN_PROVIDER: x.provider || '',\n    CONTENT_PLAN_MODEL: x.model || ''\n  };\n\n  const rows = x.plans.map((p, index) => {\n    const prefix = prefixFor(p.format);\n    counters[prefix] += 1;\n    const id = `${prefix}_${String(counters[prefix]).padStart(4, '0')}`;\n\n    const mediaIds = (p.media_ids || []).map(String);\n    const platforms = Array.isArray(p.platforms) ? p.platforms.join(' + ') : '';\n\n    return {\n      ID_CONTEÚDO: id,\n      TÍTULO_INTERNO: p.title_internal || '',\n      ID_PROJETO: x.project_id,\n      FORMATO: p.format || '',\n      OBJETIVO: p.objective || '',\n      SESSÕES_ALVO: deriveSessions(mediaIds),\n      BRUTOS_USADOS: mediaIds.join('; '),\n      HOOK: p.hook || '',\n      ROTEIRO: p.script || '',\n      LEGENDA: p.caption || '',\n      CTA: p.cta || '',\n      CAPA: p.hero_media_id ? `${p.hero_media_id} — HERO do plano` : '',\n      STATUS_EDIÇÃO: 'IDEIA',\n      STATUS_APROVAÇÃO: 'PENDENTE',\n      PLATAFORMAS: platforms,\n      ARQUIVO_FINAL: '',\n      ID_CALENDÁRIO: '',\n      OBSERVAÇÕES:\n        `Gerado automaticamente pelo Projeto SM3. Requer aprovação humana antes de qualquer publicação. ` +\n        `Racional: ${String(p.rationale || '').trim()}`,\n      PRIORIDADE: normalizePriority(p.priority),\n      DEPENDÊNCIA: p.dependency || '',\n      ORDEM_EDITORIAL: index + 1,\n\n      PLAN_STATUS: 'AI_PLANNED',\n      PLAN_VERSION: PLAN_VERSION,\n      PLAN_KEY: p.plan_key || '',\n      PLAN_PROVIDER: x.provider || '',\n      PLAN_MODEL: x.model || '',\n      PLAN_RUN_ID: x.response_id,\n      PLAN_CONFIDENCE: x.confidence,\n      CURATION_RUN_ID: x.curation_run_id,\n      TEMPLATE_ID: p.template_id || '',\n      PROJECT_STRATEGY: x.project_strategy || '',\n      GENERATED_AT: now\n    };\n  });\n\n  out.push({\n    json: {\n      project_id: x.project_id,\n      content_rows: rows,\n      project_write: projectWrite\n    }\n  });\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        100
+      ],
+      "id": "5d36f1bd-aa2e-4a96-8ca6-c5697c958003",
+      "name": "BUILD — CONTENT WRITES"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  for (const row of (item.json.content_rows || [])) out.push({json: row});\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        20
+      ],
+      "id": "6db9a9b6-5880-4182-be23-9c049a2a8d5c",
+      "name": "EXPAND — CONTENT ROWS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json: i.json.project_write}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        180
+      ],
+      "id": "22595cf2-f6bc-4e81-8c27-555f0bc7079e",
+      "name": "EXPAND — PROJECT PLAN STATE"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TÍTULO_INTERNO",
+              "displayName": "TÍTULO_INTERNO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMATO",
+              "displayName": "FORMATO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBJETIVO",
+              "displayName": "OBJETIVO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÕES_ALVO",
+              "displayName": "SESSÕES_ALVO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BRUTOS_USADOS",
+              "displayName": "BRUTOS_USADOS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HOOK",
+              "displayName": "HOOK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROTEIRO",
+              "displayName": "ROTEIRO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LEGENDA",
+              "displayName": "LEGENDA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CTA",
+              "displayName": "CTA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPA",
+              "displayName": "CAPA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_EDIÇÃO",
+              "displayName": "STATUS_EDIÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_APROVAÇÃO",
+              "displayName": "STATUS_APROVAÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLATAFORMAS",
+              "displayName": "PLATAFORMAS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ARQUIVO_FINAL",
+              "displayName": "ARQUIVO_FINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_CALENDÁRIO",
+              "displayName": "ID_CALENDÁRIO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRIORIDADE",
+              "displayName": "PRIORIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEPENDÊNCIA",
+              "displayName": "DEPENDÊNCIA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ORDEM_EDITORIAL",
+              "displayName": "ORDEM_EDITORIAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_STATUS",
+              "displayName": "PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_VERSION",
+              "displayName": "PLAN_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_KEY",
+              "displayName": "PLAN_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_PROVIDER",
+              "displayName": "PLAN_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_MODEL",
+              "displayName": "PLAN_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_RUN_ID",
+              "displayName": "PLAN_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_CONFIDENCE",
+              "displayName": "PLAN_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEMPLATE_ID",
+              "displayName": "TEMPLATE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_STRATEGY",
+              "displayName": "PROJECT_STRATEGY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GENERATED_AT",
+              "displayName": "GENERATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2560,
+        20
+      ],
+      "id": "756b3025-2f40-46f4-9b7e-b16aa0694c3e",
+      "name": "APPEND — 04_CONTEUDOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_PROJETO": "={{ $json.ID_PROJETO }}",
+            "CONTENT_PLAN_STATUS": "={{ $json.CONTENT_PLAN_STATUS }}",
+            "CONTENT_PLAN_VERSION": "={{ $json.CONTENT_PLAN_VERSION }}",
+            "CONTENT_PLAN_RUN_ID": "={{ $json.CONTENT_PLAN_RUN_ID }}",
+            "CONTENT_PLAN_CURATED_FROM": "={{ $json.CONTENT_PLAN_CURATED_FROM }}",
+            "CONTENT_PLAN_AT": "={{ $json.CONTENT_PLAN_AT }}",
+            "CONTENT_PLAN_COUNT": "={{ $json.CONTENT_PLAN_COUNT }}",
+            "CONTENT_PLAN_PROVIDER": "={{ $json.CONTENT_PLAN_PROVIDER }}",
+            "CONTENT_PLAN_MODEL": "={{ $json.CONTENT_PLAN_MODEL }}"
+          },
+          "matchingColumns": [
+            "ID_PROJETO"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_STATUS",
+              "displayName": "CONTENT_PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_VERSION",
+              "displayName": "CONTENT_PLAN_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_RUN_ID",
+              "displayName": "CONTENT_PLAN_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_CURATED_FROM",
+              "displayName": "CONTENT_PLAN_CURATED_FROM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_AT",
+              "displayName": "CONTENT_PLAN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_COUNT",
+              "displayName": "CONTENT_PLAN_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_PROVIDER",
+              "displayName": "CONTENT_PLAN_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_MODEL",
+              "displayName": "CONTENT_PLAN_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2560,
+        180
+      ],
+      "id": "627158c7-6733-4fc8-8c00-f46c45781732",
+      "name": "UPDATE — 01_PROJETOS CONTENT PLAN",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'CONTENT_ROWS_WRITTEN',rows:$input.all().length,completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2780,
+        20
+      ],
+      "id": "83207e47-cfe5-4c02-b390-59e85ccc5062",
+      "name": "AUDIT — CONTENT ROWS WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'PROJECT_PLAN_STATE_WRITTEN',projects:$input.all().length,completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2780,
+        180
+      ],
+      "id": "e85da300-2add-4aaf-815c-d8dddc521826",
+      "name": "AUDIT — PROJECT PLAN STATE WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3000,
+        100
+      ],
+      "id": "da96d21c-544b-48fe-8795-8259e3615203",
+      "name": "MERGE — CONTENT PLAN WRITES COMPLETE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{\n  json:{\n    workflow:'PROJETO_SM3_04_CONTENT_PLAN',\n    status:'CONTENT_PLAN_WRITTEN',\n    message:'Plano de conteúdo persistido. Todos os itens permanecem com STATUS_APROVAÇÃO=PENDENTE.',\n    completed_at:new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3220,
+        100
+      ],
+      "id": "0a852338-f31f-4004-a43b-5f647cd2a5c2",
+      "name": "CONTENT PLAN — COMPLETE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:i.json.project_write}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        260
+      ],
+      "id": "37842c7c-679e-40be-bb8e-215caee23f9a",
+      "name": "REPAIR — PROJECT PLAN STATE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_PROJETO": "={{ $json.ID_PROJETO }}",
+            "CONTENT_PLAN_STATUS": "={{ $json.CONTENT_PLAN_STATUS }}",
+            "CONTENT_PLAN_VERSION": "={{ $json.CONTENT_PLAN_VERSION }}",
+            "CONTENT_PLAN_RUN_ID": "={{ $json.CONTENT_PLAN_RUN_ID }}",
+            "CONTENT_PLAN_CURATED_FROM": "={{ $json.CONTENT_PLAN_CURATED_FROM }}",
+            "CONTENT_PLAN_AT": "={{ $json.CONTENT_PLAN_AT }}",
+            "CONTENT_PLAN_COUNT": "={{ $json.CONTENT_PLAN_COUNT }}",
+            "CONTENT_PLAN_PROVIDER": "={{ $json.CONTENT_PLAN_PROVIDER }}",
+            "CONTENT_PLAN_MODEL": "={{ $json.CONTENT_PLAN_MODEL }}"
+          },
+          "matchingColumns": [
+            "ID_PROJETO"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_STATUS",
+              "displayName": "CONTENT_PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_VERSION",
+              "displayName": "CONTENT_PLAN_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_RUN_ID",
+              "displayName": "CONTENT_PLAN_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_CURATED_FROM",
+              "displayName": "CONTENT_PLAN_CURATED_FROM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_AT",
+              "displayName": "CONTENT_PLAN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_COUNT",
+              "displayName": "CONTENT_PLAN_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_PROVIDER",
+              "displayName": "CONTENT_PLAN_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_MODEL",
+              "displayName": "CONTENT_PLAN_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1900,
+        260
+      ],
+      "id": "e57e9597-5558-43ac-be3e-2be076a22307",
+      "name": "UPDATE — 01_PROJETOS PLAN REPAIR",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  workflow:'PROJETO_SM3_04_CONTENT_PLAN',\n  status:'PROJECT_STATE_REPAIRED',\n  message:'04_CONTEUDOS já continha o plano atual; apenas o estado de 01_PROJETOS foi reconciliado.',\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        260
+      ],
+      "id": "09cb2e45-74e1-4203-9c30-6a4fc6b8f874",
+      "name": "CONTENT PLAN — REPAIR COMPLETE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst statuses = items.map(x => x.status || x.route_key || '').filter(Boolean);\n\nlet finalStatus = 'CONTENT_PLAN_COMPLETE';\nif (statuses.includes('NO_CHANGES')) finalStatus = 'NO_CHANGES';\nif (statuses.includes('PROJECT_STATE_REPAIRED')) finalStatus = 'PROJECT_STATE_REPAIRED';\nif (statuses.includes('CONTENT_PLAN_WRITTEN')) finalStatus = 'CONTENT_PLAN_WRITTEN';\n\nreturn [{\n  json: {\n    workflow: 'PROJETO_SM3_04_CONTENT_PLAN',\n    status: finalStatus,\n    completed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        80
+      ],
+      "id": "17dadcbe-d39d-4fff-b2e2-5132205dc48b",
+      "name": "CONTENT PLAN — FINAL"
+    }
+  ],
+  "connections": {
+    "MANUAL — CONTENT PLAN": {
+      "main": [
+        [
+          {
+            "node": "READ — CURATED PROJECTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CURATED PROJECTS": {
+      "main": [
+        [
+          {
+            "node": "READ — CURATED MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CURATED MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — ACTIVE TEMPLATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — ACTIVE TEMPLATES": {
+      "main": [
+        [
+          {
+            "node": "READ — EXISTING CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — EXISTING CONTENT": {
+      "main": [
+        [
+          {
+            "node": "BUILD — CONTENT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — CONTENT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — CONTENT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — CONTENT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "NO WORK — CONTENT PLAN CURRENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI — PLAN CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "REPAIR — PROJECT PLAN STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — PLAN CONTENT": {
+      "main": [
+        [
+          {
+            "node": "VALIDATE — CONTENT PLAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — CONTENT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — CONTENT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VALIDATE — CONTENT PLAN": {
+      "main": [
+        [
+          {
+            "node": "BUILD — CONTENT WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — CONTENT WRITES": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — CONTENT ROWS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — PROJECT PLAN STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — CONTENT ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 04_CONTEUDOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "APPEND — 04_CONTEUDOS": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — CONTENT ROWS WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — CONTENT ROWS WRITE": {
+      "main": [
+        [
+          {
+            "node": "MERGE — CONTENT PLAN WRITES COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT PLAN STATE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 01_PROJETOS CONTENT PLAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 01_PROJETOS CONTENT PLAN": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PROJECT PLAN STATE WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — PROJECT PLAN STATE WRITE": {
+      "main": [
+        [
+          {
+            "node": "MERGE — CONTENT PLAN WRITES COMPLETE",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "MERGE — CONTENT PLAN WRITES COMPLETE": {
+      "main": [
+        [
+          {
+            "node": "CONTENT PLAN — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REPAIR — PROJECT PLAN STATE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 01_PROJETOS PLAN REPAIR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 01_PROJETOS PLAN REPAIR": {
+      "main": [
+        [
+          {
+            "node": "CONTENT PLAN — REPAIR COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NO WORK — CONTENT PLAN CURRENT": {
+      "main": [
+        [
+          {
+            "node": "CONTENT PLAN — FINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONTENT PLAN — COMPLETE": {
+      "main": [
+        [
+          {
+            "node": "CONTENT PLAN — FINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONTENT PLAN — REPAIR COMPLETE": {
+      "main": [
+        [
+          {
+            "node": "CONTENT PLAN — FINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

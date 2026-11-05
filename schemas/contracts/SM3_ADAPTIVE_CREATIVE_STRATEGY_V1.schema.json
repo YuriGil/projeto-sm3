@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_ADAPTIVE_CREATIVE_STRATEGY_V1",
+  "title": "SM3 Adaptive Creative Strategy V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "strategy_id",
+    "generated_at",
+    "status",
+    "context_sha256",
+    "hypotheses",
+    "selection",
+    "guards"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_ADAPTIVE_CREATIVE_STRATEGY_V1"
+    },
+    "strategy_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "READY",
+        "INSUFFICIENT_EVIDENCE",
+        "NO_FEASIBLE_DIRECTION"
+      ]
+    },
+    "context_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "$ref": "SM3_CREATIVE_DIRECTION_HYPOTHESIS_V1.schema.json"
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "evidence_summary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "platform_models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "guards": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "next_stage": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,403 @@
+{
+  "name": "PROJETO SM3 — 04 — CONTENT PLAN — v1.2 EXPLICIT ROUTE FIX",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2ff9f4df-6a2b-458d-84f3-619655c254f0",
+      "name": "MANUAL — CONTENT PLAN"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "fe16208b-0ada-414c-b554-c6e9bbc2f890",
+      "name": "READ — CURATED PROJECTS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        0
+      ],
+      "id": "3a528b2b-f190-467d-a501-d6857f6647be",
+      "name": "READ — CURATED MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1648364747,
+          "mode": "list",
+          "cachedResultName": "10_TEMPLATES"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        660,
+        0
+      ],
+      "id": "e04ec227-f3e2-4cff-9591-041b184c0daa",
+      "name": "READ — ACTIVE TEMPLATES",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "id": "00fec41c-1e6d-4963-b1ef-92aaf48af3ee",
+      "name": "READ — EXISTING CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — CONTENT PLAN QUEUE v1.1\n// Fix: existing rows in 04_CONTEUDOS are informational only in this dry-run.\n// Eligibility is determined by the CURRENT project curation state.\n// This avoids falsely blocking a newly curated project.\n\nconst projects = $('READ — CURATED PROJECTS').all().map(i => i.json);\nconst mediaRows = $('READ — CURATED MEDIA').all().map(i => i.json);\nconst templates = $('READ — ACTIVE TEMPLATES').all().map(i => i.json);\nconst contentRows = $input.all().map(i => i.json);\n\nconst activeTemplates = templates\n  .filter(t => String(t.STATUS || '').trim().toUpperCase() === 'ATIVO')\n  .map(t => ({\n    template_id: t.ID_TEMPLATE,\n    name: t.NOME,\n    format: t.FORMATO,\n    dimension: t.DIMENSAO || '',\n    media_zone: t.ZONA_MIDIA || '',\n    text_zone: t.ZONA_TEXTO || '',\n    signature: t.ASSINATURA || '',\n    crop_rule: t.REGRA_CROP || '',\n    text_rule: t.REGRA_TEXTO || ''\n  }));\n\nconst audit = [];\nconst out = [];\n\nfor (const p of projects) {\n  const pid = String(p.ID_PROJETO || '').trim();\n  if (!pid) continue;\n\n  const reasons = [];\n  const storage = String(p.STORAGE_STATUS || '').trim().toUpperCase();\n  const curationStatus = String(p.CURATION_STATUS || '').trim().toUpperCase();\n  const curationRun = String(p.CURATION_RUN_ID || '').trim();\n\n  if (storage !== 'ONLINE') reasons.push(`STORAGE_STATUS=${storage || 'EMPTY'}`);\n  if (curationStatus !== 'AI_CURATED') reasons.push(`CURATION_STATUS=${curationStatus || 'EMPTY'}`);\n  if (!curationRun) reasons.push('CURATION_RUN_ID=EMPTY');\n\n  const curated = mediaRows\n    .filter(m =>\n      String(m.ID_PROJETO || '').trim() === pid &&\n      String(m.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE' &&\n      String(m.CURATION_STATUS || '').trim().toUpperCase() === 'AI_CURATED' &&\n      String(m.CURATION_ROLE || '').trim().toUpperCase() !== 'DISCARD'\n    )\n    .map(m => {\n      const type = String(m.TIPO || '').toUpperCase();\n      const kind = type.includes('VÍDEO') || type.includes('VIDEO')\n        ? 'video'\n        : 'image';\n\n      return {\n        media_id: m.ID_MIDIA,\n        kind,\n        curation_role: m.CURATION_ROLE || '',\n        curation_rank: Number(m.CURATION_RANK || 0) || null,\n        stage: m.ANALYSIS_STAGE || '',\n        shot_type: m.SHOT_TYPE || '',\n        visual_summary: m['CONTEÚDO_VISUAL'] || '',\n        recommended_use: m.USAR_EM || '',\n        best_moment: m.MELHOR_TRECHO || ''\n      };\n    })\n    .sort((a, b) => (a.curation_rank || 999) - (b.curation_rank || 999));\n\n  if (curated.length === 0) reasons.push('NO_NON_DISCARD_CURATED_MEDIA');\n\n  const existingContentCount = contentRows.filter(\n    r => String(r.ID_PROJETO || '').trim() === pid\n  ).length;\n\n  audit.push({\n    project_id: pid,\n    storage_status: storage,\n    curation_status: curationStatus,\n    curation_run_id_present: Boolean(curationRun),\n    curated_media_count: curated.length,\n    existing_content_count: existingContentCount,\n    eligible: reasons.length === 0,\n    exclusion_reasons: reasons\n  });\n\n  if (reasons.length > 0) continue;\n\n  out.push({\n    json: {\n      no_work: false,\n      project_id: pid,\n      curation_run_id: curationRun,\n      hero_id: p.CURATION_HERO_ID || '',\n      narrative: p.CURATION_NARRATIVE || '',\n      carousel_order: String(p.CURATION_CAROUSEL_ORDER || '')\n        .split(',')\n        .map(x => x.trim())\n        .filter(Boolean),\n      reel_candidate_ids: String(p.CURATION_REEL_IDS || '')\n        .split(',')\n        .map(x => x.trim())\n        .filter(Boolean),\n      media: curated,\n      templates: activeTemplates,\n      existing_content_count: existingContentCount,\n      eligibility_audit: audit,\n      context:\n        'Planejar conteúdo social sem publicar/agendar. Manter aprovação humana obrigatória antes de qualquer publicação.'\n    }\n  });\n}\n\nif (out.length === 0) {\n  return [{\n    json: {\n      no_work: true,\n      status: 'NO_ELIGIBLE_PROJECT',\n      message: 'Nenhum projeto passou pelos critérios de planejamento.',\n      eligibility_audit: audit,\n      checked_at: new Date().toISOString()\n    }\n  }];\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "c1be2b68-576d-4076-8e1c-f78fc98da1c3",
+      "name": "BUILD — CONTENT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ae175742-865d-4195-937c-5f094c8a3023"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "PLAN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e491363c-6060-4cd3-ab83-43a3bd1a9513"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PLAN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1460,
+        0
+      ],
+      "id": "e4b5f793-3e04-4874-808a-831f6a02d27c",
+      "name": "ROUTE — CONTENT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    ...i.json,\n    completed: true,\n    hint: 'Veja eligibility_audit para saber exatamente por que cada projeto foi excluído.'\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -100
+      ],
+      "id": "625d50fe-4b22-462b-bed0-0fb1b2a9766f",
+      "name": "NO WORK — CONTENT PLAN CURRENT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/plan-content",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,curation_run_id:$json.curation_run_id,hero_id:$json.hero_id,narrative:$json.narrative,carousel_order:$json.carousel_order,reel_candidate_ids:$json.reel_candidate_ids,media:$json.media,templates:$json.templates,context:$json.context} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1680,
+        100
+      ],
+      "id": "acf0d6ab-0768-4223-9708-5e65f3a78f24",
+      "name": "AI — PLAN CONTENT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => {\n  const x = i.json;\n  const p = x.plan || {};\n  return {\n    json: {\n      dry_run: true,\n      project_id: x.project_id,\n      curation_run_id: x.curation_run_id,\n      provider: x.provider,\n      model: x.model,\n      response_id: x.response_id,\n      project_strategy: p.project_strategy || '',\n      confidence: p.confidence,\n      plans: p.plans || [],\n      plan_count: Array.isArray(p.plans) ? p.plans.length : 0\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        100
+      ],
+      "id": "77751e78-d203-4400-a0b5-768e9372251e",
+      "name": "AUDIT — CONTENT PLAN"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => {\n  const x = i.json;\n  return {\n    json: {\n      ...x,\n      route_key: x.no_work === true ? 'NO_WORK' : 'PLAN'\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        0
+      ],
+      "id": "d4f6e008-2c17-4e6b-abfe-4ae8c58c9f5a",
+      "name": "AUDIT — CONTENT PLAN QUEUE"
+    }
+  ],
+  "connections": {
+    "MANUAL — CONTENT PLAN": {
+      "main": [
+        [
+          {
+            "node": "READ — CURATED PROJECTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CURATED PROJECTS": {
+      "main": [
+        [
+          {
+            "node": "READ — CURATED MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CURATED MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — ACTIVE TEMPLATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — ACTIVE TEMPLATES": {
+      "main": [
+        [
+          {
+            "node": "READ — EXISTING CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — EXISTING CONTENT": {
+      "main": [
+        [
+          {
+            "node": "BUILD — CONTENT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — CONTENT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — CONTENT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — CONTENT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "NO WORK — CONTENT PLAN CURRENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI — PLAN CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — PLAN CONTENT": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — CONTENT PLAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — CONTENT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — CONTENT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

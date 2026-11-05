@@ -1,0 +1,1450 @@
+{
+  "name": "PROJETO SM3 — 08F — ART DIRECTION VARIANT LAB — v1.1 IDEMPOTENCY FIX",
+  "nodes": [
+    {
+      "name": "MANUAL — RENDER EDIT PREVIEWS",
+      "id": "a914101b-fca3-4329-b129-25a80ab52132",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        -1600,
+        0
+      ],
+      "parameters": {},
+      "typeVersion": 1
+    },
+    {
+      "name": "WORKER — HEALTH 2.14.1",
+      "id": "ef640820-21b6-4d3b-b5f9-ebcbd0d2c6dc",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1400,
+        0
+      ],
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        },
+        "jsCode": ""
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — EDIT PREVIEW CONTRACT",
+      "id": "c284eec6-7026-4fc7-bf5c-af6bc88c553a",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h=$json;\nif(h.ok!==true||h.version!=='2.14.1'||h.art_direction_variant_lab!==true||\n h.art_direction_variant_contract!=='SM3_ART_DIRECTION_VARIANT_SET_V1'||h.art_direction_grammar_version!=='SM3_ART_DIRECTION_GRAMMAR_V1'||\n h.art_direction_variant_renderer_version!=='2.14.0'||h.art_direction_review_contract!=='SM3_ART_DIRECTION_REVIEW_V1'||\n Number(h.art_direction_variant_count)!==3||h.art_direction_no_auto_publish!==true||h.art_direction_no_new_edit_revision!==true||h.art_direction_review_idempotency_stable!==true||\n h.publication_artifact_contract!=='SM3_PUBLICATION_ARTIFACT_V1'||h.publication_artifact_renderer_version!=='2.13.1'||\n h.semantic_geometry_contract!=='SM3_SEMANTIC_GEOMETRY_V1'||h.learning_router_contract!=='SM3_LEARNING_ROUTER_V1'||h.direction_profile_contract!=='SM3_DIRECTION_PROFILE_V1')\n throw new Error('SM3_08F_WORKER_CONTRACT_INVALID');\nreturn {json:{status:'WORKER_2_14_1_ART_DIRECTION_VERIFIED'}};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "276ecfa8-5452-4dbc-a9e8-29f7c95fd367",
+      "name": "READ — 04_CONTEUDOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "22c88bd9-9651-4766-ad94-c5102b046752",
+      "name": "READ — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "name": "BUILD — EDIT SOURCE QUEUE",
+      "id": "9c07b501-4856-4a00-a9b9-c8c4bf2ea7c5",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst contents=$('READ — 04_CONTEUDOS').all().map(i=>i.json), media=$('READ — 03_MIDIAS').all().map(i=>i.json);\nconst norm=x=>String(x??'').trim(), up=x=>norm(x).toUpperCase();\nconst counts=new Map(), mediaCounts=new Map();\nfor(const c of contents){const k=norm(c.ID_CONTEÚDO);if(k)counts.set(k,(counts.get(k)||0)+1)}\nfor(const m of media){const k=norm(m.ID_MIDIA);if(k)mediaCounts.set(k,(mediaCounts.get(k)||0)+1)}\nconst chosen=contents.filter(c=>up(c.EDIT_SESSION_STATUS)==='SAVED'&&up(c.REVISION_MODE)==='MANUAL_EDIT'\n    &&up(c.PIPELINE_STATE)==='EDIT_SESSION_READY');\nconst gated=$('ASSERT — RENDER READINESS').all().map(i=>i.json),approved=new Set(gated.map(x=>x.edit_session_id));\nif(!chosen.length||gated.length!==chosen.length||approved.size!==chosen.length||\n   chosen.some(c=>!approved.has(norm(c.EDIT_SESSION_ID))||\n      !gated.some(g=>g.edit_session_id===norm(c.EDIT_SESSION_ID)&&\n        g.preflight_contract==='SM3_07F_PREFLIGHT_V2')))\n  throw new Error('SM3_07F_PREFLIGHT_BYPASS_OR_STATE_CHANGED');\nconst queue=new Map();\nfor(const c of chosen){\n  const content=norm(c.ID_CONTEÚDO),project=norm(c.ID_PROJETO),session=norm(c.EDIT_SESSION_ID);\n  if(counts.get(content)!==1||!/^TATTOO_[A-Za-z0-9_-]+$/.test(project)||\n     !/^ES_[A-Za-z0-9_-]+$/.test(session)||up(c.STATE_VERSION)!=='SM3_STATE_V5'||\n     norm(c.EDIT_RECIPE_VERSION)!=='SM3_EDIT_RECIPE_V1'||\n     norm(c.PRODUCTION_CONTRACT_VERSION)!=='SM3_PRODUCTION_EDIT_V1')\n     throw new Error('SM3_07F_SHEET_CONTROL_INVALID:'+content);\n  const ids=[...new Set(norm(c.BRUTOS_USADOS).match(/M\\d{4,}/g)||[])];\n  if(!ids.length)throw new Error('SM3_07F_MEDIA_IDS_MISSING:'+content);\n  for(const id of ids){\n    if(mediaCounts.get(id)!==1)throw new Error('SM3_07F_MEDIA_REGISTRY_NOT_UNIQUE:'+id);\n    const m=media.find(x=>norm(x.ID_MIDIA)===id);\n    if(!norm(m.DRIVE_FILE_ID))throw new Error('SM3_07F_DRIVE_ID_MISSING:'+id);\n    const safe=norm(m.ARQUIVO||id+'.bin').replace(/[^A-Za-z0-9._-]+/g,'_').slice(-100);\n    const tipo=norm(m.TIPO).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();\n    const mime=norm(m.MIME_TYPE).toLowerCase(),ext=(safe.toLowerCase().match(/\\.([a-z0-9]+)$/)||[])[1];\n    const video=['mp4','mov','m4v','avi','mkv','webm','3gp','mts','mpeg','mpg','wmv','flv','ts'].includes(ext);\n    const image=['jpg','jpeg','png','webp','bmp','tif','tiff','heic','heif','avif','gif'].includes(ext);\n    if(!(video||image||mime.startsWith('video/')||mime.startsWith('image/')))\n       throw new Error('SM3_07F_MEDIA_TYPE_UNSUPPORTED:'+id);\n    const kind=(video||mime.startsWith('video/')||tipo==='VIDEO')?'video':'image';\n    const path='/data/media/inbox/edit_'+id+'_'+safe;\n    if(!queue.has(id))queue.set(id,{route:'DOWNLOAD',ID_MIDIA:id,DRIVE_FILE_ID:norm(m.DRIVE_FILE_ID),\n                                      ARQUIVO:norm(m.ARQUIVO||safe),kind,worker_source_path:path});\n  }\n}\nreturn [...queue.values()].map(json=>({json}));\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "ROUTE — SOURCE QUEUE",
+      "id": "4511b027-9150-45d2-9304-f6ea54bee4e5",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1400,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DOWNLOAD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "be942650-773a-4a0c-b230-594b60370f22"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DOWNLOAD"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a1181d11-d124-4baa-b52b-868311b54e5f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "name": "DOWNLOAD — ORIGINAL MEDIA",
+      "id": "0ef9bb53-afe5-4de6-81ae-b2d848969a6d",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        1600,
+        -160
+      ],
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "WRITE — ORIGINAL MEDIA TEMP",
+      "id": "5e33d3bb-2c3c-43f1-8a19-a7aab8896838",
+      "type": "n8n-nodes-base.readWriteFile",
+      "position": [
+        1800,
+        -160
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "typeVersion": 1.1,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "BUILD — EDIT PREVIEW JOBS",
+      "id": "566b83dd-d978-4622-b128-163bce5527af",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2000,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst written=$input.all().map(i=>i.json),contents=$('READ — 04_CONTEUDOS').all().map(i=>i.json),\n  map=new Map(written.map(x=>[String(x.ID_MIDIA),x])), registry=$('READ — 03_MIDIAS').all().map(i=>i.json);\nconst norm=x=>String(x??'').trim();\nconst chosen=contents.filter(c=>norm(c.EDIT_SESSION_STATUS).toUpperCase()==='SAVED'&&norm(c.REVISION_MODE).toUpperCase()==='MANUAL_EDIT'&&norm(c.PIPELINE_STATE).toUpperCase()==='EDIT_SESSION_READY');\nconst parse=x=>{try{return JSON.parse(norm(x)||'{}')}catch{return {}}};\nconst representative=m=>{\n  const sampling=parse(m.SAMPLING_DETAILS_JSON); const frames=Array.isArray(sampling.selected_frames)?sampling.selected_frames:[];\n  const scored=frames.filter(f=>Number.isFinite(Number(f.time_seconds))).sort((a,b)=>Number(b.selection_score||0)-Number(a.selection_score||0));\n  if(scored.length)return Number(scored[0].time_seconds);\n  const tech=parse(m.TECHNICAL_METADATA_JSON); const d=Number(tech.duration_seconds);\n  return Number.isFinite(d)&&d>0?d/2:0;\n};\nreturn chosen.map(c=>{\n  const ids=[...new Set(norm(c.BRUTOS_USADOS).match(/M\\d{4,}/g)||[])];\n  const sources=ids.map(id=>map.get(id)); if(!ids.length||sources.some(x=>!x))throw new Error('SM3_08F_SOURCE_WRITE_INCOMPLETE:'+c.ID_CONTEÚDO);\n  return {json:{project_id:norm(c.ID_PROJETO),content_id:norm(c.ID_CONTEÚDO),edit_session_id:norm(c.EDIT_SESSION_ID),\n    editorial_context:{title:norm(c.TÍTULO_INTERNO),objective:norm(c.OBJETIVO),hook:norm(c.HOOK),caption:norm(c.LEGENDA),cta:norm(c.CTA),platforms:norm(c.PLATAFORMAS),notes:norm(c.OBSERVAÇÕES)},\n    source_media:sources.map(x=>{\n      const rows=registry.filter(m=>norm(m.ID_MIDIA)===norm(x.ID_MIDIA)); const m=rows[0];\n      const expected_sha256=norm(m?.CONTENT_HASH).toLowerCase();\n      if(rows.length!==1||!(/^[a-f0-9]{64}$/.test(expected_sha256)))throw new Error('SM3_08F_SOURCE_HASH_PROVENANCE_INVALID:'+x.ID_MIDIA);\n      const meta={focal_description:norm(m.FOCAL_DESCRIPTION),focus_point_norm:parse(m.FOCUS_POINT_NORM),structural_crop_guidance:parse(m.CROP_GUIDANCE_JSON),format_fit:parse(m.FORMAT_FIT_JSON)};\n      return {media_id:x.ID_MIDIA,kind:x.kind,source_path:x.worker_source_path,file_name:x.ARQUIVO,expected_sha256,\n              representative_frame_seconds:x.kind==='video'?representative(m):null,source_metadata:meta};\n    })}};\n});\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "WORKER — GET SAVED WORKSPACE",
+      "id": "a99f2b3e-d6e1-47e8-be67-d5165d53f0d0",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2200,
+        -160
+      ],
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/editor-workspace/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — REVISION AND SOURCES",
+      "id": "85094dc0-e40a-4858-afe2-ea7cdc36e4ac",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const w=$json, job=$('BUILD — EDIT PREVIEW JOBS').all().map(i=>i.json).find(x=>x.edit_session_id===w.edit_session_id);\nif(!job||w.ok!==true||w.status!=='SAVED'||w.current_revision<2||w.read_only!==false||w.workspace_contract_version!=='SM3_EDITOR_WORKSPACE_V1'||\n   !/^[a-f0-9]{64}$/.test(String(w.state_etag||''))||w.project_id!==job.project_id||w.content_id!==job.content_id||w.preview?.verified!==true)\n   throw new Error('SM3_08F_WORKSPACE_REVISION_INVALID:'+String(w.edit_session_id));\nconst gated=$('ASSERT — RENDER READINESS').all().map(i=>i.json).find(i=>i.edit_session_id===w.edit_session_id);\nif(!gated||gated.preflight_contract!=='SM3_07F_PREFLIGHT_V2'||gated.verified_revision!==w.current_revision||gated.verified_state_etag!==w.state_etag)\n  throw new Error('SM3_08F_PREFLIGHT_STATE_CHANGED:'+w.content_id);\nconst required=new Set(w.recipe?.media_order||[]), sources=job.source_media.filter(x=>required.has(x.media_id));\nif(!required.size||required.size!==sources.length||new Set(sources.map(x=>x.media_id)).size!==required.size)throw new Error('SM3_08F_RECIPE_SOURCE_MISMATCH:'+w.content_id);\nconst requested=['logo','stamp','texture','frame'].filter(k=>w.recipe?.identity_application?.[k]===true);\nconst identity_assets=(gated.identity_assets||[]).map(x=>({asset_id:x.asset_id,role:x.role,source_path:x.source_path,file_name:x.file_name,expected_sha256:x.expected_sha256,mime_type:x.mime_type}));\nif(identity_assets.length!==requested.length||new Set(identity_assets.map(x=>x.role)).size!==requested.length||requested.some(role=>!identity_assets.some(x=>x.role===role)))\n  throw new Error('SM3_08F_IDENTITY_BINDING_SET_CHANGED:'+w.content_id);\nreturn {json:{...job,source_media:sources,identity_assets,expected_revision:w.current_revision,expected_state_etag:w.state_etag,jpeg_quality:95,variant_keys:['PHOTO_DOMINANT','EDITORIAL_MOLOTOV','RAW_ARCHIVE']}};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "WORKER — RENDER ART DIRECTION VARIANTS",
+      "id": "50d73251-db44-4ace-b5a4-0bccf64a7f1f",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2600,
+        -160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/art-direction-variant-lab/render",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,content_id:$json.content_id,edit_session_id:$json.edit_session_id,expected_revision:$json.expected_revision,expected_state_etag:$json.expected_state_etag,source_media:$json.source_media,identity_assets:$json.identity_assets,variant_keys:$json.variant_keys,jpeg_quality:$json.jpeg_quality} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "ASSERT — VARIANT SET RESULT",
+      "id": "e91737f5-f58b-487f-8083-64146000e230",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2800,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m=$json,job=$('ASSERT — REVISION AND SOURCES').all().map(i=>i.json).find(x=>x.edit_session_id===m.edit_session_id);\nconst keys=['PHOTO_DOMINANT','EDITORIAL_MOLOTOV','RAW_ARCHIVE'];\nif(!job||m.ok!==true||m.contract_version!=='SM3_ART_DIRECTION_VARIANT_SET_V1'||m.renderer_version!=='2.14.0'||m.grammar_version!=='SM3_ART_DIRECTION_GRAMMAR_V1'||\n m.project_id!==job.project_id||m.content_id!==job.content_id||m.revision!==job.expected_revision||m.state_etag!==job.expected_state_etag||m.human_review_required!==true||m.auto_publish_allowed!==false||m.no_new_edit_revision!==true||\n !/^[a-f0-9]{64}$/.test(String(m.set_sha256||''))||!Array.isArray(m.variant_keys)||JSON.stringify(m.variant_keys)!==JSON.stringify(keys)||!Array.isArray(m.variants)||m.variants.length!==3||!Array.isArray(m.learning_evidence)||m.learning_evidence.length<1||!Array.isArray(m.grammar?.learning_adaptations)||m.grammar.learning_adaptations.length<1)\n throw new Error('SM3_08F_VARIANT_SET_INVALID:'+String(m.edit_session_id));\nfor(const v of m.variants){if(!keys.includes(v.variant_key)||!Array.isArray(v.assets)||v.assets.length!==3)throw new Error('SM3_08F_VARIANT_INVALID:'+String(v.variant_key)); for(const a of v.assets){if(!/^[a-f0-9]{64}$/.test(String(a.sha256||''))||Number(a.bytes)<1000||Number(a.width)!==1080||Number(a.height)!==1350||!String(a.asset_url||'').includes('/asset/'))throw new Error('SM3_08F_VARIANT_ASSET_INVALID:'+String(a.asset_id));}}\nif(!/^[a-f0-9]{64}$/.test(String(m.review_asset?.sha256||''))||!String(m.review_asset?.asset_url||'').endsWith('/review'))throw new Error('SM3_08F_VARIANT_REVIEW_INVALID');\nreturn {json:{project_id:m.project_id,content_id:m.content_id,edit_session_id:m.edit_session_id,revision:m.revision,state_etag:m.state_etag,variant_set_id:m.variant_set_id,set_sha256:m.set_sha256,editorial_plan_id:m.editorial_plan_id,editorial_plan_sha256:m.editorial_plan_sha256}};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "WORKER — VERIFY VARIANT SET",
+      "id": "b9c87129-b82a-49ff-bec5-b1676e6e2d4c",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3000,
+        -160
+      ],
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/art-direction-variant-lab/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) + '/' + $json.revision + '/' + encodeURIComponent($json.variant_set_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — VARIANT SET COMMITTED",
+      "id": "cc04730c-8252-4a8f-aa74-e5034b562fc7",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3200,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const v=$json,orig=$('ASSERT — VARIANT SET RESULT').all().map(i=>i.json).find(x=>x.edit_session_id===v.edit_session_id);\nif(!orig||v.ok!==true||v.contract_version!=='SM3_ART_DIRECTION_VARIANT_SET_V1'||v.renderer_version!=='2.14.0'||v.grammar_version!=='SM3_ART_DIRECTION_GRAMMAR_V1'||v.variant_set_id!==orig.variant_set_id||v.set_sha256!==orig.set_sha256||v.state_etag!==orig.state_etag||v.revision!==orig.revision)throw new Error('SM3_08F_VARIANT_PERSISTENCE_MISMATCH');\nconst row={VARIANT_SET_ID:v.variant_set_id,PROJECT_ID:v.project_id,CONTENT_ID:v.content_id,EDIT_SESSION_ID:v.edit_session_id,REVISION:v.revision,STATE_ETAG:v.state_etag,CONTRACT_VERSION:v.contract_version,RENDERER_VERSION:v.renderer_version,EDITORIAL_PLAN_ID:v.editorial_plan_id,EDITORIAL_PLAN_SHA256:v.editorial_plan_sha256,DIRECTION_PROFILE_ID:v.direction_profile_id,ART_DIRECTION_GRAMMAR_VERSION:v.grammar_version,VARIANT_KEYS_JSON:JSON.stringify(v.variant_keys||[]),VARIANTS_JSON:JSON.stringify(v.variants||[]),CONTACT_SHEET_JSON:JSON.stringify(v.review_asset||{}),SOURCE_HASHES_JSON:JSON.stringify(v.source_hashes||{}),GEOMETRY_HASHES_JSON:JSON.stringify(v.geometry_record_hashes||{}),IDENTITY_ASSETS_JSON:JSON.stringify(v.identity_assets||[]),LEARNING_EVIDENCE_JSON:JSON.stringify(v.learning_evidence||[]),SET_SHA256:v.set_sha256,STATUS:'VERIFIED_VARIANT_SET',CREATED_AT:v.created_at,SYNCED_AT:new Date().toISOString(),NOTES:'08F non-publishing art-direction hypotheses; human comparison required.',HUMAN_REVIEW_REQUIRED:'TRUE',SELECTED_VARIANT_KEY:''};\nreturn {json:{variantRow:row,variants:v.variants,review_asset:v.review_asset}};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "ROUTE — SHEET COMMIT",
+      "id": "8d65d625-1b01-46ee-baa1-96e0f70e6143",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        3400,
+        -160
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "08f-route",
+                    "leftValue": "={{ $json.variantRow.VARIANT_SET_ID }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "COMMIT"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "AUDIT"
+        }
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000011,
+          "mode": "list",
+          "cachedResultName": "29_ART_DIRECTION_VARIANTS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "VARIANT_SET_ID": "={{ $json.variantRow.VARIANT_SET_ID }}",
+            "PROJECT_ID": "={{ $json.variantRow.PROJECT_ID }}",
+            "CONTENT_ID": "={{ $json.variantRow.CONTENT_ID }}",
+            "EDIT_SESSION_ID": "={{ $json.variantRow.EDIT_SESSION_ID }}",
+            "REVISION": "={{ $json.variantRow.REVISION }}",
+            "STATE_ETAG": "={{ $json.variantRow.STATE_ETAG }}",
+            "CONTRACT_VERSION": "={{ $json.variantRow.CONTRACT_VERSION }}",
+            "RENDERER_VERSION": "={{ $json.variantRow.RENDERER_VERSION }}",
+            "EDITORIAL_PLAN_ID": "={{ $json.variantRow.EDITORIAL_PLAN_ID }}",
+            "EDITORIAL_PLAN_SHA256": "={{ $json.variantRow.EDITORIAL_PLAN_SHA256 }}",
+            "DIRECTION_PROFILE_ID": "={{ $json.variantRow.DIRECTION_PROFILE_ID }}",
+            "ART_DIRECTION_GRAMMAR_VERSION": "={{ $json.variantRow.ART_DIRECTION_GRAMMAR_VERSION }}",
+            "VARIANT_KEYS_JSON": "={{ $json.variantRow.VARIANT_KEYS_JSON }}",
+            "VARIANTS_JSON": "={{ $json.variantRow.VARIANTS_JSON }}",
+            "CONTACT_SHEET_JSON": "={{ $json.variantRow.CONTACT_SHEET_JSON }}",
+            "SOURCE_HASHES_JSON": "={{ $json.variantRow.SOURCE_HASHES_JSON }}",
+            "GEOMETRY_HASHES_JSON": "={{ $json.variantRow.GEOMETRY_HASHES_JSON }}",
+            "IDENTITY_ASSETS_JSON": "={{ $json.variantRow.IDENTITY_ASSETS_JSON }}",
+            "LEARNING_EVIDENCE_JSON": "={{ $json.variantRow.LEARNING_EVIDENCE_JSON }}",
+            "SET_SHA256": "={{ $json.variantRow.SET_SHA256 }}",
+            "STATUS": "={{ $json.variantRow.STATUS }}",
+            "CREATED_AT": "={{ $json.variantRow.CREATED_AT }}",
+            "SYNCED_AT": "={{ $json.variantRow.SYNCED_AT }}",
+            "NOTES": "={{ $json.variantRow.NOTES }}",
+            "HUMAN_REVIEW_REQUIRED": "={{ $json.variantRow.HUMAN_REVIEW_REQUIRED }}",
+            "SELECTED_VARIANT_KEY": "={{ $json.variantRow.SELECTED_VARIANT_KEY }}"
+          },
+          "matchingColumns": [
+            "VARIANT_SET_ID"
+          ],
+          "schema": [
+            {
+              "id": "VARIANT_SET_ID",
+              "displayName": "VARIANT_SET_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_ID",
+              "displayName": "PROJECT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_ID",
+              "displayName": "CONTENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDIT_SESSION_ID",
+              "displayName": "EDIT_SESSION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION",
+              "displayName": "REVISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_ETAG",
+              "displayName": "STATE_ETAG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTRACT_VERSION",
+              "displayName": "CONTRACT_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDERER_VERSION",
+              "displayName": "RENDERER_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_PLAN_ID",
+              "displayName": "EDITORIAL_PLAN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_PLAN_SHA256",
+              "displayName": "EDITORIAL_PLAN_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DIRECTION_PROFILE_ID",
+              "displayName": "DIRECTION_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ART_DIRECTION_GRAMMAR_VERSION",
+              "displayName": "ART_DIRECTION_GRAMMAR_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VARIANT_KEYS_JSON",
+              "displayName": "VARIANT_KEYS_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VARIANTS_JSON",
+              "displayName": "VARIANTS_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTACT_SHEET_JSON",
+              "displayName": "CONTACT_SHEET_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SOURCE_HASHES_JSON",
+              "displayName": "SOURCE_HASHES_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_HASHES_JSON",
+              "displayName": "GEOMETRY_HASHES_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "IDENTITY_ASSETS_JSON",
+              "displayName": "IDENTITY_ASSETS_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LEARNING_EVIDENCE_JSON",
+              "displayName": "LEARNING_EVIDENCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SET_SHA256",
+              "displayName": "SET_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNCED_AT",
+              "displayName": "SYNCED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HUMAN_REVIEW_REQUIRED",
+              "displayName": "HUMAN_REVIEW_REQUIRED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SELECTED_VARIANT_KEY",
+              "displayName": "SELECTED_VARIANT_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3600,
+        -300
+      ],
+      "id": "588a39b3-a84f-467c-a15c-ee8679d86ef2",
+      "name": "UPSERT — 29_ART_DIRECTION_VARIANTS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000011,
+          "mode": "list",
+          "cachedResultName": "29_ART_DIRECTION_VARIANTS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3800,
+        -300
+      ],
+      "id": "c80e3ea7-7978-4030-88e9-6c1f2a231c1e",
+      "name": "VERIFY READ — 29_ART_DIRECTION_VARIANTS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "name": "ASSERT — ART DIRECTION SHEET COMMITTED",
+      "id": "f2f7985d-2578-423e-9c6a-2d32be5aa9b0",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4000,
+        -300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows=$input.all().map(i=>i.json),item=$('ASSERT — VARIANT SET COMMITTED').first().json,r=item.variantRow; const m=rows.filter(x=>String(x.VARIANT_SET_ID||'')===r.VARIANT_SET_ID); if(m.length!==1||String(m[0].SET_SHA256||'')!==r.SET_SHA256||String(m[0].STATUS||'')!=='VERIFIED_VARIANT_SET')throw new Error('SM3_08F_VARIANT_SHEET_FAILED:'+r.VARIANT_SET_ID); return [{json:{status:'SM3_08F_ART_DIRECTION_VARIANT_LAB_COMMITTED',variant_set_id:r.VARIANT_SET_ID,set_sha256:r.SET_SHA256,revision:r.REVISION,variants:item.variants,review_asset:item.review_asset}}];"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "AUDIT — PREVIEW ALREADY COMMITTED",
+      "id": "d683b6b0-7105-4432-9265-e6f43559b328",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3600,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{status:'SM3_08E_ALREADY_COMMITTED',artifact_id:i.json.artifact_id,revision:i.json.REVISION}}));"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "AUDIT — NO SAVED REVISIONS",
+      "id": "207f37e0-fc1a-429f-953f-e2e7bb5f5682",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        800,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_SAVED_MANUAL_EDITS_FOR_08E'}}];"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1445428327,
+          "mode": "list",
+          "cachedResultName": "07_ATIVOS_IDENTIDADE"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -600,
+        0
+      ],
+      "id": "abba2d12-fe57-435c-9a0e-cb4b78b8301b",
+      "name": "READ — 07_ATIVOS_IDENTIDADE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "name": "BUILD — PREFLIGHT SESSIONS",
+      "id": "5e5c17f3-7c55-4fce-a115-8cf4dcc15cdc",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const contents=$('READ — 04_CONTEUDOS').all().map(i=>i.json);\nconst media=$('READ — 03_MIDIAS').all().map(i=>i.json);\nconst norm=v=>String(v??'').trim(), up=v=>norm(v).toUpperCase();\nconst chosen=contents.filter(c=>up(c.EDIT_SESSION_STATUS)==='SAVED'&&\n  up(c.REVISION_MODE)==='MANUAL_EDIT'&&up(c.PIPELINE_STATE)==='EDIT_SESSION_READY');\nif(!chosen.length)return [{json:{route:'NO_WORK'}}];\nconst counts=new Map(),mcounts=new Map(),sessions=new Set();\nfor(const c of contents){const id=norm(c.ID_CONTEÚDO);if(id)counts.set(id,(counts.get(id)||0)+1)}\nfor(const m of media){const id=norm(m.ID_MIDIA);if(id)mcounts.set(id,(mcounts.get(id)||0)+1)}\nreturn chosen.map(c=>{\n  const content_id=norm(c.ID_CONTEÚDO),project_id=norm(c.ID_PROJETO),\n    edit_session_id=norm(c.EDIT_SESSION_ID),ids=[...new Set(norm(c.BRUTOS_USADOS).match(/M\\d{4,}/g)||[])];\n  if(counts.get(content_id)!==1||sessions.has(edit_session_id)||!ids.length||\n    !/^TATTOO_[A-Za-z0-9_-]+$/.test(project_id)||\n    !/^ES_[A-Za-z0-9_-]+$/.test(edit_session_id)||\n    up(c.STATE_VERSION)!=='SM3_STATE_V5'||\n    norm(c.EDIT_RECIPE_VERSION)!=='SM3_EDIT_RECIPE_V1'||\n    norm(c.PRODUCTION_CONTRACT_VERSION)!=='SM3_PRODUCTION_EDIT_V1'||\n    ids.some(id=>mcounts.get(id)!==1))\n    throw new Error('SM3_07F_PREFLIGHT_SHEET_CONTRACT_INVALID:'+content_id);\n  sessions.add(edit_session_id);\n  return {json:{route:'CHECK',project_id,content_id,edit_session_id,\n    media_ids:ids,sheet_render_status:norm(c.RENDER_STATUS)}};\n});\n"
+      }
+    },
+    {
+      "name": "ROUTE — PREFLIGHT",
+      "id": "bf98d0b9-9367-403e-9a6b-655dcde40e32",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -200,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "CHECK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "be942650-773a-4a0c-b230-594b60370f22"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CHECK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a1181d11-d124-4baa-b52b-868311b54e5f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "name": "WORKER — GET PREFLIGHT WORKSPACE",
+      "id": "a79fa0f6-2d7c-4be2-9434-0402178fd2ec",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        0,
+        -160
+      ],
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/editor-workspace/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — RENDER READINESS",
+      "id": "df7b90b6-3b20-4379-8163-71189f090a7b",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const w=$json, jobs=$('BUILD — PREFLIGHT SESSIONS').all().map(i=>i.json),\n  job=jobs.find(j=>j.edit_session_id===w.edit_session_id),\n  media=$('READ — 03_MIDIAS').all().map(i=>i.json),\n  assets=$('READ — 07_ATIVOS_IDENTIDADE').all().map(i=>i.json);\nconst norm=v=>String(v??'').trim(), up=v=>norm(v).toUpperCase();\nif(!job||jobs.filter(j=>j.edit_session_id===w.edit_session_id).length!==1||\n  w.ok!==true||w.status!=='SAVED'||w.current_revision<3||w.read_only!==false||\n  w.workspace_contract_version!=='SM3_EDITOR_WORKSPACE_V1'||\n  !/^[a-f0-9]{64}$/.test(norm(w.state_etag))||\n  w.project_id!==job.project_id||w.content_id!==job.content_id||w.preview?.verified!==true)\n  throw new Error('SM3_07F_V3_WORKSPACE_REVISION_INVALID:'+String(w.edit_session_id));\nconst r=w.recipe,blockers=[],add=(code,detail)=>blockers.push({code,detail});\nif(!r||typeof r!=='object')throw new Error('SM3_07F_V3_RECIPE_MISSING');\nconst ids=r.media_order||[],timeline=r.timeline||[],unique=new Set(ids),\n  needed=new Set([...ids,...timeline.map(s=>s.media_id)]);\nif(!ids.length||unique.size!==ids.length||timeline.length!==ids.length||\n   timeline.some((s,i)=>s.media_id!==ids[i])||[...needed].some(id=>!job.media_ids.includes(id)))\n  add('RECIPE_MEDIA_OR_TIMELINE_INVALID',String(ids));\nfor(const id of needed){\n  const matches=media.filter(m=>norm(m.ID_MIDIA)===id);\n  if(matches.length!==1)add('MEDIA_REGISTRY_NOT_UNIQUE',id);\n  else {\n    if(!norm(matches[0].DRIVE_FILE_ID))add('MEDIA_DRIVE_ID_MISSING',id);\n    if(!/^[a-f0-9]{64}$/.test(norm(matches[0].CONTENT_HASH).toLowerCase()))\n      add('MEDIA_CONTENT_SHA256_MISSING',id);\n  }\n}\n\nconst geometry=$('READ — 21_SEMANTIC_GEOMETRY').all().map(i=>i.json);\nfor(const id of needed){\n  const mr=media.filter(m=>norm(m.ID_MIDIA)===id);\n  const ch=norm(mr[0]?.CONTENT_HASH).toLowerCase();\n  const gm=geometry.filter(g=>norm(g.PROJECT_ID)===job.project_id&&norm(g.MEDIA_ID)===id&&norm(g.CONTENT_HASH).toLowerCase()===ch);\n  if(gm.length!==1)add('SEMANTIC_GEOMETRY_NOT_UNIQUE',id+':'+gm.length);\n  else {\n    const g=gm[0];\n    if(norm(g.CONTRACT_VERSION)!=='SM3_SEMANTIC_GEOMETRY_V1'||norm(g.ANALYZER_VERSION)!=='SM3_GEOMETRY_ANALYZER_V1')\n      add('SEMANTIC_GEOMETRY_CONTRACT_INVALID',id);\n    if(up(g.STATUS)!=='VERIFIED'||Number(g.GEOMETRY_CONFIDENCE||0)<65)\n      add('SEMANTIC_GEOMETRY_NOT_CONSUMABLE',id+':'+norm(g.STATUS)+':'+norm(g.GEOMETRY_CONFIDENCE));\n    if(!/^[a-f0-9]{64}$/.test(norm(g.RECORD_SHA256).toLowerCase()))\n      add('SEMANTIC_GEOMETRY_RECORD_HASH_INVALID',id);\n  }\n}\n\nfor(const t of r.text_overlays||[]){\n  const match=/^SAFE_FOOTER:(M\\d{4,})$/.exec(norm(t.placement));\n  if(!match||!unique.has(match[1])||t.start_seconds!==null||t.end_seconds!==null)\n    add('TEXT_PLACEMENT_OR_TIMING_INVALID',norm(t.placement));\n}\nconst identity=r.identity_application||{};\nif(identity.density!=='NONE')\n  add('IDENTITY_AUTO_DENSITY_NOT_EXECUTABLE','Explicit bindings are supported; automatic density remains fail-closed');\nconst requested=['logo','stamp','texture','frame'].filter(role=>identity[role]===true);\nconst identity_assets=[];\nfor(const role of requested){\n  const matches=assets.filter(a=>norm(a.BINDING_ROLE).toLowerCase()===role&&\n    up(a.BINDING_STATUS)==='DEFAULT');\n  if(matches.length!==1){add('IDENTITY_DEFAULT_BINDING_NOT_UNIQUE',role+':'+matches.length);continue}\n  const a=matches[0], assetId=norm(a.ID_ATIVO), driveId=norm(a.ID_DRIVE),\n    hash=norm(a.CONTENT_HASH).toLowerCase(), mime=norm(a.MIME_TYPE).toLowerCase(), type=up(a.TIPO);\n  if(!/^[A-Za-z0-9_-]{2,100}$/.test(assetId))add('IDENTITY_ASSET_ID_INVALID',role);\n  if(!driveId)add('IDENTITY_DRIVE_ID_MISSING',role+':'+assetId);\n  if(!/^[a-f0-9]{64}$/.test(hash))add('IDENTITY_CONTENT_SHA256_MISSING',role+':'+assetId);\n  if(type!=='PNG'||mime!=='image/png')add('IDENTITY_RASTER_BINDING_REQUIRED',role+':'+assetId+':'+type+':'+mime);\n  const safe=norm(a.NOME||assetId+'.png').replace(/[^A-Za-z0-9._-]+/g,'_').slice(-100);\n  identity_assets.push({asset_id:assetId,role,drive_file_id:driveId,file_name:safe,\n    source_path:'/data/media/inbox/identity_'+assetId+'_'+safe,expected_sha256:hash,mime_type:mime});\n}\nif(identity_assets.length!==requested.length)add('IDENTITY_BINDING_SET_INCOMPLETE',requested.join(','));\nconst color=r.color_treatment||{};\nif(color.style!=='DOCUMENTARY_NEUTRAL_PREVIEW')add('COLOR_STYLE_NOT_EXECUTABLE',norm(color.style));\nfor(const [key,low,high] of [['exposure_delta',-.3,.3],['contrast_delta',-.4,.6],['saturation_delta',-1,1]]){\n  const x=color[key];if(typeof x!=='number'||!Number.isFinite(x)||x<low||x>high)\n    add('COLOR_UNIT_OR_RANGE_INVALID',`${key}=${String(x)} accepted=[${low},${high}]`);\n}\nif(!['CUT','HARD_CUT','NONE'].includes(up(r.transition_style)))add('TRANSITION_NOT_EXECUTABLE',norm(r.transition_style));\nif(!['ORIGINAL_MUTED','MUTED','NONE','SILENT'].includes(up(r.audio_strategy)))add('AUDIO_NOT_EXECUTABLE',norm(r.audio_strategy));\nconst framing=r.framing||[];\nif(framing.length!==ids.length||new Set(framing.map(f=>f.media_id)).size!==ids.length)\n  add('FRAMING_SET_INVALID',String(framing.length));\nfor(const f of framing){\n  if(f.preserve_subject!==true||String(f.mode||'').toUpperCase()!=='CONTAIN'||f.zoom_start!==1||f.zoom_end!==1)\n    add('CROP_OR_ZOOM_REQUIRES_VERIFIED_GEOMETRY',String(f.media_id));\n}\nif(blockers.length)throw new Error('SM3_07F_V3_RENDER_CONTRACT_BLOCKED:'+w.content_id+\n  ':REV'+w.current_revision+':'+JSON.stringify(blockers));\nreturn {json:{...job,verified_revision:w.current_revision,verified_state_etag:w.state_etag,\n  identity_assets,requested_identity_roles:requested,preflight_contract:'SM3_07F_PREFLIGHT_V2'}};\n"
+      }
+    },
+    {
+      "name": "BUILD — IDENTITY ASSET QUEUE",
+      "id": "63ebc9f7-866d-413f-a459-d0bab0da2be3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const gated=$input.all().map(i=>i.json);\nconst queue=[];\nfor(const g of gated){\n  for(const a of (g.identity_assets||[])) queue.push({route:'DOWNLOAD',edit_session_id:g.edit_session_id,\n    asset_id:a.asset_id,role:a.role,DRIVE_FILE_ID:a.drive_file_id,ARQUIVO:a.file_name,\n    worker_source_path:a.source_path,expected_sha256:a.expected_sha256,mime_type:a.mime_type});\n}\nif(!queue.length)return [{json:{route:'NO_IDENTITY'}}];\nconst keys=new Set();\nfor(const a of queue){const key=a.edit_session_id+'|'+a.role;if(keys.has(key))throw new Error('SM3_07F_V3_IDENTITY_QUEUE_DUPLICATE:'+key);keys.add(key)}\nreturn queue.map(json=>({json}));\n"
+      }
+    },
+    {
+      "name": "ROUTE — IDENTITY ASSETS",
+      "id": "8c83ced1-df89-4381-869a-5a01c6365072",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        600,
+        -420
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DOWNLOAD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "be942650-773a-4a0c-b230-594b60370f22"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DOWNLOAD"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_IDENTITY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a1181d11-d124-4baa-b52b-868311b54e5f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_IDENTITY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "name": "DOWNLOAD — IDENTITY ASSET",
+      "id": "fe019014-c015-4ac6-893f-e0d3d1d741eb",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        800,
+        -520
+      ],
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "WRITE — IDENTITY ASSET TEMP",
+      "id": "a4520f82-ddb6-4a78-bb32-edb047664572",
+      "type": "n8n-nodes-base.readWriteFile",
+      "position": [
+        1000,
+        -520
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "typeVersion": 1.1,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000003,
+          "mode": "list",
+          "cachedResultName": "21_SEMANTIC_GEOMETRY"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -380,
+        0
+      ],
+      "id": "10fbacb9-14f1-4ba0-bc10-88fa6de73fe5",
+      "name": "READ — 21_SEMANTIC_GEOMETRY",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    }
+  ],
+  "connections": {
+    "MANUAL — RENDER EDIT PREVIEWS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.14.0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — EDIT PREVIEW CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 04_CONTEUDOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 04_CONTEUDOS": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "READ — 07_ATIVOS_IDENTIDADE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — EDIT SOURCE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SOURCE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — ORIGINAL MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO SAVED REVISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — ORIGINAL MEDIA": {
+      "main": [
+        [
+          {
+            "node": "WRITE — ORIGINAL MEDIA TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — ORIGINAL MEDIA TEMP": {
+      "main": [
+        [
+          {
+            "node": "BUILD — EDIT PREVIEW JOBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — EDIT PREVIEW JOBS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — GET SAVED WORKSPACE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — GET SAVED WORKSPACE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — REVISION AND SOURCES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — REVISION AND SOURCES": {
+      "main": [
+        [
+          {
+            "node": "WORKER — RENDER ART DIRECTION VARIANTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — VARIANT SET RESULT": {
+      "main": [
+        [
+          {
+            "node": "WORKER — VERIFY VARIANT SET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SHEET COMMIT": {
+      "main": [
+        [
+          {
+            "node": "UPSERT — 29_ART_DIRECTION_VARIANTS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — PREVIEW ALREADY COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 07_ATIVOS_IDENTIDADE": {
+      "main": [
+        [
+          {
+            "node": "READ — 21_SEMANTIC_GEOMETRY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PREFLIGHT SESSIONS": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — PREFLIGHT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — PREFLIGHT": {
+      "main": [
+        [
+          {
+            "node": "WORKER — GET PREFLIGHT WORKSPACE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO SAVED REVISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — GET PREFLIGHT WORKSPACE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — RENDER READINESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — RENDER READINESS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — IDENTITY ASSET QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — IDENTITY ASSET QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — IDENTITY ASSETS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — IDENTITY ASSETS": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IDENTITY ASSET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "BUILD — EDIT SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IDENTITY ASSET": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IDENTITY ASSET TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IDENTITY ASSET TEMP": {
+      "main": [
+        [
+          {
+            "node": "BUILD — EDIT SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 21_SEMANTIC_GEOMETRY": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PREFLIGHT SESSIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.14.0": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — EDIT PREVIEW CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — RENDER ART DIRECTION VARIANTS": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — VARIANT SET RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — VERIFY VARIANT SET": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — VARIANT SET COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — VARIANT SET COMMITTED": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SHEET COMMIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 29_ART_DIRECTION_VARIANTS": {
+      "main": [
+        [
+          {
+            "node": "VERIFY READ — 29_ART_DIRECTION_VARIANTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VERIFY READ — 29_ART_DIRECTION_VARIANTS": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — ART DIRECTION SHEET COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — ART DIRECTION SHEET COMMITTED": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "6748c0ea-e79b-4282-9182-dc4fdf0f8942",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

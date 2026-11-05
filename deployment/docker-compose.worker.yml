@@ -1,0 +1,45 @@
+services:
+  media-init:
+    image: alpine:3.20
+    restart: "no"
+    user: "0:0"
+    command: >
+      sh -c "mkdir -p /data/media/inbox /data/media/proxies /data/media/contact_sheets /data/media/curation /data/media/renders
+      && chown -R 1000:1000 /data/media"
+    volumes:
+      - molotov_media:/data/media
+
+  n8n:
+    environment:
+      N8N_AVAILABLE_BINARY_DATA_MODES: filesystem
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+      N8N_RESTRICT_FILE_ACCESS_TO: "/data/media;/home/node/.n8n-files"
+    volumes:
+      - molotov_media:/data/media
+    depends_on:
+      media-init:
+        condition: service_completed_successfully
+
+  media-worker:
+    build:
+      context: ..
+      dockerfile: deployment/media-worker.Dockerfile
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      MEDIA_ROOT: /data/media
+      VISION_PROVIDER: ${VISION_PROVIDER:-openai}
+      VISION_MODEL: ${VISION_MODEL:-gpt-5.6-luna}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      VISION_TIMEOUT_SECONDS: ${VISION_TIMEOUT_SECONDS:-180}
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - molotov_media:/data/media
+    depends_on:
+      media-init:
+        condition: service_completed_successfully
+
+volumes:
+  molotov_media:

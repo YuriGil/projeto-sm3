@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "media_analysis",
+  "type": "object",
+  "required": [
+    "project_id",
+    "media_id",
+    "decision"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "media_id": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "SELECIONADA",
+        "RESERVA",
+        "DESCARTAR"
+      ]
+    }
+  }
+}

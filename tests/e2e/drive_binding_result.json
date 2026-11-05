@@ -1,0 +1,14 @@
+{
+  "test": "Google Drive real read-binding",
+  "assertions": {
+    "root_found": true,
+    "00_BRUTOS_found": true,
+    "TATTOO_0001_found": true,
+    "CONTROLE_MOLOTOV_found": true,
+    "01_PROJETOS_contains_TATTOO_0001": true,
+    "source_status": "EM TRIAGEM",
+    "source_sessions": 4,
+    "mutations_performed": false
+  },
+  "result": "PASS"
+}

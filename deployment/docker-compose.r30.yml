@@ -1,0 +1,22 @@
+services:
+  sm3-r30-preedit-bridge:
+    build:
+      context: ../r30_preedit
+      dockerfile: Dockerfile
+    container_name: sm3-r30-preedit-bridge
+    restart: unless-stopped
+    environment:
+      - SM3_PROJECT_ROOT=/project
+      - SM3_R30_INTERVAL_SECONDS=900
+    volumes:
+      - ../:/project
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,os; p='/project/state/preedit_strategy/SM3_PREEDIT_BRIDGE_HEALTH.json'; assert os.path.isfile(p); x=json.load(open(p,'r',encoding='utf-8-sig')); assert x.get('ok') is True"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

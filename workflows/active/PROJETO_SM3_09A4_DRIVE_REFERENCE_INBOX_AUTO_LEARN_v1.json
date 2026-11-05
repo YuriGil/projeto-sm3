@@ -1,0 +1,1086 @@
+{
+  "name": "PROJETO SM3 — 09A.4 — DRIVE REFERENCE INBOX AUTO-LEARN — v1",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1WRP5VrSRh54RVjf-zhTMqz4HJVqMVQud",
+          "mode": "id"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1400,
+        0
+      ],
+      "id": "a640b36e-4a31-490e-8fcd-8b56d0499889",
+      "name": "DRIVE TRIGGER — NEW REFERENCE VIDEO",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1200,
+        0
+      ],
+      "id": "8c475766-bd10-445c-898b-7c412bb302c3",
+      "name": "WORKER — HEALTH 2.16.2"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst h=$json;\nif(h.version!=='2.16.2'||h.reference_drive_upload!==true||\n   h.reference_drive_upload_contract!=='SM3_REFERENCE_DRIVE_UPLOAD_V1'||\n   h.reference_drive_upload_streaming!==true||\n   h.reference_video_analysis_contract!=='SM3_REFERENCE_VIDEO_ANALYSIS_V1'||\n   h.reference_feature_idempotency_stable!==true)\n throw new Error('SM3_09A4_AUTOMATION_CONTRACT_INVALID');\nreturn [{json:{ok:true}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "c85b08c0-0aa2-4026-af2d-e921155c9e2c",
+      "name": "ASSERT — DRIVE AUTO INGEST CONTRACT"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "d9a8dfdd-4771-43a3-ab3a-9553e8f372cb",
+      "name": "READ — 32 REFERENCE ITEMS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rows=$input.all().map(i=>i.json);\nconst file=$('DRIVE TRIGGER — NEW REFERENCE VIDEO').first().json;\nconst name=String(file.name||'').trim();\nconst fileId=String(file.id||'').trim();\nconst mime=String(file.mimeType||'').toLowerCase();\n\nif(!fileId||!name)throw new Error('SM3_09A4_DRIVE_TRIGGER_FILE_METADATA_MISSING');\n\nif(mime && !mime.startsWith('video/') && !/\\.(mp4|mov|m4v|webm|mkv)$/i.test(name))\n return [{json:{route:'UNMATCHED',reason:'NOT_VIDEO',drive_file_id:fileId,drive_file_name:name}}];\n\nconst norm=x=>String(x??'').trim();\nconst low=x=>norm(x).toLowerCase();\n\nconst pending=rows.filter(r=>{\n const iid=norm(r.REFERENCE_ITEM_ID);\n const type=norm(r.ITEM_TYPE).toUpperCase();\n const local=norm(r.LOCAL_MEDIA_REF);\n return /^RI_[a-f0-9]{32}$/.test(iid)&&['REEL','VIDEO','STORY'].includes(type)&&!local;\n});\n\nlet candidates=[];\nconst ri=(name.match(/RI_[a-f0-9]{32}/i)||[])[0];\nif(ri)candidates=pending.filter(r=>low(r.REFERENCE_ITEM_ID)===ri.toLowerCase());\n\nif(!candidates.length){\n const byPlatform=pending.filter(r=>{\n  const pid=norm(r.PLATFORM_ITEM_ID);\n  return pid && name.toLowerCase().includes(pid.toLowerCase());\n });\n if(byPlatform.length)candidates=byPlatform;\n}\n\nif(!candidates.length){\n const byHandle=pending.filter(r=>{\n  const h=low(r.PROFILE_HANDLE).replace(/^@/,'');\n  return h && name.toLowerCase().includes(h);\n });\n if(byHandle.length===1)candidates=byHandle;\n}\n\nif(candidates.length!==1){\n return [{json:{\n   route:'UNMATCHED',\n   reason:candidates.length?'AMBIGUOUS':'NO_REFERENCE_ITEM_MATCH',\n   drive_file_id:fileId,\n   drive_file_name:name,\n   candidate_count:candidates.length\n }}];\n}\n\nconst r=candidates[0];\nreturn [{json:{\n route:'MATCHED',\n reference_item_id:norm(r.REFERENCE_ITEM_ID),\n drive_file_id:fileId,\n drive_file_name:name,\n item_type:norm(r.ITEM_TYPE).toUpperCase(),\n profile_handle:norm(r.PROFILE_HANDLE)\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -590,
+        0
+      ],
+      "id": "c247d9fa-cea6-4eca-a098-9006cab381fc",
+      "name": "MATCH — DRIVE FILE TO REFERENCE ITEM"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MATCHED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "71458230-3aab-4fe4-89c9-a3eebd9a9d73"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "MATCHED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "UNMATCHED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e5abd550-6111-481b-8b8f-3cc7a461af32"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNMATCHED"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -370,
+        0
+      ],
+      "id": "2a0d2e3c-4f9c-4aad-a778-86930470ad81",
+      "name": "ROUTE — DRIVE FILE MATCH"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.drive_file_id }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.drive_file_name }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -140,
+        -120
+      ],
+      "id": "165fef3b-dcac-4fa3-a15a-eefff9a91e96",
+      "name": "DOWNLOAD — REFERENCE VIDEO",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://media-worker:8090/production/reference-corpus/reference-media/upload/' + $json.reference_item_id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Original-Filename",
+              "value": "={{ $binary.data.fileName || $json.drive_file_name }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        80,
+        -120
+      ],
+      "id": "f5bf25eb-95a5-4334-9ff6-4432ff8ee581",
+      "name": "WORKER — STREAM + ACQUIRE DRIVE VIDEO",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst r=$json;\nif(r.ok!==true||r.contract_version!=='SM3_REFERENCE_DRIVE_UPLOAD_V1'||!r.acquisition)\n throw new Error('SM3_09A4_DRIVE_UPLOAD_RESPONSE_INVALID');\nconst a=r.acquisition;\nif(!/^RM_[a-f0-9]{32}$/.test(String(a.acquisition_id||''))||\n   !/^[a-f0-9]{64}$/.test(String(a.source_sha256||'')))\n throw new Error('SM3_09A4_ACQUISITION_CONTRACT_INVALID');\n\nreturn [{json:{\n reference_item_id:a.reference_item_id,\n local_media_ref:a.canonical_local_media_ref,\n acquisition_id:a.acquisition_id,\n source_sha256:a.source_sha256,\n row:{\n  REFERENCE_ITEM_ID:a.reference_item_id,\n  LOCAL_MEDIA_REF:a.canonical_local_media_ref,\n  VISUAL_ANALYSIS_STATUS:'PENDING',\n  TEMPORAL_ANALYSIS_STATUS:'READY',\n  UPDATED_AT:new Date().toISOString(),\n  SYNC_STATUS:'MEDIA_READY',\n  SYNC_MESSAGE:'DRIVE_AUTO_ACQUIRED:'+a.acquisition_id,\n  LAST_SYNC_AT:new Date().toISOString()\n }\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        -120
+      ],
+      "id": "b0c1edcb-81f9-4278-b1c0-0049d9dd9f6c",
+      "name": "BUILD — MEDIA READY WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_ITEM_ID": "={ $json.row.REFERENCE_ITEM_ID }",
+            "LOCAL_MEDIA_REF": "={ $json.row.LOCAL_MEDIA_REF }",
+            "VISUAL_ANALYSIS_STATUS": "={ $json.row.VISUAL_ANALYSIS_STATUS }",
+            "TEMPORAL_ANALYSIS_STATUS": "={ $json.row.TEMPORAL_ANALYSIS_STATUS }",
+            "UPDATED_AT": "={ $json.row.UPDATED_AT }",
+            "SYNC_STATUS": "={ $json.row.SYNC_STATUS }",
+            "SYNC_MESSAGE": "={ $json.row.SYNC_MESSAGE }",
+            "LAST_SYNC_AT": "={ $json.row.LAST_SYNC_AT }"
+          },
+          "matchingColumns": [
+            "REFERENCE_ITEM_ID"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_ITEM_ID",
+              "displayName": "REFERENCE_ITEM_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LOCAL_MEDIA_REF",
+              "displayName": "LOCAL_MEDIA_REF",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISUAL_ANALYSIS_STATUS",
+              "displayName": "VISUAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEMPORAL_ANALYSIS_STATUS",
+              "displayName": "TEMPORAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UPDATED_AT",
+              "displayName": "UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_STATUS",
+              "displayName": "SYNC_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_MESSAGE",
+              "displayName": "SYNC_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SYNC_AT",
+              "displayName": "LAST_SYNC_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        520,
+        -120
+      ],
+      "id": "8ff56cec-dbbe-4dd3-8f29-28cd14efd4cf",
+      "name": "UPDATE — 32 MEDIA READY",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/video-analysis",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {reference_item_id:$('BUILD — MEDIA READY WRITE').first().json.reference_item_id,local_media_ref:$('BUILD — MEDIA READY WRITE').first().json.local_media_ref,preference_signal:'UNKNOWN',notes:'09A4_DRIVE_DROPBOX_AUTO_ANALYSIS'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        740,
+        -120
+      ],
+      "id": "8f1e097e-8dba-4093-9c24-da415e11debd",
+      "name": "WORKER — ANALYZE ACQUIRED VIDEO",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst out=[];\nfor(const it of $input.all()){\n  const r=it.json;\n  if(r.ok!==true||!r.analysis)throw new Error('SM3_09B_ANALYSIS_RESPONSE_INVALID');\n  const a=r.analysis,f=a.features||{};\n  if(a.contract_version!=='SM3_REFERENCE_VIDEO_ANALYSIS_V1'||\n     a.analyzer_version!=='SM3_REFERENCE_VIDEO_ANALYZER_V1'||\n     !/^RVA_[a-f0-9]{32}$/.test(String(a.analysis_id||''))||\n     !/^RFO_[a-f0-9]{32}$/.test(String(a.feature_observation_id||''))||\n     !/^[a-f0-9]{64}$/.test(String(a.source_sha256||''))||\n     !/^[a-f0-9]{64}$/.test(String(a.feature_sha256||''))||\n     !/^[a-f0-9]{64}$/.test(String(a.analysis_sha256||'')))\n    throw new Error('SM3_09B_ANALYSIS_CONTRACT_OR_HASH_INVALID');\n  out.push({json:{write_target:'FEATURE',featureRow:{\n    FEATURE_OBSERVATION_ID:a.feature_observation_id,REFERENCE_ITEM_ID:a.reference_item_id,FEATURE_SCHEMA_VERSION:'SM3_REFERENCE_FEATURES_V1',\n    VIDEO_DURATION_S:f.video_duration_s??'',HOOK_DURATION_S:f.hook_duration_s??'',CUTS_PER_10S:f.cuts_per_10s??'',MEDIAN_SHOT_S:f.median_shot_s??'',\n    CAMERA_MOTION:f.camera_motion??'UNKNOWN',SUBJECT_SCALE:f.subject_scale??'UNKNOWN',SUBJECT_COVERAGE:f.subject_coverage??'',\n    TEXT_DENSITY:f.text_density??'UNKNOWN',TEXT_POSITION:f.text_position??'UNKNOWN',TRANSITION_STYLE:f.transition_style??'UNKNOWN',\n    SPEED_RAMP:f.speed_ramp??'UNKNOWN',BEAT_SYNC:f.beat_sync??'UNKNOWN',COLOR_CONTRAST:f.color_contrast??'UNKNOWN',\n    COLOR_SATURATION:f.color_saturation??'UNKNOWN',COLOR_TEMPERATURE:f.color_temperature??'UNKNOWN',SHARPNESS_GRAIN:f.sharpness_grain??'UNKNOWN',\n    IDENTITY_USAGE:f.identity_usage??'UNKNOWN',TATTOO_PRESENTATION:f.tattoo_presentation??'UNKNOWN',STORY_STRUCTURE:f.story_structure??'UNKNOWN',\n    PREFERENCE_SIGNAL:a.preference_signal??'UNKNOWN',ANALYSIS_CONFIDENCE:a.analysis_confidence??0,SOURCE_SHA256:a.source_sha256,FEATURE_SHA256:a.feature_sha256\n  }}});\n  out.push({json:{write_target:'ITEM_STATUS',itemRow:{REFERENCE_ITEM_ID:a.reference_item_id,VISUAL_ANALYSIS_STATUS:'ANALYZED_V1',TEMPORAL_ANALYSIS_STATUS:'ANALYZED_V1'}}});\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -120
+      ],
+      "id": "1c78dc34-a1e6-402d-82d5-bf2b5c20c888",
+      "name": "BUILD — AUTO FEATURE + ITEM WRITES"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.write_target }}",
+                    "rightValue": "FEATURE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3ca9108b-a9e8-4ca9-aa8f-f565a9147e3d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FEATURE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.write_target }}",
+                    "rightValue": "ITEM_STATUS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a5976673-dea4-4e1c-b7bb-92c8c6409fa7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ITEM_STATUS"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1180,
+        -120
+      ],
+      "id": "5632dbbc-69e6-4669-95a4-db48bedd1396",
+      "name": "ROUTE — AUTO ANALYSIS WRITES"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000015,
+          "mode": "list",
+          "cachedResultName": "33_REFERENCE_FEATURES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "FEATURE_OBSERVATION_ID": "={{ $json.featureRow.FEATURE_OBSERVATION_ID }}",
+            "REFERENCE_ITEM_ID": "={{ $json.featureRow.REFERENCE_ITEM_ID }}",
+            "FEATURE_SCHEMA_VERSION": "={{ $json.featureRow.FEATURE_SCHEMA_VERSION }}",
+            "VIDEO_DURATION_S": "={{ $json.featureRow.VIDEO_DURATION_S }}",
+            "HOOK_DURATION_S": "={{ $json.featureRow.HOOK_DURATION_S }}",
+            "CUTS_PER_10S": "={{ $json.featureRow.CUTS_PER_10S }}",
+            "MEDIAN_SHOT_S": "={{ $json.featureRow.MEDIAN_SHOT_S }}",
+            "CAMERA_MOTION": "={{ $json.featureRow.CAMERA_MOTION }}",
+            "SUBJECT_SCALE": "={{ $json.featureRow.SUBJECT_SCALE }}",
+            "SUBJECT_COVERAGE": "={{ $json.featureRow.SUBJECT_COVERAGE }}",
+            "TEXT_DENSITY": "={{ $json.featureRow.TEXT_DENSITY }}",
+            "TEXT_POSITION": "={{ $json.featureRow.TEXT_POSITION }}",
+            "TRANSITION_STYLE": "={{ $json.featureRow.TRANSITION_STYLE }}",
+            "SPEED_RAMP": "={{ $json.featureRow.SPEED_RAMP }}",
+            "BEAT_SYNC": "={{ $json.featureRow.BEAT_SYNC }}",
+            "COLOR_CONTRAST": "={{ $json.featureRow.COLOR_CONTRAST }}",
+            "COLOR_SATURATION": "={{ $json.featureRow.COLOR_SATURATION }}",
+            "COLOR_TEMPERATURE": "={{ $json.featureRow.COLOR_TEMPERATURE }}",
+            "SHARPNESS_GRAIN": "={{ $json.featureRow.SHARPNESS_GRAIN }}",
+            "IDENTITY_USAGE": "={{ $json.featureRow.IDENTITY_USAGE }}",
+            "TATTOO_PRESENTATION": "={{ $json.featureRow.TATTOO_PRESENTATION }}",
+            "STORY_STRUCTURE": "={{ $json.featureRow.STORY_STRUCTURE }}",
+            "PREFERENCE_SIGNAL": "={{ $json.featureRow.PREFERENCE_SIGNAL }}",
+            "ANALYSIS_CONFIDENCE": "={{ $json.featureRow.ANALYSIS_CONFIDENCE }}",
+            "SOURCE_SHA256": "={{ $json.featureRow.SOURCE_SHA256 }}",
+            "FEATURE_SHA256": "={{ $json.featureRow.FEATURE_SHA256 }}"
+          },
+          "matchingColumns": [
+            "FEATURE_OBSERVATION_ID"
+          ],
+          "schema": [
+            {
+              "id": "FEATURE_OBSERVATION_ID",
+              "displayName": "FEATURE_OBSERVATION_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REFERENCE_ITEM_ID",
+              "displayName": "REFERENCE_ITEM_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FEATURE_SCHEMA_VERSION",
+              "displayName": "FEATURE_SCHEMA_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_DURATION_S",
+              "displayName": "VIDEO_DURATION_S",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HOOK_DURATION_S",
+              "displayName": "HOOK_DURATION_S",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CUTS_PER_10S",
+              "displayName": "CUTS_PER_10S",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MEDIAN_SHOT_S",
+              "displayName": "MEDIAN_SHOT_S",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAMERA_MOTION",
+              "displayName": "CAMERA_MOTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SUBJECT_SCALE",
+              "displayName": "SUBJECT_SCALE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SUBJECT_COVERAGE",
+              "displayName": "SUBJECT_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEXT_DENSITY",
+              "displayName": "TEXT_DENSITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEXT_POSITION",
+              "displayName": "TEXT_POSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRANSITION_STYLE",
+              "displayName": "TRANSITION_STYLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SPEED_RAMP",
+              "displayName": "SPEED_RAMP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEAT_SYNC",
+              "displayName": "BEAT_SYNC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COLOR_CONTRAST",
+              "displayName": "COLOR_CONTRAST",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COLOR_SATURATION",
+              "displayName": "COLOR_SATURATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COLOR_TEMPERATURE",
+              "displayName": "COLOR_TEMPERATURE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SHARPNESS_GRAIN",
+              "displayName": "SHARPNESS_GRAIN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "IDENTITY_USAGE",
+              "displayName": "IDENTITY_USAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_PRESENTATION",
+              "displayName": "TATTOO_PRESENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORY_STRUCTURE",
+              "displayName": "STORY_STRUCTURE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PREFERENCE_SIGNAL",
+              "displayName": "PREFERENCE_SIGNAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_CONFIDENCE",
+              "displayName": "ANALYSIS_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SOURCE_SHA256",
+              "displayName": "SOURCE_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FEATURE_SHA256",
+              "displayName": "FEATURE_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1400,
+        -190
+      ],
+      "id": "593bb296-843c-4215-9d77-cb0537482642",
+      "name": "UPSERT — 33 AUTO REFERENCE FEATURES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_ITEM_ID": "={{ $json.itemRow.REFERENCE_ITEM_ID }}",
+            "VISUAL_ANALYSIS_STATUS": "={{ $json.itemRow.VISUAL_ANALYSIS_STATUS }}",
+            "TEMPORAL_ANALYSIS_STATUS": "={{ $json.itemRow.TEMPORAL_ANALYSIS_STATUS }}"
+          },
+          "matchingColumns": [
+            "REFERENCE_ITEM_ID"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_ITEM_ID",
+              "displayName": "REFERENCE_ITEM_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISUAL_ANALYSIS_STATUS",
+              "displayName": "VISUAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEMPORAL_ANALYSIS_STATUS",
+              "displayName": "TEMPORAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1400,
+        -40
+      ],
+      "id": "e12c054a-3e0d-4bca-a3e2-cfd97b7d7d00",
+      "name": "UPDATE — 32 AUTO ANALYSIS STATUS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,sm3_result:'SM3_09A4_DRIVE_REFERENCE_VIDEO_ACQUIRED_AND_ANALYZED'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1630,
+        -120
+      ],
+      "id": "3be8c82c-0262-47a3-bc0c-57edcf4cbde6",
+      "name": "DONE — DRIVE VIDEO LEARNED"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,sm3_result:'SM3_09A4_DRIVE_FILE_LEFT_UNMATCHED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        130
+      ],
+      "id": "a3ad08bc-784d-4b60-98b1-afce8d846c89",
+      "name": "DONE — DRIVE FILE UNMATCHED"
+    }
+  ],
+  "connections": {
+    "DRIVE TRIGGER — NEW REFERENCE VIDEO": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.16.2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.16.2": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — DRIVE AUTO INGEST CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — DRIVE AUTO INGEST CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 32 REFERENCE ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 32 REFERENCE ITEMS": {
+      "main": [
+        [
+          {
+            "node": "MATCH — DRIVE FILE TO REFERENCE ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MATCH — DRIVE FILE TO REFERENCE ITEM": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — DRIVE FILE MATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — DRIVE FILE MATCH": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — REFERENCE VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DONE — DRIVE FILE UNMATCHED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — REFERENCE VIDEO": {
+      "main": [
+        [
+          {
+            "node": "WORKER — STREAM + ACQUIRE DRIVE VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — STREAM + ACQUIRE DRIVE VIDEO": {
+      "main": [
+        [
+          {
+            "node": "BUILD — MEDIA READY WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — MEDIA READY WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 32 MEDIA READY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 32 MEDIA READY": {
+      "main": [
+        [
+          {
+            "node": "WORKER — ANALYZE ACQUIRED VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — ANALYZE ACQUIRED VIDEO": {
+      "main": [
+        [
+          {
+            "node": "BUILD — AUTO FEATURE + ITEM WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — AUTO FEATURE + ITEM WRITES": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — AUTO ANALYSIS WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — AUTO ANALYSIS WRITES": {
+      "main": [
+        [
+          {
+            "node": "UPSERT — 33 AUTO REFERENCE FEATURES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UPDATE — 32 AUTO ANALYSIS STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 33 AUTO REFERENCE FEATURES": {
+      "main": [
+        [
+          {
+            "node": "DONE — DRIVE VIDEO LEARNED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 32 AUTO ANALYSIS STATUS": {
+      "main": [
+        [
+          {
+            "node": "DONE — DRIVE VIDEO LEARNED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "b8cf5e4a-6af9-4224-9a68-d3d290116a38",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

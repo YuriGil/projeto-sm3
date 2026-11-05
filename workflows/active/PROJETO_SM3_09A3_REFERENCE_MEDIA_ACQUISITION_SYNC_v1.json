@@ -1,0 +1,441 @@
+{
+  "name": "PROJETO SM3 — 09A.3 — REFERENCE MEDIA ACQUISITION SYNC — v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "12a4ea09-afab-414c-bab7-4262fe58e589",
+      "name": "MANUAL — SYNC ACQUIRED REFERENCE MEDIA"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "35bcbf2b-1cb1-4c6e-9db9-ded7b0978d60",
+      "name": "WORKER — HEALTH 2.16.1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const h=$json;if(h.version!=='2.16.1'||h.reference_media_acquisition!==true||h.reference_media_acquisition_contract!=='SM3_REFERENCE_MEDIA_ACQUISITION_V1')throw new Error('SM3_09A3_REFERENCE_MEDIA_CONTRACT_INVALID');return [{json:{ok:true}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ],
+      "id": "8d05ca2a-3c0a-48f0-91af-9c5de5c16240",
+      "name": "ASSERT — REFERENCE MEDIA CONTRACT"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -400,
+        0
+      ],
+      "id": "c3d81854-4a86-4586-9c35-99f6e39b3198",
+      "name": "READ — 32_REFERENCE_ITEMS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/production/reference-corpus/reference-media",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -200,
+        0
+      ],
+      "id": "93804e73-bfa6-4384-bff4-2fc4013fedd7",
+      "name": "WORKER — LIST REFERENCE MEDIA"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$('READ — 32_REFERENCE_ITEMS').all().map(i=>i.json);const m=$json;if(m.ok!==true||m.contract_version!=='SM3_REFERENCE_MEDIA_ACQUISITION_V1')throw new Error('SM3_09A3_REFERENCE_MEDIA_LIST_INVALID');const latest=new Map();for(const a of (m.acquisitions||[])){const old=latest.get(a.reference_item_id);if(!old||String(a.created_at||'')>String(old.created_at||''))latest.set(a.reference_item_id,a);}const out=[];for(const r of rows){const iid=String(r.REFERENCE_ITEM_ID||'').trim();if(!iid)continue;const a=latest.get(iid);if(!a)continue;const current=String(r.LOCAL_MEDIA_REF||'').trim();if(current===String(a.canonical_local_media_ref||''))continue;out.push({json:{row:{REFERENCE_ITEM_ID:iid,LOCAL_MEDIA_REF:a.canonical_local_media_ref,VISUAL_ANALYSIS_STATUS:String(r.VISUAL_ANALYSIS_STATUS||'PENDING'),TEMPORAL_ANALYSIS_STATUS:'READY',UPDATED_AT:new Date().toISOString(),SYNC_STATUS:'MEDIA_READY',SYNC_MESSAGE:'ACQUIRED:'+a.acquisition_id,LAST_SYNC_AT:new Date().toISOString()}}});}if(!out.length)return [{json:{route:'NO_WORK'}}];return out.map(x=>({json:{route:'WRITE',...x.json}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e48c2f31-ad2d-4f4d-9af9-3b0700bc328e",
+      "name": "BUILD — REFERENCE MEDIA SHEET WRITES"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "WRITE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3ab22a0e-d7b2-47fd-9fc0-0a9c6cceed8d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WRITE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d4e62243-afe7-4f08-8b48-1b20550a0b4d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "ea974bdb-d1c8-443e-a5d5-4e64a30825b3",
+      "name": "ROUTE — REFERENCE MEDIA WRITES"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_ITEM_ID": "={{ $json.row.REFERENCE_ITEM_ID }}",
+            "LOCAL_MEDIA_REF": "={{ $json.row.LOCAL_MEDIA_REF }}",
+            "VISUAL_ANALYSIS_STATUS": "={{ $json.row.VISUAL_ANALYSIS_STATUS }}",
+            "TEMPORAL_ANALYSIS_STATUS": "={{ $json.row.TEMPORAL_ANALYSIS_STATUS }}",
+            "UPDATED_AT": "={{ $json.row.UPDATED_AT }}",
+            "SYNC_STATUS": "={{ $json.row.SYNC_STATUS }}",
+            "SYNC_MESSAGE": "={{ $json.row.SYNC_MESSAGE }}",
+            "LAST_SYNC_AT": "={{ $json.row.LAST_SYNC_AT }}"
+          },
+          "matchingColumns": [
+            "REFERENCE_ITEM_ID"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_ITEM_ID",
+              "displayName": "REFERENCE_ITEM_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LOCAL_MEDIA_REF",
+              "displayName": "LOCAL_MEDIA_REF",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISUAL_ANALYSIS_STATUS",
+              "displayName": "VISUAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEMPORAL_ANALYSIS_STATUS",
+              "displayName": "TEMPORAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UPDATED_AT",
+              "displayName": "UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_STATUS",
+              "displayName": "SYNC_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_MESSAGE",
+              "displayName": "SYNC_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SYNC_AT",
+              "displayName": "LAST_SYNC_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        -80
+      ],
+      "id": "0d680f83-603d-44bf-a5e5-c78ac169f854",
+      "name": "UPDATE — 32 LOCAL MEDIA REF",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,sm3_result:'SM3_09A3_REFERENCE_MEDIA_SYNC_COMMITTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -80
+      ],
+      "id": "df568f74-0c1e-4346-85e6-3050a4cd21ee",
+      "name": "DONE — REFERENCE MEDIA SYNCED"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,sm3_result:'SM3_09A3_NO_ACQUIRED_MEDIA_TO_SYNC'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "id": "4889a2b0-ba31-4dac-a0e0-65197638424d",
+      "name": "DONE — NO ACQUIRED MEDIA TO SYNC"
+    }
+  ],
+  "connections": {
+    "MANUAL — SYNC ACQUIRED REFERENCE MEDIA": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.16.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.16.1": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — REFERENCE MEDIA CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — REFERENCE MEDIA CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 32_REFERENCE_ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 32_REFERENCE_ITEMS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — LIST REFERENCE MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — LIST REFERENCE MEDIA": {
+      "main": [
+        [
+          {
+            "node": "BUILD — REFERENCE MEDIA SHEET WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — REFERENCE MEDIA SHEET WRITES": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — REFERENCE MEDIA WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — REFERENCE MEDIA WRITES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 32 LOCAL MEDIA REF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DONE — NO ACQUIRED MEDIA TO SYNC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 32 LOCAL MEDIA REF": {
+      "main": [
+        [
+          {
+            "node": "DONE — REFERENCE MEDIA SYNCED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "aad6d3a4-95de-496b-af53-48288904a3db",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

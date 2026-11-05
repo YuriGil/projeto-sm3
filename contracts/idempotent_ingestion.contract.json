@@ -1,0 +1,37 @@
+{
+  "source_of_truth": {
+    "project_table": "01_PROJETOS",
+    "media_table": "03_MIDIAS"
+  },
+  "media_columns": [
+    "ID_MIDIA",
+    "ID_PROJETO",
+    "ARQUIVO",
+    "LINK_DRIVE",
+    "TIPO",
+    "DATA_CAPTURA",
+    "SESSÃO",
+    "TAMANHO",
+    "TRIAGEM",
+    "QUALIDADE",
+    "CONTEÚDO_VISUAL",
+    "MELHOR_TRECHO",
+    "USAR_EM",
+    "OBSERVAÇÕES"
+  ],
+  "idempotency": {
+    "primary_external_key": "Google Drive file ID",
+    "existing_action": "SKIP_EXISTING",
+    "new_action": "INDEX_NEW"
+  },
+  "write_plan": {
+    "new_media": "append one row to 03_MIDIAS",
+    "project": "create only if ID_PROJETO absent",
+    "original": "never move/delete/overwrite"
+  },
+  "observed_real_dataset": {
+    "project": "TATTOO_0001",
+    "media_ids_seen": "M0001..M0082",
+    "last_observed": "M0082"
+  }
+}

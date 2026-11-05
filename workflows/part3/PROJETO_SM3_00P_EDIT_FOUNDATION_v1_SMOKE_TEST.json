@@ -1,0 +1,81 @@
+{
+  "name": "PROJETO SM3 — 00P — EDIT FOUNDATION — v1 SMOKE TEST",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        0
+      ],
+      "id": "d7891228-d3ef-4af6-9735-b51e5e3f47db",
+      "name": "MANUAL — EDIT FOUNDATION TEST"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -180,
+        0
+      ],
+      "id": "b89b568b-7e31-4181-b2df-8431f52469b0",
+      "name": "GET — WORKER HEALTH",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nconst failures=[];\nif(x.ok!==true) failures.push('health_not_ok');\nif(String(x.version)!=='2.1.0') failures.push(`version=${x.version}`);\nif(x.manual_editor_foundation!==true) failures.push('manual_editor_foundation');\nif(x.variant_planner!==true) failures.push('variant_planner');\nif(String(x.production_edit_contract)!=='SM3_PRODUCTION_EDIT_V1') failures.push(`contract=${x.production_edit_contract}`);\nif(failures.length) throw new Error('SM3_EDIT_FOUNDATION_ASSERT_FAILED: '+failures.join(','));\nreturn [{json:{status:'SM3_EDIT_FOUNDATION_HEALTH_PASS',version:x.version,production_edit_contract:x.production_edit_contract,manual_editor_foundation:x.manual_editor_foundation,variant_planner:x.variant_planner,completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        0
+      ],
+      "id": "92b2d8b8-0f97-4071-bab4-a977ab883b72",
+      "name": "ASSERT — EDIT FOUNDATION"
+    }
+  ],
+  "connections": {
+    "MANUAL — EDIT FOUNDATION TEST": {
+      "main": [
+        [
+          {
+            "node": "GET — WORKER HEALTH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET — WORKER HEALTH": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — EDIT FOUNDATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {},
+  "tags": []
+}

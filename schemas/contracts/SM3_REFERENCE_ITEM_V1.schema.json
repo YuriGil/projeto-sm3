@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_ITEM_V1",
+  "type": "object",
+  "required": [
+    "reference_profile_id",
+    "network",
+    "item_type",
+    "url"
+  ],
+  "properties": {
+    "reference_profile_id": {
+      "type": "string"
+    },
+    "network": {
+      "enum": [
+        "instagram",
+        "tiktok"
+      ]
+    },
+    "item_type": {
+      "enum": [
+        "REEL",
+        "POST",
+        "CAROUSEL",
+        "STORY",
+        "VIDEO"
+      ]
+    },
+    "platform_item_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url": {
+      "type": "string",
+      "pattern": "^https?://"
+    },
+    "caption": {
+      "type": "string"
+    },
+    "published_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "enum": [
+        "METRICOOL",
+        "MANUAL_URL",
+        "DRIVE_UPLOAD",
+        "CHATGPT"
+      ]
+    },
+    "local_media_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

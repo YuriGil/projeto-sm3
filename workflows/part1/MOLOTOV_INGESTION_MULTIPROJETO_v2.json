@@ -1,0 +1,452 @@
+{
+  "name": "MOLOTOV — 01 — INGESTION — MULTIPROJETO v2",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c6a37856-5b1b-4104-a318-83e2e7613498",
+      "name": "MANUAL — TEST"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        220,
+        0
+      ],
+      "id": "acabe31a-770b-4b2d-a1f1-39941a8c5b54",
+      "name": "DISCOVER — 00_BRUTOS",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>{const n=String(i.json.name||'').trim();const p=/^TATTOO_\\d{4}$/i.test(n);const c=!p&&/^\\d{4}$/.test(n);return {json:{...i.json,molotov_type:p?'PROJECT':c?'CONTAINER':'IGNORE',project_id:p?n.toUpperCase():null,project_folder_id:p?i.json.id:null,discovered_at:new Date().toISOString()}};});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "8a666da3-4f62-46b1-b52f-fda5ae23c990",
+      "name": "CLASSIFY — ROOT"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "PROJECT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2ca93ec2-6260-4480-b71e-de72817de73f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PROJECT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "CONTAINER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6f712ce9-d923-45ec-a8b1-15cde5c0941f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CONTAINER"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        0
+      ],
+      "id": "d5831df0-ebe3-4125-8f4d-f345196aad2d",
+      "name": "ROUTE — ROOT"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.id + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        880,
+        180
+      ],
+      "id": "ee20737e-e142-4585-8b11-9ca934cdb3f1",
+      "name": "EXPLORE — CONTAINER",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(i=>/^TATTOO_\\d{4}$/i.test(String(i.json.name||'').trim())).map(i=>({json:{...i.json,molotov_type:'PROJECT',project_id:String(i.json.name).trim().toUpperCase(),project_folder_id:i.json.id,discovered_at:new Date().toISOString()}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        180
+      ],
+      "id": "f5454f90-26a6-439d-ac4f-0502e9216df9",
+      "name": "FILTER — PROJECTS IN CONTAINER"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,project_id:i.json.project_id||String(i.json.name||'').toUpperCase(),project_folder_id:i.json.project_folder_id||i.json.id}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "0d6531be-6033-48fa-b279-fdd03be07670",
+      "name": "PREPARE — PROJECT CONTEXT"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.project_folder_id + \"' in parents and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "0c407193-bf9e-4f2c-bd82-64efb39490f5",
+      "name": "LIST — PROJECT MEDIA",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const projects=$('PREPARE — PROJECT CONTEXT').all().map(i=>i.json);const p=projects.length===1?projects[0]:projects[0];function e(n){const a=String(n||'').split('.');return a.length>1?a.pop().toLowerCase():''}function t(n){const x=e(n);if(['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(x))return'IMAGE';if(['mp4','mov','m4v','avi','mkv','webm'].includes(x))return'VIDEO';return'OTHER'}return $input.all().map((i,k)=>{const m=t(i.json.name);return{json:{project_id:p.project_id,project_folder_id:p.project_folder_id,drive_file_id:i.json.id,file_name:i.json.name,extension:e(i.json.name),media_type:m,is_supported_media:['IMAGE','VIDEO'].includes(m),source:'GOOGLE_DRIVE',storage_status:'ONLINE',ingestion_status:'DISCOVERED',ingestion_key:`gdrive:${i.json.id}`,discovery_index:k+1,discovered_at:new Date().toISOString()}}});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "b1ae88da-8a51-4e79-b151-c8e21d88bd0f",
+      "name": "NORMALIZE — MEDIA"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "85d8c39a-4a66-4bef-a97a-4844e6db2a17",
+      "name": "READ — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$('NORMALIZE — MEDIA').all().map(i=>i.json),x=$input.all().map(i=>i.json);function id(u){if(!u)return null;for(const r of [/\\/file\\/d\\/([^/]+)/,/[?&]id=([^&]+)/,/\\/d\\/([^/]+)/]){const m=String(u).match(r);if(m?.[1])return m[1]}return null}const ids=new Set(),names=new Set();for(const r of x){const z=id(r.LINK_DRIVE);if(z)ids.add(z);const p=String(r.ID_PROJETO||'').trim().toUpperCase(),n=String(r.ARQUIVO||'').trim().toLowerCase();if(p&&n)names.add(`${p}::${n}`)}return d.map(a=>{const k=`${String(a.project_id||'').toUpperCase()}::${String(a.file_name||'').trim().toLowerCase()}`,di=ids.has(a.drive_file_id),pn=names.has(k),ex=di||pn;return{json:{...a,already_exists:ex,match_method:di?'DRIVE_ID':pn?'PROJECT_FILE_NAME':'NONE',ingestion_action:ex?'SKIP':'INSERT'}}});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "5fbca6b4-fe54-4411-bba7-33a55cb9fb0d",
+      "name": "IDEMPOTENCY — PROJECT SCOPED"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "INSERT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "02e0e788-5c5e-45da-94f9-3228b0143fd5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INSERT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "SKIP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c920301b-4557-46e6-8473-8affa5f2574c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SKIP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2420,
+        0
+      ],
+      "id": "a18432a6-9b6b-4364-a6bd-03d5a7ff7e3b",
+      "name": "ROUTE — INGESTION"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "MANUAL — TEST": {
+      "main": [
+        [
+          {
+            "node": "DISCOVER — 00_BRUTOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DISCOVER — 00_BRUTOS": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — ROOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — ROOT": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — ROOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ROOT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "EXPLORE — CONTAINER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPLORE — CONTAINER": {
+      "main": [
+        [
+          {
+            "node": "FILTER — PROJECTS IN CONTAINER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FILTER — PROJECTS IN CONTAINER": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — PROJECT CONTEXT": {
+      "main": [
+        [
+          {
+            "node": "LIST — PROJECT MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — PROJECT MEDIA": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE — MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "IDEMPOTENCY — PROJECT SCOPED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IDEMPOTENCY — PROJECT SCOPED": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — INGESTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": []
+}

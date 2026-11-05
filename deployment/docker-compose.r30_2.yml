@@ -1,0 +1,22 @@
+services:
+  sm3-r30-native-request-capture:
+    build:
+      context: ../r30_2_capture
+      dockerfile: Dockerfile
+    container_name: sm3-r30-native-request-capture
+    restart: unless-stopped
+    environment:
+      - SM3_PROJECT_ROOT=/project
+      - SM3_R30_2_PORT=8099
+    volumes:
+      - ../:/project
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,json; x=json.loads(urllib.request.urlopen('http://127.0.0.1:8099/health',timeout=3).read()); assert x.get('ok') is True and x.get('capture_only') is True"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,65 @@
+SM3 08E — TEST REPORT
+======================
+
+Package target: Native Format Editorial V1
+Worker: 2.13.0
+Canonical renderer preserved: 2.8.0
+08D renderer preserved: 2.12.0
+
+STATIC / CONTRACT TESTS
+-----------------------
+PASS  Python py_compile: SM3_worker_service_2_13_0.py
+PASS  JSON Schema Draft 2020-12: SM3_EDITORIAL_INTENT_V1.schema.json
+PASS  JSON Schema Draft 2020-12: SM3_PUBLICATION_ARTIFACT_V1.schema.json
+PASS  n8n workflow JSON parsed
+PASS  n8n node count: 35
+PASS  n8n Code nodes checked with Node.js: 13/13
+
+SYNTHETIC PLANNER / RENDER TEST
+-------------------------------
+PASS  CARROSSEL -> CAROUSEL_IMAGE_SET
+PASS  native dimensions -> 1080x1350
+PASS  text decision -> NONE_REDUNDANT_VISUAL_LABELS
+PASS  temporal policy -> NOT_APPLICABLE
+PASS  duration_seconds -> null on all carousel assets
+PASS  dynamic/unsafe video geometry -> SAFE_CONTAIN_ADAPTIVE_MATTE
+PASS  synthetic video frame extraction with FFmpeg
+PASS  3 independent JPEG publication candidates rendered
+PASS  all 3 rendered assets -> 1080x1350
+PASS  review contact sheet rendered separately
+PASS  no generic footer required by publication contract
+PASS  human approval required
+PASS  no auto-publish
+
+CURRENT FIXTURE INVARIANTS ENFORCED BY INSTALLER/VERIFIER
+---------------------------------------------------------
+REV4 = 4
+STATE_ETAG =
+22f05816c38651d2126f0f9519b6f11f8c5d7368fa93331b0ee73bd152683d09
+
+M0083 content hash =
+4b9834e231f6deab1f3c9bfa8950c9b6be6080b661c69620849bf8c68ed475c3
+
+M0085 content hash =
+493e0c5c91f07e695715168ea9186e518790c34dd16fd742ab82bcd9b5baab3a
+
+M0086 content hash =
+23b03c524dc48f01302f4c61649f71f5124ce9b88d9982c1a7503d955ea415a9
+
+Canonical REV4 preview baseline =
+d4fc6f76cff6ca32cf531e3067c12d0359a8cddc71ccf08c29500265e2e539bd
+
+08D experimental preview baseline =
+bd9f5885a7c8a856c0c5b3a1223f2e5c5ac5b5e2182e39dc1ce7848de225cd3d
+
+EXPECTED LIVE GATES
+-------------------
+1. SM3_08E_NATIVE_FORMAT_EDITORIAL_INSTALL_PASS
+2. SM3_08E_NATIVE_FORMAT_EDITORIAL_COMMITTED
+3. SM3_08E_NATIVE_FORMAT_ARTIFACT_VERIFY_PASS
+
+NOTE
+----
+PowerShell scripts are intended for the user's existing Windows PowerShell/Docker environment.
+The current build environment does not execute Windows PowerShell itself; runtime behavior is therefore
+also protected by fail-closed health/revision/hash/manifest assertions in the scripts.

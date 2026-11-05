@@ -1,0 +1,656 @@
+{
+  "name": "PROJETO SM3 — 03 — CURATION — v3 REAL WRITE CONTROLLED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "782143cf-decb-4e0e-8bf0-ca1e37424524",
+      "name": "MANUAL — CURATION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "fab45ff9-003d-496c-a089-03c079bd19bc",
+      "name": "READ — ANALYZED MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — deterministic pre-curation for visual project pass.\nconst rows = $input.all().map(i => i.json);\n\nfunction n(v) {\n  const x = Number(v);\n  return Number.isFinite(x) ? x : 0;\n}\n\nconst eligible = rows.filter(r =>\n  String(r.ANALYSIS_STATUS || '').toUpperCase() === 'ANALYZED' &&\n  String(r.STORAGE_STATUS || '').toUpperCase() === 'ONLINE' &&\n  String(r.ID_PROJETO || '').trim()\n);\n\nconst projects = {};\n\nfor (const r of eligible) {\n  const pid = r.ID_PROJETO;\n  if (!projects[pid]) projects[pid] = [];\n\n  const editorial = n(r.EDITORIAL_SCORE);\n  const technical = n(r.TECHNICAL_SCORE);\n  const composition = n(r.COMPOSITION_SCORE);\n  const visibility = n(r.TATTOO_VISIBILITY);\n\n  const weighted =\n    editorial * 0.45 +\n    technical * 0.20 +\n    composition * 0.20 +\n    visibility * 0.15;\n\n  const triage = String(r.TRIAGEM || '').toUpperCase();\n  const triageAdjust =\n    triage === 'SELECIONADO' ? 5 :\n    triage === 'DESCARTAR' ? -30 : 0;\n\n  const kind = String(r.TIPO || '').toUpperCase().includes('VÍDEO') ||\n               String(r.TIPO || '').toUpperCase().includes('VIDEO')\n    ? 'video'\n    : 'image';\n\n  const analysisPath = kind === 'video'\n    ? `/data/media/contact_sheets/${pid}/${r.ID_MIDIA}.jpg`\n    : `/data/media/proxies/${pid}/${r.ID_MIDIA}.jpg`;\n\n  projects[pid].push({\n    media_id: r.ID_MIDIA,\n    kind,\n    analysis_path: analysisPath,\n    stage: r.ANALYSIS_STAGE || '',\n    shot_type: r.SHOT_TYPE || '',\n    editorial_score: editorial,\n    technical_score: technical,\n    composition_score: composition,\n    tattoo_visibility: visibility,\n    analysis_confidence: n(r.ANALYSIS_CONFIDENCE),\n    recommended_use: r.USAR_EM || '',\n    best_moment: r.MELHOR_TRECHO || '',\n    visual_summary: r['CONTEÚDO_VISUAL'] || '',\n    redundancy_hint: r.REDUNDANCY_HINT || '',\n    precuation_score: Math.round(weighted + triageAdjust)\n  });\n}\n\nconst output = [];\n\nfor (const [pid, media] of Object.entries(projects)) {\n  media.sort((a, b) =>\n    b.precuation_score - a.precuation_score ||\n    b.analysis_confidence - a.analysis_confidence ||\n    String(a.media_id).localeCompare(String(b.media_id))\n  );\n\n  const shortlist = media.slice(0, Math.min(12, media.length));\n\n  output.push({\n    json: {\n      project_id: pid,\n      candidate_count: shortlist.length,\n      candidates: shortlist,\n      context:\n        'Curadoria editorial de projeto de tatuagem. Evitar quase-duplicatas. Preservar progressão narrativa e variedade visual.',\n      dry_run: true\n    }\n  });\n}\n\nreturn output.length\n  ? output\n  : [{json:{dry_run:true,no_work:true,message:'Nenhum projeto possui mídia ANALYZED + ONLINE.'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "bc002366-a352-4333-9148-1d5c1e53ad14",
+      "name": "BUILD — PROJECT SHORTLIST"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/curate-project",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,candidates:$json.candidates,context:$json.context} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        0
+      ],
+      "id": "982fe530-ad1e-4a5f-a5bc-51f78d09f00c",
+      "name": "VISION — CURATE PROJECT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — BUILD REAL CURATION WRITES\n// Machine curation only. This does NOT mean human approval.\n// DISCARD is editorial status only; nothing is deleted.\n\nconst items = $input.all().map(i => i.json);\nconst now = new Date().toISOString();\n\nreturn items.map(x => {\n  const c = x.curation || {};\n  const allowed = new Set(x.candidate_ids || []);\n\n  const hero = String(c.hero_id || '');\n  const selected = Array.isArray(c.selected_ids) ? c.selected_ids : [];\n  const reserve = Array.isArray(c.reserve_ids) ? c.reserve_ids : [];\n  const discard = Array.isArray(c.discard_ids) ? c.discard_ids : [];\n  const carousel = Array.isArray(c.carousel_order) ? c.carousel_order : [];\n  const reel = Array.isArray(c.reel_candidate_ids) ? c.reel_candidate_ids : [];\n  const groups = Array.isArray(c.redundancy_groups) ? c.redundancy_groups : [];\n\n  if (!hero || !allowed.has(hero)) {\n    throw new Error(`CURATION_WRITE_BLOCK: invalid hero for ${x.project_id}`);\n  }\n\n  const covered = new Set([...selected, ...reserve, ...discard]);\n  if (covered.size !== allowed.size || [...allowed].some(id => !covered.has(id))) {\n    throw new Error(`CURATION_WRITE_BLOCK: buckets do not cover all candidates for ${x.project_id}`);\n  }\n\n  const overlaps =\n    selected.filter(id => reserve.includes(id) || discard.includes(id)).length +\n    reserve.filter(id => discard.includes(id)).length;\n\n  if (overlaps > 0) {\n    throw new Error(`CURATION_WRITE_BLOCK: overlapping curation buckets for ${x.project_id}`);\n  }\n\n  if (!selected.includes(hero)) {\n    throw new Error(`CURATION_WRITE_BLOCK: hero is not selected for ${x.project_id}`);\n  }\n\n  const rankOrder = [\n    hero,\n    ...selected.filter(id => id !== hero),\n    ...reserve,\n    ...discard\n  ];\n\n  const redundancyById = new Map();\n\n  groups.forEach((g, idx) => {\n    const groupId = `RG${String(idx + 1).padStart(2, '0')}`;\n    const members = Array.isArray(g.member_ids) ? g.member_ids : [];\n    const preferred = String(g.preferred_id || '');\n    const reason = String(g.reason || '').trim();\n\n    if (preferred && !members.includes(preferred)) {\n      throw new Error(`CURATION_WRITE_BLOCK: preferred redundancy ID not in group ${groupId}`);\n    }\n\n    for (const id of members) {\n      if (!allowed.has(id)) {\n        throw new Error(`CURATION_WRITE_BLOCK: unknown redundancy ID ${id}`);\n      }\n      if (redundancyById.has(id)) {\n        throw new Error(`CURATION_WRITE_BLOCK: ${id} appears in more than one redundancy group`);\n      }\n      redundancyById.set(id, {\n        group: groupId,\n        preferred: id === preferred ? 'TRUE' : 'FALSE',\n        reason\n      });\n    }\n  });\n\n  const mediaWrites = [...allowed].map(id => {\n    const role =\n      id === hero ? 'HERO' :\n      selected.includes(id) ? 'SELECTED' :\n      reserve.includes(id) ? 'RESERVE' :\n      'DISCARD';\n\n    const redundancy = redundancyById.get(id) || {\n      group: '',\n      preferred: '',\n      reason: ''\n    };\n\n    const carouselPos = carousel.indexOf(id);\n    const rankPos = rankOrder.indexOf(id);\n\n    return {\n      ID_MIDIA: id,\n      CURATION_STATUS: 'AI_CURATED',\n      CURATION_VERSION: 'SM3_CURATION_V1',\n      CURATION_ROLE: role,\n      CURATION_RANK: rankPos >= 0 ? rankPos + 1 : '',\n      REDUNDANCY_GROUP: redundancy.group,\n      REDUNDANCY_PREFERRED: redundancy.preferred,\n      REDUNDANCY_REASON: redundancy.reason,\n      CAROUSEL_POSITION: carouselPos >= 0 ? carouselPos + 1 : '',\n      REEL_CANDIDATE: reel.includes(id) ? 'TRUE' : 'FALSE',\n      CURATED_AT: now,\n      CURATION_PROVIDER: x.provider || '',\n      CURATION_MODEL: x.model || '',\n      CURATION_CONFIDENCE: Number(c.confidence ?? ''),\n      CURATION_RUN_ID: x.response_id || ''\n    };\n  });\n\n  const projectWrite = {\n    ID_PROJETO: x.project_id,\n    CURATION_STATUS: 'AI_CURATED',\n    CURATION_VERSION: 'SM3_CURATION_V1',\n    CURATION_HERO_ID: hero,\n    CURATION_SELECTED_IDS: selected.join(', '),\n    CURATION_RESERVE_IDS: reserve.join(', '),\n    CURATION_DISCARD_IDS: discard.join(', '),\n    CURATION_CAROUSEL_ORDER: carousel.join(', '),\n    CURATION_REEL_IDS: reel.join(', '),\n    CURATION_NARRATIVE: String(c.narrative || '').trim(),\n    CURATION_CONFIDENCE: Number(c.confidence ?? ''),\n    CURATED_AT: now,\n    CURATION_PROVIDER: x.provider || '',\n    CURATION_MODEL: x.model || '',\n    CURATION_RUN_ID: x.response_id || ''\n  };\n\n  return {\n    json: {\n      project_id: x.project_id,\n      project_write: projectWrite,\n      media_writes: mediaWrites,\n      write_summary: {\n        hero_id: hero,\n        selected: selected.length,\n        reserve: reserve.length,\n        discard: discard.length,\n        media_rows: mediaWrites.length,\n        redundancy_groups: groups.length,\n        carousel_items: carousel.length,\n        reel_candidates: reel.length\n      }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        0
+      ],
+      "id": "b270b844-646d-4f59-9112-8fcdddf523b0",
+      "name": "BUILD — CURATION WRITES"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  for (const row of (item.json.media_writes || [])) {\n    out.push({json: row});\n  }\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -80
+      ],
+      "id": "68bb01d1-fbee-4c4b-9328-9c8fcf03bfb5",
+      "name": "EXPAND — MEDIA CURATION ROWS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json: i.json.project_write}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "32a62a86-8370-4a7f-9279-3235f27110cf",
+      "name": "EXPAND — PROJECT CURATION ROWS"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "CURATION_STATUS": "={{ $json.CURATION_STATUS }}",
+            "CURATION_VERSION": "={{ $json.CURATION_VERSION }}",
+            "CURATION_ROLE": "={{ $json.CURATION_ROLE }}",
+            "CURATION_RANK": "={{ $json.CURATION_RANK }}",
+            "REDUNDANCY_GROUP": "={{ $json.REDUNDANCY_GROUP }}",
+            "REDUNDANCY_PREFERRED": "={{ $json.REDUNDANCY_PREFERRED }}",
+            "REDUNDANCY_REASON": "={{ $json.REDUNDANCY_REASON }}",
+            "CAROUSEL_POSITION": "={{ $json.CAROUSEL_POSITION }}",
+            "REEL_CANDIDATE": "={{ $json.REEL_CANDIDATE }}",
+            "CURATED_AT": "={{ $json.CURATED_AT }}",
+            "CURATION_PROVIDER": "={{ $json.CURATION_PROVIDER }}",
+            "CURATION_MODEL": "={{ $json.CURATION_MODEL }}",
+            "CURATION_CONFIDENCE": "={{ $json.CURATION_CONFIDENCE }}",
+            "CURATION_RUN_ID": "={{ $json.CURATION_RUN_ID }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_STATUS",
+              "displayName": "CURATION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_VERSION",
+              "displayName": "CURATION_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_ROLE",
+              "displayName": "CURATION_ROLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RANK",
+              "displayName": "CURATION_RANK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_GROUP",
+              "displayName": "REDUNDANCY_GROUP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_PREFERRED",
+              "displayName": "REDUNDANCY_PREFERRED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_REASON",
+              "displayName": "REDUNDANCY_REASON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAROUSEL_POSITION",
+              "displayName": "CAROUSEL_POSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REEL_CANDIDATE",
+              "displayName": "REEL_CANDIDATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATED_AT",
+              "displayName": "CURATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_PROVIDER",
+              "displayName": "CURATION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_MODEL",
+              "displayName": "CURATION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CONFIDENCE",
+              "displayName": "CURATION_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1360,
+        -80
+      ],
+      "id": "b68341e9-b7ac-4cad-820d-76ef13a1701b",
+      "name": "UPDATE — 03_MIDIAS CURATION",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_PROJETO": "={{ $json.ID_PROJETO }}",
+            "CURATION_STATUS": "={{ $json.CURATION_STATUS }}",
+            "CURATION_VERSION": "={{ $json.CURATION_VERSION }}",
+            "CURATION_HERO_ID": "={{ $json.CURATION_HERO_ID }}",
+            "CURATION_SELECTED_IDS": "={{ $json.CURATION_SELECTED_IDS }}",
+            "CURATION_RESERVE_IDS": "={{ $json.CURATION_RESERVE_IDS }}",
+            "CURATION_DISCARD_IDS": "={{ $json.CURATION_DISCARD_IDS }}",
+            "CURATION_CAROUSEL_ORDER": "={{ $json.CURATION_CAROUSEL_ORDER }}",
+            "CURATION_REEL_IDS": "={{ $json.CURATION_REEL_IDS }}",
+            "CURATION_NARRATIVE": "={{ $json.CURATION_NARRATIVE }}",
+            "CURATION_CONFIDENCE": "={{ $json.CURATION_CONFIDENCE }}",
+            "CURATED_AT": "={{ $json.CURATED_AT }}",
+            "CURATION_PROVIDER": "={{ $json.CURATION_PROVIDER }}",
+            "CURATION_MODEL": "={{ $json.CURATION_MODEL }}",
+            "CURATION_RUN_ID": "={{ $json.CURATION_RUN_ID }}"
+          },
+          "matchingColumns": [
+            "ID_PROJETO"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_STATUS",
+              "displayName": "CURATION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_VERSION",
+              "displayName": "CURATION_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_HERO_ID",
+              "displayName": "CURATION_HERO_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_SELECTED_IDS",
+              "displayName": "CURATION_SELECTED_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RESERVE_IDS",
+              "displayName": "CURATION_RESERVE_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_DISCARD_IDS",
+              "displayName": "CURATION_DISCARD_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CAROUSEL_ORDER",
+              "displayName": "CURATION_CAROUSEL_ORDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_REEL_IDS",
+              "displayName": "CURATION_REEL_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_NARRATIVE",
+              "displayName": "CURATION_NARRATIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CONFIDENCE",
+              "displayName": "CURATION_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATED_AT",
+              "displayName": "CURATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_PROVIDER",
+              "displayName": "CURATION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_MODEL",
+              "displayName": "CURATION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1360,
+        120
+      ],
+      "id": "270fd3cc-cca7-4a8e-b814-4ffe05b37521",
+      "name": "UPDATE — 01_PROJETOS CURATION",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'MEDIA_CURATION_WRITTEN',rows_updated:$input.all().length,completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        -80
+      ],
+      "id": "cfd771de-cda9-4b3f-82d5-11bd002f062a",
+      "name": "AUDIT — MEDIA CURATION WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{status:'PROJECT_CURATION_WRITTEN',ID_PROJETO:i.json.ID_PROJETO || '',completed_at:new Date().toISOString()}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        120
+      ],
+      "id": "023c35ff-fd53-482f-8637-ed13a15bf770",
+      "name": "AUDIT — PROJECT CURATION WRITE"
+    }
+  ],
+  "connections": {
+    "MANUAL — CURATION": {
+      "main": [
+        [
+          {
+            "node": "READ — ANALYZED MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — ANALYZED MEDIA": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PROJECT SHORTLIST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PROJECT SHORTLIST": {
+      "main": [
+        [
+          {
+            "node": "VISION — CURATE PROJECT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — CURATE PROJECT": {
+      "main": [
+        [
+          {
+            "node": "BUILD — CURATION WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — CURATION WRITES": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — MEDIA CURATION ROWS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — PROJECT CURATION ROWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA CURATION ROWS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 03_MIDIAS CURATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 03_MIDIAS CURATION": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — MEDIA CURATION WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT CURATION ROWS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 01_PROJETOS CURATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 01_PROJETOS CURATION": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PROJECT CURATION WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,529 @@
+{
+  "name": "MOLOTOV — 02 — TRIAGE — v2 MEDIA WORKER DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d189b8b-be52-444b-9bd5-a674d5318d24",
+      "name": "MANUAL — TRIAGE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "3d011ece-40a8-4cfb-abe3-71045d954d5a",
+      "name": "READ — 03_MIDIAS QUEUE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — TRIAGE QUEUE CONTRACT\n// Only ANALYSIS_STATUS=QUEUED is eligible.\n// This deliberately ignores legacy rows that merely have TRIAGEM=PENDENTE.\n\nconst rows = $input.all().map(i => i.json);\n\nconst eligible = rows.filter(r =>\n  String(r.ANALYSIS_STATUS || '').trim().toUpperCase() === 'QUEUED' &&\n  String(r.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE'\n);\n\nreturn eligible.map(r => {\n  const type = String(r.TIPO || '').trim().toUpperCase();\n\n  const route =\n    type === 'FOTO' ? 'IMAGE_ORIGINAL' :\n    type === 'VÍDEO' || type === 'VIDEO' ? 'VIDEO_PROXY' :\n    'UNSUPPORTED';\n\n  return {\n    json: {\n      ...r,\n      analysis_route: route,\n      analysis_source_planned:\n        route === 'IMAGE_ORIGINAL' ? 'ORIGINAL' :\n        route === 'VIDEO_PROXY' ? 'PROXY' : '',\n      proxy_required: route === 'VIDEO_PROXY',\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "4136e57a-f5ba-4084-bcb9-f12d11ad934e",
+      "name": "BUILD — TRIAGE QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nconst summary = {\n  queued_total: items.length,\n  image_original: items.filter(x => x.analysis_route === 'IMAGE_ORIGINAL').length,\n  video_proxy: items.filter(x => x.analysis_route === 'VIDEO_PROXY').length,\n  unsupported: items.filter(x => x.analysis_route === 'UNSUPPORTED').length,\n  projects: {}\n};\n\nfor (const x of items) {\n  const p = x.ID_PROJETO || 'NO_PROJECT';\n  summary.projects[p] = (summary.projects[p] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    dry_run: true,\n    summary,\n    queued_ids: items.map(x => x.ID_MIDIA),\n    queue: items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -140
+      ],
+      "id": "73ba0345-b0da-44fa-96d3-29c916c4c3a2",
+      "name": "AUDIT — TRIAGE QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "IMAGE_ORIGINAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a89483cb-610c-48fc-a91e-2021f0755ca2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE_ORIGINAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "VIDEO_PROXY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b7f6f5d-e9a5-4984-bdad-100ac5001a67"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VIDEO_PROXY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "UNSUPPORTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e031c51f-3c4b-4cf3-9be2-bbddf13c8096"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNSUPPORTED"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        80
+      ],
+      "id": "85fcb316-40cc-4eb5-b204-5a03fe6a0960",
+      "name": "ROUTE — ANALYSIS INPUT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json, next_action:'SKIP_UNSUPPORTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "aac306f4-122e-4450-9fb8-6854efc67568",
+      "name": "UNSUPPORTED — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'jpg').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'image',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "b13d63c6-cfcc-4372-b1c6-bb9792e49c3f",
+      "name": "PREPARE — IMAGE WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        -40
+      ],
+      "id": "211b4648-5c50-41cb-be38-388484c6b566",
+      "name": "DOWNLOAD — IMAGE ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ],
+      "id": "89ded77d-2f7a-45d9-b67c-bfe6041431c3",
+      "name": "WRITE — IMAGE TEMP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'image',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,delete_source_after:true} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -40
+      ],
+      "id": "8f4b55c3-2902-4a6e-939a-17ebaf87d635",
+      "name": "WORKER — PROCESS IMAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,worker_test:'IMAGE_OK'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        -40
+      ],
+      "id": "bd78e1fd-b319-4bed-8a84-07a2d71c83f1",
+      "name": "AUDIT — IMAGE WORKER"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'mp4').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'video',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        120
+      ],
+      "id": "5a1eb337-e763-4850-92c9-33df4f0a778e",
+      "name": "PREPARE — VIDEO WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "aa33612a-3920-4667-889f-c8e10eb3ccfb",
+      "name": "DOWNLOAD — VIDEO ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        120
+      ],
+      "id": "790c2d01-4863-4fab-b7ed-bf880b50e3ef",
+      "name": "WRITE — VIDEO TEMP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'video',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,delete_source_after:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        120
+      ],
+      "id": "4abc5dbb-c381-4c18-8b97-fa830c858fd9",
+      "name": "WORKER — PROCESS VIDEO"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,worker_test:'VIDEO_OK'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        120
+      ],
+      "id": "679c8a36-6895-423d-aaf5-97f91fffd823",
+      "name": "AUDIT — VIDEO WORKER"
+    }
+  ],
+  "connections": {
+    "MANUAL — TRIAGE": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS QUEUE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TRIAGE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TRIAGE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — TRIAGE QUEUE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ROUTE — ANALYSIS INPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ANALYSIS INPUT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — IMAGE WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — VIDEO WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UNSUPPORTED — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — IMAGE WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IMAGE ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IMAGE ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IMAGE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IMAGE TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS IMAGE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — IMAGE WORKER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — VIDEO WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — VIDEO ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — VIDEO ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — VIDEO TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — VIDEO TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS VIDEO": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VIDEO WORKER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

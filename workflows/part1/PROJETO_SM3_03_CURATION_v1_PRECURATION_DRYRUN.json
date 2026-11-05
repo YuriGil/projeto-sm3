@@ -1,0 +1,120 @@
+{
+  "name": "PROJETO SM3 — 03 — CURATION — v1 PRECURATION DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "782143cf-decb-4e0e-8bf0-ca1e37424524",
+      "name": "MANUAL — CURATION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "fab45ff9-003d-496c-a089-03c079bd19bc",
+      "name": "READ — ANALYZED MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — deterministic pre-curation.\n// This is NOT the final visual redundancy decision.\n// It creates a stable shortlist for the next project-level vision pass.\n\nconst rows = $input.all().map(i => i.json);\n\nfunction n(v) {\n  const x = Number(v);\n  return Number.isFinite(x) ? x : 0;\n}\n\nconst eligible = rows.filter(r =>\n  String(r.ANALYSIS_STATUS || '').toUpperCase() === 'ANALYZED' &&\n  String(r.STORAGE_STATUS || '').toUpperCase() === 'ONLINE' &&\n  String(r.ID_PROJETO || '').trim()\n);\n\nconst projects = {};\n\nfor (const r of eligible) {\n  const pid = r.ID_PROJETO;\n  if (!projects[pid]) projects[pid] = [];\n\n  const editorial = n(r.EDITORIAL_SCORE);\n  const technical = n(r.TECHNICAL_SCORE);\n  const composition = n(r.COMPOSITION_SCORE);\n  const visibility = n(r.TATTOO_VISIBILITY);\n\n  const weighted =\n    editorial * 0.45 +\n    technical * 0.20 +\n    composition * 0.20 +\n    visibility * 0.15;\n\n  const triage = String(r.TRIAGEM || '').toUpperCase();\n  const triageAdjust =\n    triage === 'SELECIONADO' ? 5 :\n    triage === 'DESCARTAR' ? -30 : 0;\n\n  projects[pid].push({\n    ID_MIDIA: r.ID_MIDIA,\n    TIPO: r.TIPO,\n    TRIAGEM: r.TRIAGEM,\n    ANALYSIS_STAGE: r.ANALYSIS_STAGE || '',\n    SHOT_TYPE: r.SHOT_TYPE || '',\n    EDITORIAL_SCORE: editorial,\n    TECHNICAL_SCORE: technical,\n    COMPOSITION_SCORE: composition,\n    TATTOO_VISIBILITY: visibility,\n    ANALYSIS_CONFIDENCE: n(r.ANALYSIS_CONFIDENCE),\n    USAR_EM: r.USAR_EM || '',\n    MELHOR_TRECHO: r.MELHOR_TRECHO || '',\n    CONTEUDO_VISUAL: r['CONTEÚDO_VISUAL'] || '',\n    REDUNDANCY_HINT: r.REDUNDANCY_HINT || '',\n    PRECURATION_SCORE: Math.round(weighted + triageAdjust),\n    redundancy_bucket:\n      `${String(r.ANALYSIS_STAGE || 'UNKNOWN').toUpperCase()}|${String(r.SHOT_TYPE || 'UNKNOWN').toUpperCase()}`\n  });\n}\n\nconst output = [];\n\nfor (const [pid, media] of Object.entries(projects)) {\n  media.sort((a, b) =>\n    b.PRECURATION_SCORE - a.PRECURATION_SCORE ||\n    b.ANALYSIS_CONFIDENCE - a.ANALYSIS_CONFIDENCE ||\n    String(a.ID_MIDIA).localeCompare(String(b.ID_MIDIA))\n  );\n\n  const bucketCounts = {};\n  for (const m of media) {\n    bucketCounts[m.redundancy_bucket] = (bucketCounts[m.redundancy_bucket] || 0) + 1;\n  }\n\n  output.push({\n    json: {\n      project_id: pid,\n      analyzed_media_count: media.length,\n      shortlist: media.slice(0, Math.min(12, media.length)),\n      redundancy_buckets: bucketCounts,\n      next_action: media.length >= 2\n        ? 'PROJECT_LEVEL_VISUAL_CURATION'\n        : 'NOT_ENOUGH_MEDIA_FOR_COMPARISON',\n      dry_run: true\n    }\n  });\n}\n\nreturn output.length\n  ? output\n  : [{json:{dry_run:true,no_work:true,message:'Nenhum projeto possui mídia ANALYZED + ONLINE.'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "bc002366-a352-4333-9148-1d5c1e53ad14",
+      "name": "BUILD — PROJECT SHORTLIST"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:{\n  ...i.json,\n  audit_generated_at: new Date().toISOString()\n}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "8c3d5dcc-6735-4694-8243-a7c50b358bc6",
+      "name": "AUDIT — PRECURATION"
+    }
+  ],
+  "connections": {
+    "MANUAL — CURATION": {
+      "main": [
+        [
+          {
+            "node": "READ — ANALYZED MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — ANALYZED MEDIA": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PROJECT SHORTLIST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PROJECT SHORTLIST": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PRECURATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

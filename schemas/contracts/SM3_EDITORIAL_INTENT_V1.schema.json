@@ -1,0 +1,25 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"SM3_EDITORIAL_INTENT_V1",
+  "title":"SM3 Editorial Intent V1",
+  "type":"object",
+  "required":["ok","editorial_plan_id","contract_version","planner_version","project_id","content_id","edit_session_id","revision","state_etag","direction_profile_id","content_format","artifact_type","text_decision","identity_policy","slide_plans","plan_sha256"],
+  "properties":{
+    "ok":{"const":true},
+    "editorial_plan_id":{"type":"string","pattern":"^EP_[a-f0-9]{32}$"},
+    "contract_version":{"const":"SM3_EDITORIAL_INTENT_V1"},
+    "planner_version":{"const":"SM3_NATIVE_FORMAT_PLANNER_V1"},
+    "revision":{"type":"integer","minimum":2},
+    "state_etag":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "content_format":{"enum":["CARROSSEL","POST","REEL","STORY"]},
+    "artifact_type":{"enum":["CAROUSEL_IMAGE_SET","SINGLE_IMAGE","VIDEO_TIMELINE","STORY_SEQUENCE"]},
+    "text_decision":{"type":"string"},
+    "identity_policy":{"type":"string"},
+    "slide_plans":{"type":"array"},
+    "native_format_is_authoritative":{"const":true},
+    "review_artifact_separate_from_native_product":{"const":true},
+    "no_fixed_duration_for_non_temporal_format":{"const":true},
+    "plan_sha256":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+  },
+  "additionalProperties":true
+}

@@ -1,0 +1,18 @@
+Projeto SM3 — 08C Semantic Geometry V1 — test report
+
+PASS  Python py_compile Worker 2.11.0
+PASS  Worker health exposes SM3_SEMANTIC_GEOMETRY_V1 / SM3_GEOMETRY_ANALYZER_V1
+PASS  Geometry compiler: protection halo and crop-coverage enforcement
+PASS  Geometry compiler: overlay candidate overlapping tattoo is rejected
+PASS  Geometry compiler: structural V2 bbox cross-check / IoU
+PASS  Geometry compiler: profile-independent hard constraint
+PASS  Runtime fixture: immutable persistence
+PASS  Runtime fixture: identical request returns reused_existing=True
+PASS  Runtime fixture: record SHA tamper detection
+PASS  n8n workflow JSON parse
+PASS  n8n Code nodes syntax checked with node --check
+PASS  Current fixture IDs/hashes locked to M0083/M0085/M0086
+PASS  Spreadsheet 21_SEMANTIC_GEOMETRY created with 23-column mirror contract
+PASS  REV4/profile are not modified by 08C code path
+
+Renderer intentionally remains 2.8.0. 08C analyzes/compiles geometry; it does not yet change the visual render.

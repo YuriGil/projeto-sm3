@@ -1,0 +1,6 @@
+{
+  "id": "AG_INGEST",
+  "name": "Ingestion",
+  "uses_llm": false,
+  "version": "1.0"
+}

@@ -1,0 +1,352 @@
+{
+  "name": "PROJETO SM3 — 06 — DECISION ROUTING — v1 DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b0bcf6d6-d682-4155-a98f-f225f9550be8",
+      "name": "MANUAL — ROUTE DECISIONS"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "cd20b81e-ffed-4b36-aad7-b64989824a6d",
+      "name": "READ — COMMITTED DECISIONS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\nconst committed = rows.filter(r => {\n  const s = String(r.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase();\n  return ['APROVADO','REVISAR','DESCARTADO'].includes(s) &&\n         String(r.APPROVAL_SOURCE || '').trim().toUpperCase() === 'HUMAN_GOOGLE_SHEETS';\n});\n\nif (committed.length === 0) {\n  return [{json:{no_work:true,route_key:'NO_WORK',message:'Nenhuma decisão humana comprometida foi encontrada.'}}];\n}\n\nreturn committed.map(r => {\n  const decision = String(r.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase();\n  const notes = String(r.APPROVAL_NOTES || '').trim();\n\n  let route_key = 'NO_WORK';\n  if (decision === 'APROVADO') route_key = 'PRODUCTION_READY';\n  else if (decision === 'REVISAR') route_key = notes ? 'REVISION_READY' : 'REVISION_NEEDS_NOTES';\n  else if (decision === 'DESCARTADO') route_key = 'EDITORIAL_CLOSED';\n\n  return {json:{\n    no_work:false,\n    route_key,\n    ID_CONTEÚDO:r.ID_CONTEÚDO,\n    ID_PROJETO:r.ID_PROJETO,\n    TÍTULO_INTERNO:r.TÍTULO_INTERNO,\n    FORMATO:r.FORMATO,\n    OBJETIVO:r.OBJETIVO,\n    PRIORIDADE:r.PRIORIDADE,\n    BRUTOS_USADOS:r.BRUTOS_USADOS,\n    HOOK:r.HOOK,\n    ROTEIRO:r.ROTEIRO,\n    LEGENDA:r.LEGENDA,\n    CTA:r.CTA,\n    TEMPLATE_ID:r.TEMPLATE_ID,\n    STATUS_EDIÇÃO:r.STATUS_EDIÇÃO,\n    STATUS_APROVAÇÃO:r.STATUS_APROVAÇÃO,\n    APPROVAL_COMMITTED_STATUS:decision,\n    APPROVAL_NOTES:notes,\n    APPROVAL_DECIDED_AT:r.APPROVAL_DECIDED_AT,\n    PLAN_RUN_ID:r.PLAN_RUN_ID,\n    CURATION_RUN_ID:r.CURATION_RUN_ID\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "fe9d0380-c3e7-466c-8c7f-6a1e8c2cfbdf",
+      "name": "BUILD — DECISION ROUTES"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "PRODUCTION_READY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e7eceb15-6f66-43bc-9606-c542453a8ebb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PRODUCTION_READY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "REVISION_READY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b1e9f7b9-11db-45f1-b489-b9e8a1399e36"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REVISION_READY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "REVISION_NEEDS_NOTES",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b1c33d3-c6b8-4b0b-96fd-0236110cdc00"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REVISION_NEEDS_NOTES"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "EDITORIAL_CLOSED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "31fab332-f3a9-49e0-9dd6-9fb8eaa5680e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "EDITORIAL_CLOSED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "335b12ba-1032-4280-9c04-a31a1b862fc6"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        0
+      ],
+      "id": "97c2d47f-560c-4797-8cab-d7db495a0159",
+      "name": "ROUTE — HUMAN DECISIONS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{dry_run:true,status:'PRODUCTION_READY',count:items.length,content_ids:items.map(x=>x.ID_CONTEÚDO),items}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -200
+      ],
+      "id": "b1aa105f-731d-4091-bfdb-3eecbac375c4",
+      "name": "AUDIT — PRODUCTION QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{dry_run:true,status:'REVISION_READY',count:items.length,content_ids:items.map(x=>x.ID_CONTEÚDO),items}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -80
+      ],
+      "id": "65565d33-ca03-4997-8e9c-95db472708e4",
+      "name": "AUDIT — REVISION QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{dry_run:true,status:'REVISION_NEEDS_NOTES',count:items.length,content_ids:items.map(x=>x.ID_CONTEÚDO),items}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        60
+      ],
+      "id": "325a004e-016c-4346-9ad9-b17a98e6fbf0",
+      "name": "AUDIT — REVISION NEEDS NOTES"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{dry_run:true,status:'EDITORIAL_CLOSED',count:items.length,content_ids:items.map(x=>x.ID_CONTEÚDO),items}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ],
+      "id": "da4a1892-e655-4e02-9cde-f0c6fa36c80d",
+      "name": "AUDIT — EDITORIAL CLOSED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{dry_run:true,status:'NO_WORK',message:'Nenhuma decisão humana para rotear.'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        340
+      ],
+      "id": "96dc9fdc-913f-48cc-8f2c-c8db08bc6e1a",
+      "name": "NO WORK — DECISION ROUTING"
+    }
+  ],
+  "connections": {
+    "MANUAL — ROUTE DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "READ — COMMITTED DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — COMMITTED DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — DECISION ROUTES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — DECISION ROUTES": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — HUMAN DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — HUMAN DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PRODUCTION QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — REVISION QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — REVISION NEEDS NOTES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — EDITORIAL CLOSED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — DECISION ROUTING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

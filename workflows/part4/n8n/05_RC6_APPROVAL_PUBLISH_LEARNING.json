@@ -1,0 +1,94 @@
+{
+  "name": "MOLOTOV SOCIAL OS RC6 - Approval Publish Learning Gate",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "TESTE MANUAL",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{content_id:'TEST_C1',status:'AGUARDANDO_APROVACAO',render_qa:'PASS',media:['DRIVE_URL'],date:'FUTURE_SLOT'}}];"
+      },
+      "id": "a",
+      "name": "Await Approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'HUMAN_GATE',publish_eligible:false,next:'EXPLICIT_APPROVAL_REQUIRED'}}];"
+      },
+      "id": "g",
+      "name": "Human Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'STOP_BEFORE_LIVE_METRICOOL',live_call:false}}];"
+      },
+      "id": "s",
+      "name": "Live Boundary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TESTE MANUAL": {
+      "main": [
+        [
+          {
+            "node": "Await Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Await Approval": {
+      "main": [
+        [
+          {
+            "node": "Human Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Gate": {
+      "main": [
+        [
+          {
+            "node": "Live Boundary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

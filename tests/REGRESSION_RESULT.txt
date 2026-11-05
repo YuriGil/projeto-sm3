@@ -1,0 +1,8 @@
+[PASS] tests/e2e/acceptance.py :: RC7_CORE_GATE_PASS
+[PASS] tests/e2e/test_idempotent_ingestion.py :: IDEMPOTENT_INGESTION_PASS
+[PASS] tests/unit/test_media_worker.py :: MEDIA_WORKER_ACCEPTANCE_PASS
+[PASS] tests/unit/test_vision_adapter.py :: VISION_ADAPTER_ACCEPTANCE_PASS
+[PASS] tests/unit/test_publish_learning.py :: PUBLISH_LEARNING_ACCEPTANCE_PASS
+[PASS] tests/integration/test_full_pipeline.py :: INTEGRATED_E2E_PASS
+[PASS] tests/integration/test_hardening.py :: HARDENING_PASS
+REGRESSION_SUITE_PASS 7/7

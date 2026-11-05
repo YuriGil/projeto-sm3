@@ -1,0 +1,418 @@
+{
+  "name": "PROJETO SM3 — 07D — EDITOR WORKSPACE BOOTSTRAP — v1 VERIFIED STATE",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1500,
+        0
+      ],
+      "id": "42bcaef9-0d1e-418b-b619-7f6974fd463c",
+      "name": "MANUAL — EDITOR WORKSPACE"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1280,
+        0
+      ],
+      "id": "12f76076-208e-4d53-b001-b6a456625228",
+      "name": "WORKER — HEALTH CONTRACT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h = $json;\nconst errors = [];\nif (h.ok !== true) errors.push('ok');\nif (String(h.service || '') !== 'sm3-media-worker') errors.push('service');\nif (String(h.version || '') !== '2.4.0') errors.push('version=' + h.version);\nif (String(h.production_edit_contract || '') !== 'SM3_PRODUCTION_EDIT_V1') errors.push('production_edit_contract');\nif (String(h.edit_session_contract || '') !== 'SM3_EDIT_SESSION_V1') errors.push('edit_session_contract');\nif (h.editor_workspace !== true) errors.push('editor_workspace');\nif (h.editor_workspace_read_only !== true) errors.push('editor_workspace_read_only');\nif (h.editor_workspace_asset_verified !== true) errors.push('editor_workspace_asset_verified');\nif (String(h.editor_workspace_contract || '') !== 'SM3_EDITOR_WORKSPACE_V1') errors.push('editor_workspace_contract');\nif (errors.length) throw new Error('WORKER_2_4_0_CONTRACT_MISMATCH:' + errors.join(','));\nreturn {json:{status:'WORKER_2_4_0_CONTRACT_VERIFIED',checked_at:new Date().toISOString()}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1060,
+        0
+      ],
+      "id": "549e0d0a-84b5-42e3-9869-fcdd41ba370e",
+      "name": "ASSERT — WORKER 2.4.0"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -840,
+        0
+      ],
+      "id": "2f4d3238-f9d5-4dd9-b0ca-81da73c31797",
+      "name": "READ — EDIT SESSION STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst text = v => String(v || '').trim();\nconst upper = v => text(v).toUpperCase();\nconst counts = new Map();\nfor (const row of rows) {\n  const id = text(row.ID_CONTEÚDO);\n  if (id) counts.set(id, (counts.get(id) || 0) + 1);\n}\nconst work = [];\nconst blocked = [];\nfor (const row of rows) {\n  const projectId = text(row.ID_PROJETO);\n  const contentId = text(row.ID_CONTEÚDO);\n  const variantSetId = text(row.VARIANT_SET_ID);\n  const selected = upper(row.SELECTED_VARIANT_ID);\n  const sessionId = text(row.EDIT_SESSION_ID);\n  const sessionStatus = upper(row.EDIT_SESSION_STATUS);\n  const pipeline = upper(row.PIPELINE_STATE);\n  const review = upper(row.VARIANT_REVIEW_STATUS);\n  const recipeVersion = text(row.EDIT_RECIPE_VERSION);\n  const stateVersion = text(row.STATE_VERSION);\n  const productionContract = text(row.PRODUCTION_CONTRACT_VERSION);\n  const candidate = pipeline === 'EDIT_SESSION_READY' || review === 'OPEN_EDITOR' || Boolean(sessionId);\n  if (!candidate) continue;\n  const errors = [];\n  if (!projectId) errors.push('ID_PROJETO_MISSING');\n  if (!contentId) errors.push('ID_CONTEUDO_MISSING');\n  if (contentId && counts.get(contentId) !== 1) errors.push('ID_CONTEUDO_NOT_UNIQUE');\n  if (!/^VS_[A-Za-z0-9_-]+$/.test(variantSetId)) errors.push('VARIANT_SET_ID_INVALID');\n  if (!/^V\\d{2}$/.test(selected)) errors.push('SELECTED_VARIANT_ID_INVALID');\n  if (!/^ES_[A-Za-z0-9_-]+$/.test(sessionId)) errors.push('EDIT_SESSION_ID_INVALID');\n  if (!['OPEN','SAVED','COMPLETED'].includes(sessionStatus)) errors.push('EDIT_SESSION_STATUS=' + (sessionStatus || 'EMPTY'));\n  if (pipeline !== 'EDIT_SESSION_READY') errors.push('PIPELINE_STATE=' + (pipeline || 'EMPTY'));\n  if (review !== 'OPEN_EDITOR') errors.push('VARIANT_REVIEW_STATUS=' + (review || 'EMPTY'));\n  if (recipeVersion !== 'SM3_EDIT_RECIPE_V1') errors.push('EDIT_RECIPE_VERSION=' + (recipeVersion || 'EMPTY'));\n  if (stateVersion !== 'SM3_STATE_V5') errors.push('STATE_VERSION=' + (stateVersion || 'EMPTY'));\n  if (productionContract !== 'SM3_PRODUCTION_EDIT_V1') errors.push('PRODUCTION_CONTRACT_VERSION=' + (productionContract || 'EMPTY'));\n  if (errors.length) {\n    blocked.push({project_id:projectId,content_id:contentId,edit_session_id:sessionId,errors});\n  } else {\n    work.push({route_key:'WORK',project_id:projectId,content_id:contentId,variant_set_id:variantSetId,base_variant_id:selected,edit_session_id:sessionId,expected_status:sessionStatus});\n  }\n}\nif (blocked.length) return [{json:{route_key:'BLOCKED',status:'EDITOR_WORKSPACE_INPUT_BLOCKED',blocked}}];\nif (work.length) return work.map(x => ({json:x}));\nreturn [{json:{route_key:'NO_WORK',status:'NO_EDIT_SESSION_READY'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -620,
+        0
+      ],
+      "id": "e106837b-3bc9-4a99-bf89-8a034df33617",
+      "name": "BUILD — WORKSPACE VERIFY QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bf596274-b10a-450d-945e-b0d3f00e8237"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WORK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "BLOCKED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2052dba8-b104-485f-9158-78a495b8f7cb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BLOCKED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f1602dca-ef71-44f7-a0e3-acfd36619dec"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -400,
+        0
+      ],
+      "id": "6d9d1074-d818-4423-be8f-46996f770b1f",
+      "name": "ROUTE — WORKSPACE STATE"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/editor-workspace/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -150,
+        -180
+      ],
+      "id": "05ae6e31-3fee-497c-a500-461ea4f399e6",
+      "name": "WORKER — GET EDITOR WORKSPACE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const w = $json;\nconst request = $('BUILD — WORKSPACE VERIFY QUEUE').all().map(i => i.json).find(x => String(x.edit_session_id || '') === String(w.edit_session_id || ''));\nif (!request) throw new Error('EDITOR_WORKSPACE_REQUEST_NOT_FOUND:' + (w.edit_session_id || 'EMPTY'));\nconst errors = [];\nif (w.ok !== true) errors.push('ok');\nif (String(w.version || '') !== '2.4.0') errors.push('version=' + w.version);\nif (String(w.production_contract_version || '') !== 'SM3_PRODUCTION_EDIT_V1') errors.push('production_contract_version');\nif (String(w.workspace_contract_version || '') !== 'SM3_EDITOR_WORKSPACE_V1') errors.push('workspace_contract_version');\nif (String(w.edit_session_contract_version || '') !== 'SM3_EDIT_SESSION_V1') errors.push('edit_session_contract_version');\nif (String(w.edit_contract_version || '') !== 'SM3_EDIT_RECIPE_V1') errors.push('edit_contract_version');\nfor (const field of ['project_id','content_id','variant_set_id','edit_session_id']) {\n  if (String(w[field] || '') !== String(request[field] || '')) errors.push(field + '_mismatch');\n}\nif (String(w.base_variant_id || '') !== String(request.base_variant_id || '')) errors.push('base_variant_id_mismatch');\nif (String(w.status || '') !== String(request.expected_status || '')) errors.push('status_mismatch');\nif (!Number.isInteger(Number(w.current_revision)) || Number(w.current_revision) < 1) errors.push('current_revision');\nif (!/^[a-f0-9]{64}$/.test(String(w.state_etag || ''))) errors.push('state_etag');\nif (w.read_only !== true) errors.push('read_only');\nif (!w.recipe || typeof w.recipe !== 'object') errors.push('recipe');\nif (!w.base_variant || typeof w.base_variant !== 'object') errors.push('base_variant');\nif (w.preview?.verified !== true) errors.push('preview_verified');\nif (!/^[a-f0-9]{64}$/.test(String(w.preview?.sha256 || ''))) errors.push('preview_sha256');\nif (!(Number(w.preview?.bytes || 0) > 0)) errors.push('preview_bytes');\nif (String(w.preview?.contract_version || '') !== 'SM3_VARIANT_PREVIEW_V1') errors.push('preview_contract');\nfor (const key of ['timeline','framing','text_overlays','identity_application','color_treatment','transitions','audio','ai_revision_request']) {\n  if (w.capabilities?.[key] !== true) errors.push('capability_' + key);\n}\nfor (const key of ['non_destructive','preserve_subject_required','original_media_immutable','base_variant_immutable','final_approval_required','publish_from_preview_forbidden']) {\n  if (w.constraints?.[key] !== true) errors.push('constraint_' + key);\n}\nif (errors.length) throw new Error('EDITOR_WORKSPACE_CONTRACT_MISMATCH:' + errors.join(','));\nreturn {json:w};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        90,
+        -180
+      ],
+      "id": "9a0d71b9-7f7e-46f4-8a56-ef7b689f7319",
+      "name": "ASSERT — WORKSPACE CONTRACT"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/edit-session/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        330,
+        -180
+      ],
+      "id": "3a70fc46-27a9-42fe-bfb9-c0384684d31b",
+      "name": "VERIFY GET — EDIT SESSION"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const state = $json;\nconst workspace = $('ASSERT — WORKSPACE CONTRACT').all().map(i => i.json).find(x => String(x.edit_session_id || '') === String(state.edit_session_id || ''));\nif (!workspace) throw new Error('EDITOR_WORKSPACE_RESPONSE_NOT_FOUND:' + (state.edit_session_id || 'EMPTY'));\nfor (const field of ['project_id','content_id','variant_set_id','base_variant_id','edit_session_id','status']) {\n  if (String(state[field] || '') !== String(workspace[field] || '')) throw new Error('EDITOR_WORKSPACE_PERSIST_MISMATCH:' + field);\n}\nif (Number(state.current_revision || 0) !== Number(workspace.current_revision || 0)) throw new Error('EDITOR_WORKSPACE_PERSIST_REVISION_MISMATCH');\nif (String(state.production_contract_version || '') !== 'SM3_PRODUCTION_EDIT_V1') throw new Error('EDITOR_WORKSPACE_PERSIST_PRODUCTION_CONTRACT');\nif (String(state.edit_session_contract_version || '') !== 'SM3_EDIT_SESSION_V1') throw new Error('EDITOR_WORKSPACE_PERSIST_SESSION_CONTRACT');\nif (String(state.edit_contract_version || '') !== 'SM3_EDIT_RECIPE_V1') throw new Error('EDITOR_WORKSPACE_PERSIST_RECIPE_CONTRACT');\nif (String(state.selection_evidence?.preview_sha256 || '') !== String(workspace.preview?.sha256 || '')) throw new Error('EDITOR_WORKSPACE_PERSIST_PREVIEW_HASH_MISMATCH');\nif (JSON.stringify(state.recipe) !== JSON.stringify(workspace.recipe)) throw new Error('EDITOR_WORKSPACE_PERSIST_RECIPE_MISMATCH');\nconst p = encodeURIComponent(state.project_id), c = encodeURIComponent(state.content_id), s = encodeURIComponent(state.edit_session_id);\nreturn {json:{status:'EDITOR_WORKSPACE_VERIFIED',project_id:state.project_id,content_id:state.content_id,edit_session_id:state.edit_session_id,base_variant_id:state.base_variant_id,current_revision:Number(state.current_revision),state_etag:workspace.state_etag,preview_sha256:workspace.preview.sha256,editor_url:'http://localhost:8090/production/editor/'+p+'/'+c+'/'+s,workspace_url:'http://localhost:8090/production/editor-workspace/'+p+'/'+c+'/'+s}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        570,
+        -180
+      ],
+      "id": "9decb780-b449-4de5-950b-87cad6899bb0",
+      "name": "ASSERT — WORKSPACE SOURCE PERSISTED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const verified = $input.all().map(i => i.json);\nif (!verified.length) throw new Error('EDITOR_WORKSPACE_AUDIT_EMPTY');\nreturn [{json:{status:'EDITOR_WORKSPACE_BOOTSTRAP_VERIFIED',verified_count:verified.length,verified,verified_at:new Date().toISOString(),next_stage:'07E_MANUAL_EDIT_SAVE'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        810,
+        -180
+      ],
+      "id": "1fe066fd-1f5c-4446-9625-485a4ea435e8",
+      "name": "AUDIT — EDITOR WORKSPACES"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "throw new Error('EDITOR_WORKSPACE_INPUT_BLOCKED:' + JSON.stringify($json.blocked || []));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -150,
+        40
+      ],
+      "id": "7ab312d7-e346-4b2d-adc7-ebd4667f22f2",
+      "name": "ASSERT — WORKSPACE INPUT BLOCKED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'NO_EDIT_SESSION_READY',verified_count:0,checked_at:new Date().toISOString()}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -150,
+        200
+      ],
+      "id": "4bea3cb1-0514-48a7-8407-e9d675853277",
+      "name": "AUDIT — NO WORKSPACE WORK"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "MANUAL — EDITOR WORKSPACE": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — WORKER 2.4.0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — WORKER 2.4.0": {
+      "main": [
+        [
+          {
+            "node": "READ — EDIT SESSION STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — EDIT SESSION STATE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — WORKSPACE VERIFY QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — WORKSPACE VERIFY QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — WORKSPACE STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — WORKSPACE STATE": {
+      "main": [
+        [
+          {
+            "node": "WORKER — GET EDITOR WORKSPACE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ASSERT — WORKSPACE INPUT BLOCKED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO WORKSPACE WORK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — GET EDITOR WORKSPACE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — WORKSPACE CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — WORKSPACE CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "VERIFY GET — EDIT SESSION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VERIFY GET — EDIT SESSION": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — WORKSPACE SOURCE PERSISTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — WORKSPACE SOURCE PERSISTED": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — EDITOR WORKSPACES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "87e2635a-63f9-4d32-a9d4-11eb60636c62",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_STRATEGY_EVIDENCE_BINDING_V1",
+  "title": "SM3 Strategy Evidence Binding V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "evidence_id",
+    "source_type",
+    "observed_at",
+    "confidence",
+    "claims"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_STRATEGY_EVIDENCE_BINDING_V1"
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_type": {
+      "enum": [
+        "OFFICIAL_CONFIRMED",
+        "PLATFORM_STATEMENT",
+        "OWN_ACCOUNT_OBSERVATION",
+        "CONTROLLED_EXPERIMENT",
+        "PUBLIC_REFERENCE",
+        "HUMAN_PREFERENCE",
+        "MATERIAL_SEMANTICS",
+        "INFERENCE",
+        "UNKNOWN"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "valid_until": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "platform_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "content_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171b18">
+  <title>MOLÖTOV · Console</title>
+  <style>
+    :root{color-scheme:light;--ink:#171b18;--paper:#f0f1eb;--panel:#fbfcf7;--line:#d8ddd4;--muted:#69736b;--red:#bd392c;--green:#376b4d;--acid:#d5df65;--blue:#397a83;--shadow:#171b1810}
+    *{box-sizing:border-box}body{margin:0;background-color:var(--paper);background-image:linear-gradient(90deg,#171b1806 1px,transparent 1px),linear-gradient(#171b1806 1px,transparent 1px);background-size:24px 24px;color:var(--ink);font:15px/1.45 "Segoe UI",Tahoma,sans-serif}
+    a{color:inherit}button{font:inherit}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+    .shell{min-height:100vh;display:grid;grid-template-columns:230px minmax(0,1fr)}.rail{background:var(--ink);color:#f3f3e9;padding:24px 18px;display:flex;flex-direction:column;gap:28px}
+    .brand{display:flex;align-items:center;gap:11px}.brand-mark{display:grid;place-items:center;width:36px;aspect-ratio:1;background:var(--acid);color:var(--ink);font:bold 18px Georgia,serif;transform:rotate(-4deg)}.brand-name{font:bold 15px Georgia,serif;line-height:1.1}.brand-sub{color:#aab4a9;font:10px Consolas,monospace;margin-top:5px}
+    .rail-label{font:10px Consolas,monospace;color:#96a097;text-transform:uppercase;margin:0 0 8px}.nav{display:grid;gap:5px}.nav button{width:100%;text-align:left;background:transparent;border:0;color:#d4dbd2;padding:10px 11px;cursor:pointer;border-left:2px solid transparent}.nav button:hover,.nav button.active{background:#ffffff0b;color:white;border-left-color:var(--acid)}.nav-index{display:inline-block;width:27px;font:11px Consolas,monospace;color:#8e9a90}.rail-bottom{margin-top:auto;border-top:1px solid #ffffff20;padding-top:16px;color:#b1bbb2;font-size:12px}.live{display:flex;align-items:center;gap:8px;color:#d5dfd4}.live-dot{width:8px;height:8px;background:#81bd8e;border-radius:50%;box-shadow:0 0 0 4px #81bd8e20}
+    .main{min-width:0}.topbar{height:66px;padding:0 34px;border-bottom:1px solid var(--line);background:#f4f5efde;display:flex;align-items:center;justify-content:space-between;gap:16px}.crumb{font:11px Consolas,monospace;color:var(--muted)}.top-actions{display:flex;align-items:center;gap:9px}.text-link,.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;padding:9px 12px;border:1px solid var(--line);background:var(--panel);font-size:12px;font-weight:650;cursor:pointer}.text-link:hover,.button:hover{border-color:var(--ink)}.button-primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}.button-primary:hover{background:var(--green);color:white}.button:disabled{opacity:.55;cursor:wait}.icon{font:15px Consolas,monospace}
+    .content{max-width:1450px;margin:0 auto;padding:34px}.view{display:none}.view.active{display:block}.eyebrow{font:11px Consolas,monospace;color:var(--red);text-transform:uppercase}.hero{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:26px;align-items:end;padding:3px 0 27px;border-bottom:1px solid var(--ink)}h1,h2,h3,p{margin-top:0}.hero h1{font:normal 46px/1.03 Georgia,"Times New Roman",serif;max-width:780px;margin:12px 0}.hero p{max-width:690px;color:#515c53;margin:0}.hero-stamp{justify-self:end;max-width:250px;border:1px solid var(--red);color:var(--red);padding:11px 13px;font:11px/1.5 Consolas,monospace;transform:rotate(1deg)}
+    .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--line);margin-bottom:28px}.stat{padding:19px 16px 18px 0;border-right:1px solid var(--line)}.stat:not(:first-child){padding-left:18px}.stat:last-child{border-right:0}.stat-value{font:32px Georgia,serif}.stat-label{font:10px Consolas,monospace;color:var(--muted);text-transform:uppercase;margin-top:4px}.stat-alert .stat-value{color:var(--red)}
+    .section-heading{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:25px 0 12px}.section-heading h2{font:normal 25px Georgia,serif;margin:0}.section-heading p{color:var(--muted);font-size:12px;margin:0}.platform-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.platform{background:var(--panel);border:1px solid var(--line);padding:17px;box-shadow:0 3px 14px var(--shadow);border-top:3px solid var(--red)}.platform.ready{border-top-color:var(--green)}.platform-head{display:flex;align-items:start;justify-content:space-between;gap:12px}.platform h3{font:normal 21px Georgia,serif;margin:0}.platform-surface{font:10px Consolas,monospace;color:var(--muted);margin-top:3px}.badge{display:inline-block;padding:5px 8px;background:#f7e4e0;color:#92342a;font:10px Consolas,monospace;text-transform:uppercase}.badge.ready{background:#e2eee4;color:#356c49}.platform-copy{font-size:13px;color:#556057;margin:17px 0 12px}.platform-foot{border-top:1px solid var(--line);padding-top:11px;display:flex;justify-content:space-between;gap:10px;font:10px Consolas,monospace;color:var(--muted)}.blocker{margin-top:9px;font-size:12px;color:#78362f}
+    .lower-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(250px,.7fr);gap:26px;margin-top:30px}.panel-title{font:normal 22px Georgia,serif;margin-bottom:4px}.panel-sub{font-size:12px;color:var(--muted);margin-bottom:12px}.session-list,.root-list{border-top:1px solid var(--line)}.row{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.4fr) auto;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);font-size:12px}.row strong{font-weight:650}.mono{font:11px Consolas,monospace;overflow-wrap:anywhere}.muted{color:var(--muted)}.session-open{font-size:11px;color:var(--green);font-weight:700;text-decoration:none}.root-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12px}.root-count{font:11px Consolas,monospace;color:var(--muted)}
+    .page-intro{padding-bottom:21px;border-bottom:1px solid var(--ink);margin-bottom:20px}.page-intro h1{font:normal 38px Georgia,serif;margin:8px 0}.page-intro p{color:var(--muted);margin:0}.filters{display:flex;gap:10px;align-items:center;margin:14px 0}.filters input,.filters select{background:var(--panel);border:1px solid var(--line);padding:9px 10px;color:var(--ink);font:12px "Segoe UI",sans-serif}.filters input{min-width:200px;flex:1}.evidence-table{width:100%;border-collapse:collapse;background:var(--panel)}.evidence-table th{text-align:left;padding:10px 12px;color:var(--muted);font:10px Consolas,monospace;text-transform:uppercase;border-bottom:1px solid var(--line)}.evidence-table td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:top}.evidence-table td:first-child{max-width:320px}.evidence-value{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.evidence-table tr:last-child td{border-bottom:0}.flag{color:var(--red);font:10px Consolas,monospace;white-space:nowrap}.ok-flag{color:var(--green);font:10px Consolas,monospace}.empty{padding:30px;text-align:center;color:var(--muted);background:var(--panel)}
+    .ops-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px}.ops-panel{min-width:0}.ops-panel h2{font:normal 23px Georgia,serif;margin-bottom:5px}.ops-panel>p{font-size:12px;color:var(--muted)}.audit{background:var(--ink);color:#dce5dc;padding:14px;min-height:230px;overflow:auto;font:11px/1.7 Consolas,monospace;white-space:pre-wrap}.refresh-state{min-height:18px;color:var(--muted);font-size:12px;margin-top:9px}.notice{margin-top:18px;padding:13px 15px;border-left:3px solid var(--blue);background:#e6efed;color:#344d4b;font-size:12px}.footer{margin-top:35px;padding-top:13px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;color:var(--muted);font:10px Consolas,monospace}.toast{position:fixed;right:18px;bottom:18px;max-width:min(420px,calc(100vw - 36px));padding:13px 16px;background:var(--ink);color:white;box-shadow:0 8px 26px #0002;font-size:13px;display:none}.toast.show{display:block}.toast.error{background:var(--red)}
+    @media(max-width:900px){.shell{grid-template-columns:70px minmax(0,1fr)}.rail{padding:20px 9px;align-items:center}.brand{justify-content:center}.brand-copy,.rail-label,.nav-text,.rail-bottom-copy{display:none}.nav{width:100%}.nav button{text-align:center;padding:11px 3px}.nav-index{width:auto}.rail-bottom{width:100%;text-align:center}.hero{grid-template-columns:1fr}.hero h1{font-size:40px}.hero-stamp{justify-self:start}.lower-grid{grid-template-columns:1fr}.content{padding:26px 22px}.topbar{padding:0 22px}}
+    @media(max-width:620px){.shell{display:block}.rail{position:sticky;top:0;z-index:3;height:58px;flex-direction:row;justify-content:space-between;padding:7px 13px}.brand-mark{width:34px}.brand-copy{display:block}.nav{width:auto;display:flex;gap:2px}.nav button{width:42px;height:42px}.rail-bottom{display:none}.topbar{height:auto;min-height:54px;padding:8px 14px}.crumb{display:none}.top-actions{width:100%;justify-content:flex-end}.text-link,.button{padding:8px 9px;font-size:11px}.content{padding:20px 15px}.hero h1{font-size:36px}.stat-grid{grid-template-columns:repeat(2,1fr)}.stat{padding:13px 10px 13px 0;border-bottom:1px solid var(--line)}.stat:nth-child(2){border-right:0}.stat:nth-child(3){padding-left:0}.stat:nth-child(4){border-right:0}.platform-grid,.ops-grid{grid-template-columns:1fr}.row{grid-template-columns:minmax(80px,.7fr) minmax(0,1.2fr);}.row .session-open{grid-column:2}.filters{align-items:stretch;flex-direction:column}.filters input{min-width:0}.evidence-table th:nth-child(3),.evidence-table td:nth-child(3){display:none}.evidence-table td{padding:9px 7px}.page-intro h1{font-size:32px}.footer{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand"><div class="brand-mark">M</div><div class="brand-copy"><div class="brand-name">MOLÖTOV<br>SOCIAL OS</div><div class="brand-sub">LOCAL OPERATIONS · RC7</div></div></div>
+      <div>
+        <p class="rail-label">Workspace</p>
+        <nav class="nav" aria-label="Navegação principal">
+          <button class="active" data-view="overview" title="Visão geral"><span class="nav-index">01</span><span class="nav-text"> Visão geral</span></button>
+          <button data-view="materials" title="Materiais"><span class="nav-index">02</span><span class="nav-text"> Materiais</span></button>
+          <button data-view="operations" title="Operação"><span class="nav-index">03</span><span class="nav-text"> Operação</span></button>
+        </nav>
+      </div>
+      <div class="rail-bottom"><div class="live"><span class="live-dot"></span><span class="rail-bottom-copy">SERVIÇOS LOCAIS</span></div><div class="rail-bottom-copy" style="margin-top:8px">Worker 2.39 · porta 8090</div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div class="crumb">SM3 / A11-A18 / R10 <span aria-hidden="true">·</span> <span id="header-state">CONECTANDO</span></div>
+        <div class="top-actions">
+          <a id="n8n-link" class="text-link" href="http://127.0.0.1:5678" target="_blank" rel="noreferrer"><span class="icon">↗</span> n8n</a>
+          <a id="editor-link" class="text-link" href="#" hidden target="_blank" rel="noreferrer"><span class="icon">▣</span> Editor de mídia</a>
+          <button id="refresh-button" class="button button-primary"><span class="icon">↻</span> Atualizar leitura</button>
+        </div>
+      </header>
+      <main class="content">
+        <section class="view active" id="view-overview">
+          <div class="hero">
+            <div><div class="eyebrow">Estado editorial · <span id="hero-date">aguardando leitura</span></div><h1 id="hero-title">Conferindo o material antes da próxima publicação.</h1><p id="hero-copy">A console consulta as evidências atuais do R10 e mantém o worker de produção intacto.</p></div>
+            <div class="hero-stamp" id="hero-stamp">R10<br>INVENTÁRIO SOMENTE LEITURA</div>
+          </div>
+          <div class="stat-grid" aria-label="Indicadores do inventário">
+            <div class="stat"><div class="stat-value" id="stat-sessions">—</div><div class="stat-label">Sessões de edição</div></div>
+            <div class="stat"><div class="stat-value" id="stat-evidence">—</div><div class="stat-label">Evidências de estágio</div></div>
+            <div class="stat stat-alert"><div class="stat-value" id="stat-final">—</div><div class="stat-label">Finais verificados</div></div>
+            <div class="stat"><div class="stat-value" id="stat-review">—</div><div class="stat-label">Canais sem liberação</div></div>
+          </div>
+          <div class="section-heading"><div><div class="eyebrow">Distribuição</div><h2>Blueprints por canal</h2></div><p>Planejamento não autoriza render nem publicação.</p></div>
+          <div id="platform-grid" class="platform-grid"><div class="empty">Carregando o último blueprint…</div></div>
+          <div class="lower-grid">
+            <section><h2 class="panel-title">Sessões recentes</h2><p class="panel-sub">Contexto de material reconhecido pelo scanner.</p><div id="session-list" class="session-list"></div></section>
+            <section><h2 class="panel-title">Pastas observadas</h2><p class="panel-sub">Contagem de registros JSON por origem.</p><div id="root-list" class="root-list"></div></section>
+          </div>
+        </section>
+        <section class="view" id="view-materials">
+          <div class="page-intro"><div class="eyebrow">Inventário R10</div><h1>Material e evidências</h1><p>Rótulos de estágio são evidência candidata; “resultado” ou “final” isolados não comprovam conclusão.</p></div>
+          <div class="filters"><input id="evidence-search" type="search" placeholder="Filtrar por estágio, arquivo ou campo" aria-label="Filtrar evidências"><select id="evidence-filter" aria-label="Filtrar categoria"><option value="all">Todas as evidências</option><option value="untrusted">Rótulo final não confiável</option><option value="other">Demais estágios</option></select></div>
+          <div id="evidence-container" class="empty">Carregando evidências…</div>
+          <div class="notice">A leitura é somente leitura. A console não altera evidências nem transforma um rótulo em confirmação humana.</div>
+        </section>
+        <section class="view" id="view-operations">
+          <div class="page-intro"><div class="eyebrow">Serviços e execução</div><h1>Operação local</h1><p>Atualize o inventário e reconstrua o blueprint pelo runner R10 já instalado.</p></div>
+          <div class="ops-grid">
+            <section class="ops-panel"><h2>Atualização R10</h2><p>A ação chama o runner oficial em segundo plano. O processo inspeciona o container e grava um novo inventário e blueprint; não renderiza nem publica.</p><button id="run-button" class="button button-primary"><span class="icon">↻</span> Executar atualização</button><div id="refresh-state" class="refresh-state" aria-live="polite"></div><div class="notice">A tarefa agendada continua ativa independentemente desta tela.</div></section>
+            <section class="ops-panel"><h2>Últimas execuções</h2><p>Saída resumida do log do runner.</p><pre id="activity-log" class="audit">Nenhuma execução registrada.</pre></section>
+          </div>
+          <div class="footer"><span id="worker-state">Worker: verificando</span><span id="last-refresh">Última leitura: —</span></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script>
+    const $ = id => document.getElementById(id);
+    let snapshot = null;
+    const showToast = (message, error = false) => {
+      const toast = $('toast');
+      toast.textContent = message;
+      toast.className = 'toast show' + (error ? ' error' : '');
+      window.setTimeout(() => { toast.className = 'toast'; }, 4200);
+    };
+    const node = (tag, parent, text, className) => {
+      const element = document.createElement(tag);
+      if (text !== undefined) element.textContent = String(text);
+      if (className) element.className = className;
+      parent.appendChild(element);
+      return element;
+    };
+    const dateLabel = value => {
+      if (!value) return 'não disponível';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR', {dateStyle:'medium', timeStyle:'short'});
+    };
+    function renderPlatforms(platforms) {
+      const grid = $('platform-grid');
+      grid.replaceChildren();
+      if (!platforms.length) { node('div', grid, 'Blueprint ainda não disponível.', 'empty'); return; }
+      for (const platform of platforms) {
+        const ready = platform.status === 'BLUEPRINT_READY_FOR_MATERIAL_BINDING';
+        const card = node('article', grid, undefined, 'platform' + (ready ? ' ready' : ''));
+        const head = node('div', card, undefined, 'platform-head');
+        const title = node('div', head);
+        node('h3', title, platform.platform);
+        node('div', title, platform.surface, 'platform-surface');
+        node('span', head, ready ? 'PRONTO PARA VINCULAR' : 'REVISÃO DE ESTÁGIO', 'badge' + (ready ? ' ready' : ''));
+        const context = platform.context || {};
+        node('p', card, `${context.stage_evidence_count ?? 0} evidências · ${context.verified_true_final_evidence_count ?? 0} finais verificados · ${context.untrusted_final_label_count ?? 0} rótulos ambíguos`, 'platform-copy');
+        const foot = node('div', card, undefined, 'platform-foot');
+        node('span', foot, (platform.duration_bands || []).join(' / ') || 'Duração por definir');
+        node('span', foot, 'RENDER: NÃO · PUBLICAÇÃO: NÃO');
+        for (const reason of platform.blocking_reasons || []) {
+          const messages = {
+            NO_LOCALLY_VERIFIED_TRUE_FINAL_STAGE_BOUND_TO_SAME_TATTOO_LIFECYCLE: 'Falta confirmar a etapa final neste mesmo ciclo da tatuagem.',
+            FINAL_CLAIM_MUST_NOT_BE_INFERRED_FROM_RESULTADO_OR_FINAL_REVEAL_LABEL: 'Rótulos como “resultado” ou “reveal” não comprovam finalização.'
+          };
+          node('div', card, messages[reason] || reason.replaceAll('_', ' '), 'blocker');
+        }
+      }
+    }
+    function renderSessions(sessions) {
+      const list = $('session-list');
+      list.replaceChildren();
+      if (!sessions.length) { node('div', list, 'Nenhuma sessão encontrada.', 'muted'); return; }
+      for (const session of sessions) {
+        const row = node('div', list, undefined, 'row');
+        node('strong', row, session.project_id || 'Projeto');
+        const details = node('div', row);
+        node('div', details, session.content_id || 'Conteúdo', 'mono');
+        node('div', details, `${session.status || '—'} · ${dateLabel(session.updated_at)}`, 'muted');
+        if (session.editor_url) {
+          const link = node('a', row, 'Abrir editor ↗', 'session-open');
+          link.href = session.editor_url;
+          link.target = '_blank';
+          link.rel = 'noreferrer';
+        }
+      }
+    }
+    function renderRoots(roots) {
+      const list = $('root-list');
+      list.replaceChildren();
+      for (const [name, data] of Object.entries(roots || {})) {
+        const row = node('div', list, undefined, 'root-row');
+        node('span', row, name.replaceAll('_', ' '));
+        node('span', row, data.exists ? `${data.json_count ?? 0} registros` : 'ausente', 'root-count');
+      }
+    }
+    function renderEvidence() {
+      if (!snapshot) return;
+      const query = $('evidence-search').value.trim().toLowerCase();
+      const filter = $('evidence-filter').value;
+      const entries = snapshot.inventory.stage_evidence.filter(item => {
+        const matchesFilter = filter === 'all' || (filter === 'untrusted' ? item.untrusted_final_label : !item.untrusted_final_label);
+        const text = `${item.value} ${item.record} ${item.field}`.toLowerCase();
+        return matchesFilter && text.includes(query);
+      });
+      const container = $('evidence-container');
+      container.replaceChildren();
+      if (!entries.length) { node('div', container, 'Nenhuma evidência corresponde ao filtro.', 'empty'); return; }
+      const table = node('table', container, undefined, 'evidence-table');
+      const thead = node('thead', table); const header = node('tr', thead);
+      for (const label of ['Estágio observado', 'Registro de origem', 'Campo', 'Leitura']) node('th', header, label);
+      const body = node('tbody', table);
+      for (const item of entries) {
+        const row = node('tr', body);
+        const valueCell = node('td', row, item.value || '(vazio)', 'mono evidence-value');
+        valueCell.title = item.value;
+        node('td', row, item.record, 'mono');
+        node('td', row, item.field, 'mono');
+        node('td', row, item.untrusted_final_label ? 'NÃO COMPROVA FINAL' : 'CANDIDATA', item.untrusted_final_label ? 'flag' : 'ok-flag');
+      }
+    }
+    function render(data) {
+      snapshot = data;
+      $('header-state').textContent = data.ok ? 'R10 CONECTADO' : 'AGUARDANDO INVENTÁRIO';
+      $('hero-date').textContent = dateLabel(data.generated_at);
+      const verified = data.blueprint.verified_final_count || 0;
+      const blocked = data.blueprint.platforms.filter(item => !item.render_authorized || !item.publication_authorized).length;
+      $('hero-title').textContent = verified ? 'Material organizado. A revisão humana continua no comando.' : 'A história ainda precisa de prova de finalização.';
+      $('hero-copy').textContent = verified ? 'Há evidência de finalização verificada. Confira a sequência e a vinculação do material antes de avançar.' : 'O inventário atual não confirma uma etapa final para o mesmo ciclo da tatuagem. Renderização e publicação seguem bloqueadas.';
+      $('hero-stamp').textContent = `R10 · ${data.inventory.read_only_scan ? 'SCAN SOMENTE LEITURA' : 'SCAN INDISPONÍVEL'} · WORKER ${data.worker_version || '—'}`;
+      $('stat-sessions').textContent = data.inventory.sessions.length;
+      $('stat-evidence').textContent = data.inventory.stage_evidence_count;
+      $('stat-final').textContent = verified;
+      $('stat-review').textContent = blocked;
+      renderPlatforms(data.blueprint.platforms);
+      renderSessions(data.inventory.sessions);
+      renderRoots(data.inventory.roots);
+      renderEvidence();
+      $('activity-log').textContent = data.activity.length ? data.activity.join('\n') : 'Nenhuma execução registrada.';
+      $('worker-state').textContent = `Worker ${data.worker_version || 'não confirmado'} · core ${data.worker_core_mutated === false ? 'intacto' : 'não verificado'}`;
+      $('last-refresh').textContent = `Última leitura: ${dateLabel(data.generated_at)}`;
+      if (data.links.editor) { $('editor-link').href = data.links.editor; $('editor-link').hidden = false; }
+    }
+    async function loadState() {
+      const response = await fetch('/api/state', {cache:'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP_${response.status}`);
+      render(data);
+      if (!data.ok) showToast('Inventário R10 ainda não está disponível.', true);
+    }
+    async function refresh() {
+      const buttons = [$('refresh-button'), $('run-button')];
+      buttons.forEach(button => { button.disabled = true; });
+      $('refresh-state').textContent = 'Executando o runner R10 em segundo plano…';
+      try {
+        const response = await fetch('/api/refresh', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.detail || data.error || `HTTP_${response.status}`);
+        render(data);
+        $('refresh-state').textContent = `Leitura atualizada · ${dateLabel(data.generated_at)}`;
+        showToast('Inventário e blueprint atualizados.');
+      } catch (error) {
+        $('refresh-state').textContent = `Atualização não concluída: ${error.message}`;
+        showToast('Falha ao atualizar o R10.', true);
+      } finally {
+        buttons.forEach(button => { button.disabled = false; });
+      }
+    }
+    document.querySelectorAll('.nav button').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.nav button').forEach(item => item.classList.toggle('active', item === button));
+      document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `view-${button.dataset.view}`));
+    }));
+    $('refresh-button').addEventListener('click', refresh);
+    $('run-button').addEventListener('click', refresh);
+    $('evidence-search').addEventListener('input', renderEvidence);
+    $('evidence-filter').addEventListener('change', renderEvidence);
+    loadState().catch(error => showToast(`Console indisponível: ${error.message}`, true));
+  </script>
+</body>
+</html>

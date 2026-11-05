@@ -1,0 +1,116 @@
+{
+  "contract_version": "SM3_VISUAL_FEEDBACK_V1",
+  "taxonomy_version": "SM3_VISUAL_ISSUES_V1",
+  "issues": [
+    {
+      "code": "FRAME_OBSCURES_SUBJECT",
+      "label_ptbr": "Moldura encobre ou invade o assunto principal",
+      "default_scope": "FRAME"
+    },
+    {
+      "code": "FRAME_GEOMETRY_INCOHERENT",
+      "label_ptbr": "Geometria/proporção da moldura é incoerente",
+      "default_scope": "FRAME"
+    },
+    {
+      "code": "CROP_FRAMING_POOR",
+      "label_ptbr": "Crop ou enquadramento ruim",
+      "default_scope": "MEDIA"
+    },
+    {
+      "code": "SUBJECT_ORIENTATION_POOR",
+      "label_ptbr": "Orientação do assunto está torta ou mal resolvida",
+      "default_scope": "MEDIA"
+    },
+    {
+      "code": "OUT_OF_FOCUS_OR_SOFT",
+      "label_ptbr": "Imagem está fora de foco ou excessivamente suave",
+      "default_scope": "TECHNICAL"
+    },
+    {
+      "code": "COMPOSITION_UNBALANCED",
+      "label_ptbr": "Composição está desequilibrada",
+      "default_scope": "GLOBAL"
+    },
+    {
+      "code": "VISUAL_HIERARCHY_WEAK",
+      "label_ptbr": "Hierarquia visual fraca",
+      "default_scope": "GLOBAL"
+    },
+    {
+      "code": "TATTOO_NOT_PROTAGONIST",
+      "label_ptbr": "Tattoo/fotografia deixou de ser protagonista",
+      "default_scope": "GLOBAL"
+    },
+    {
+      "code": "IDENTITY_APPLICATION_CONTEXTLESS",
+      "label_ptbr": "Identidade foi aplicada sem relação com o conteúdo",
+      "default_scope": "IDENTITY"
+    },
+    {
+      "code": "BRAND_ELEMENTS_LOOK_TEMPLATE_BASED",
+      "label_ptbr": "Elementos de marca parecem template/adesivos",
+      "default_scope": "IDENTITY"
+    },
+    {
+      "code": "ELEMENT_PLACEMENT_INCOHERENT",
+      "label_ptbr": "Posicionamento dos elementos é incoerente",
+      "default_scope": "IDENTITY"
+    },
+    {
+      "code": "STYLE_NOT_ALIGNED_WITH_IDENTITY",
+      "label_ptbr": "Resultado não corresponde à linguagem visual da marca",
+      "default_scope": "GLOBAL"
+    },
+    {
+      "code": "REPETITION_MECHANICAL",
+      "label_ptbr": "Repetição mecânica entre cenas/quadro",
+      "default_scope": "TIMELINE"
+    },
+    {
+      "code": "TEXT_LAYOUT_WEAK",
+      "label_ptbr": "Tratamento/hierarquia de texto ruim",
+      "default_scope": "TEXT"
+    },
+    {
+      "code": "COLOR_TREATMENT_INCOHERENT",
+      "label_ptbr": "Tratamento de cor incoerente",
+      "default_scope": "COLOR"
+    },
+    {
+      "code": "PREVIEW_VISUAL_QUALITY_INSUFFICIENT",
+      "label_ptbr": "Qualidade do preview insuficiente para julgamento visual",
+      "default_scope": "TECHNICAL"
+    },
+    {
+      "code": "OVERDECORATED",
+      "label_ptbr": "Excesso de elementos decorativos",
+      "default_scope": "GLOBAL"
+    },
+    {
+      "code": "UNDERDESIGNED",
+      "label_ptbr": "Composição sem direção/solução visual suficiente",
+      "default_scope": "GLOBAL"
+    },
+    {
+      "code": "TIMING_RHYTHM_POOR",
+      "label_ptbr": "Ritmo ou duração dos trechos ruim",
+      "default_scope": "TIMELINE"
+    },
+    {
+      "code": "TRANSITION_INCOHERENT",
+      "label_ptbr": "Transição incoerente",
+      "default_scope": "TIMELINE"
+    },
+    {
+      "code": "AUDIO_INCOHERENT",
+      "label_ptbr": "Estratégia de áudio incoerente",
+      "default_scope": "TIMELINE"
+    },
+    {
+      "code": "OTHER",
+      "label_ptbr": "Outro problema visual",
+      "default_scope": "GLOBAL"
+    }
+  ]
+}

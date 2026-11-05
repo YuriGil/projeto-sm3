@@ -1,0 +1,6 @@
+{
+  "id": "AG_SCHED",
+  "name": "Scheduler",
+  "uses_llm": false,
+  "version": "1.0"
+}

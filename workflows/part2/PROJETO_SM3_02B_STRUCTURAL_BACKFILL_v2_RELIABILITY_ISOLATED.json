@@ -1,0 +1,2192 @@
+{
+  "name": "PROJETO SM3 — 02B — STRUCTURAL BACKFILL — v2 RELIABILITY ISOLATED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d189b8b-be52-444b-9bd5-a674d5318d24",
+      "name": "MANUAL — STRUCTURAL BACKFILL"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        -160
+      ],
+      "id": "3d011ece-40a8-4cfb-abe3-71045d954d5a",
+      "name": "READ — 03_MIDIAS QUEUE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Projeto SM3 — structural backfill for media that is CURRENTLY production-ready.\n// Generic: no project/media IDs are hardcoded.\n\nconst mediaRows = $input.all().map(i => i.json);\nconst contentRows = $('READ — PRODUCTION READY CONTENT').all().map(i => i.json);\n\nconst targetIds = new Set();\n\nfor (const c of contentRows) {\n  const productionReady =\n    String(c.ROUTING_TARGET || '').trim().toUpperCase() === 'PRODUCTION' &&\n    String(c.PRODUCTION_STATUS || '').trim().toUpperCase() === 'READY' &&\n    String(c.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO';\n\n  if (!productionReady) continue;\n\n  const ids = String(c.BRUTOS_USADOS || '').match(/M\\d{4}/g) || [];\n  for (const id of ids) targetIds.add(id);\n}\n\nconst eligible = mediaRows.filter(r =>\n  targetIds.has(String(r.ID_MIDIA || '').trim()) &&\n  String(r.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE' &&\n  String(r.PROCESS_STATUS || '').trim().toUpperCase() !== 'DEAD_LETTER' &&\n  String(r.STRUCTURAL_ANALYSIS_VERSION || '').trim() !== 'SM3_STRUCTURAL_V1'\n);\n\nif (eligible.length === 0) {\n  return [{\n    json: {\n      queue_empty: true,\n      analysis_route: 'NO_WORK',\n      target_media_ids: [...targetIds],\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  }];\n}\n\nreturn eligible.map(r => {\n  const type = String(r.TIPO || '').trim().toUpperCase();\n  const route =\n    type === 'FOTO' ? 'IMAGE_ORIGINAL' :\n    type === 'VÍDEO' || type === 'VIDEO' ? 'VIDEO_PROXY' :\n    'UNSUPPORTED';\n\n  return {\n    json: {\n      ...r,\n      queue_empty: false,\n      analysis_route: route,\n      structural_backfill: true,\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "4136e57a-f5ba-4084-bcb9-f12d11ad934e",
+      "name": "BUILD — STRUCTURAL BACKFILL QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const all = $input.all().map(i => i.json);\nconst items = all.filter(x => !x.queue_empty);\n\nconst summary = {\n  queue_empty: items.length === 0,\n  queued_total: items.length,\n  image_original: items.filter(x => x.analysis_route === 'IMAGE_ORIGINAL').length,\n  video_proxy: items.filter(x => x.analysis_route === 'VIDEO_PROXY').length,\n  unsupported: items.filter(x => x.analysis_route === 'UNSUPPORTED').length,\n  projects: {}\n};\n\nfor (const x of items) {\n  const p = x.ID_PROJETO || 'NO_PROJECT';\n  summary.projects[p] = (summary.projects[p] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    dry_run: false,\n    summary,\n    queued_ids: items.map(x => x.ID_MIDIA),\n    queue: items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -140
+      ],
+      "id": "73ba0345-b0da-44fa-96d3-29c916c4c3a2",
+      "name": "AUDIT — TRIAGE QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "IMAGE_ORIGINAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a89483cb-610c-48fc-a91e-2021f0755ca2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE_ORIGINAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "VIDEO_PROXY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b7f6f5d-e9a5-4984-bdad-100ac5001a67"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VIDEO_PROXY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "UNSUPPORTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e031c51f-3c4b-4cf3-9be2-bbddf13c8096"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNSUPPORTED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5ae2ecb7-4db7-4746-9f34-a26d80bff1c7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        80
+      ],
+      "id": "85fcb316-40cc-4eb5-b204-5a03fe6a0960",
+      "name": "ROUTE — ANALYSIS INPUT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json, next_action:'SKIP_UNSUPPORTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "aac306f4-122e-4450-9fb8-6854efc67568",
+      "name": "UNSUPPORTED — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'jpg').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'image',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "b13d63c6-cfcc-4372-b1c6-bb9792e49c3f",
+      "name": "PREPARE — IMAGE WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        -40
+      ],
+      "id": "211b4648-5c50-41cb-be38-388484c6b566",
+      "name": "DOWNLOAD — IMAGE ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ],
+      "id": "89ded77d-2f7a-45d9-b67c-bfe6041431c3",
+      "name": "WRITE — IMAGE TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'image',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -40
+      ],
+      "id": "8f4b55c3-2902-4a6e-939a-17ebaf87d635",
+      "name": "WORKER — PROCESS IMAGE",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    media_id: i.json.media_id,\n    project_id: i.json.project_id,\n    row_number: i.json.row_number,\n    provider: i.json.provider,\n    model: i.json.model,\n    analysis: i.json.analysis,\n    analysis_path: i.json.analysis_path,\n    dry_run: true\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -40
+      ],
+      "id": "bd78e1fd-b319-4bed-8a84-07a2d71c83f1",
+      "name": "AUDIT — IMAGE STRUCTURAL",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'mp4').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'video',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        120
+      ],
+      "id": "5a1eb337-e763-4850-92c9-33df4f0a778e",
+      "name": "PREPARE — VIDEO WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "aa33612a-3920-4667-889f-c8e10eb3ccfb",
+      "name": "DOWNLOAD — VIDEO ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        120
+      ],
+      "id": "790c2d01-4863-4fab-b7ed-bf880b50e3ef",
+      "name": "WRITE — VIDEO TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'video',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        120
+      ],
+      "id": "4abc5dbb-c381-4c18-8b97-fa830c858fd9",
+      "name": "WORKER — PROCESS VIDEO",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    media_id: i.json.media_id,\n    project_id: i.json.project_id,\n    row_number: i.json.row_number,\n    provider: i.json.provider,\n    model: i.json.model,\n    analysis: i.json.analysis,\n    analysis_path: i.json.analysis_path,\n    dry_run: true\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        120
+      ],
+      "id": "679c8a36-6895-423d-aaf5-97f91fffd823",
+      "name": "AUDIT — VIDEO STRUCTURAL",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/analyze-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,media_id:$json.media_id,kind:'image',analysis_path:$json.proxy_path,file_name:$json.file_name,row_number:$json.row_number,drive_file_id:$json.drive_file_id,relative_path:$json.relative_path,context:'Triagem de portfólio de tatuagem para redes sociais.'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        -40
+      ],
+      "id": "731665b2-4ec6-48a2-9e84-ed3db3a34211",
+      "name": "VISION — ANALYZE IMAGE",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/analyze-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,media_id:$json.media_id,kind:'video',analysis_path:$json.contact_sheet_path,file_name:$json.file_name,row_number:$json.row_number,drive_file_id:$json.drive_file_id,relative_path:$json.relative_path,context:'Contact sheet com timestamps de um vídeo de tatuagem. Escolha o melhor momento aproximado visualmente.'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        120
+      ],
+      "id": "aa7db2da-bd14-48ec-8502-776d01029f65",
+      "name": "VISION — ANALYZE VIDEO CONTACT SHEET",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(x => {\n  const a = x.analysis || {};\n  const s = a.structure || {};\n  const anatomy = s.anatomy || {};\n  const tattoo = s.tattoo || {};\n  const framing = s.framing || {};\n  const crops = s.crops || {};\n\n  const confidence = Number(s.structural_confidence);\n  if (!x.media_id) throw new Error('STRUCTURAL_BACKFILL_BLOCK: missing media_id');\n  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 100) {\n    throw new Error(`STRUCTURAL_BACKFILL_BLOCK: invalid confidence for ${x.media_id}`);\n  }\n\n  const cropGuidance = {\n    reel_9x16: crops.reel_9x16 || {},\n    story_9x16: crops.story_9x16 || {},\n    feed_4x5: crops.feed_4x5 || {},\n    square_1x1: crops.square_1x1 || {},\n    landscape_16x9: crops.landscape_16x9 || {}\n  };\n\n  const formatFit = Object.fromEntries(\n    Object.entries(cropGuidance).map(([k, v]) => [k, {\n      viability_score: v.viability_score,\n      strategy: v.strategy,\n      anchor: v.anchor,\n      rect_reliability: v.rect_reliability,\n      rationale: v.rationale\n    }])\n  );\n\n  return {json:{\n    ID_MIDIA: x.media_id,\n    STRUCTURAL_ANALYSIS_VERSION: 'SM3_STRUCTURAL_V1',\n    GEOMETRY_MODE: String(s.geometry_mode || ''),\n    BODY_REGION: String(anatomy.body_region || ''),\n    BODY_SUBREGION: String(anatomy.body_subregion || ''),\n    VIEW_ANGLE: String(anatomy.view_angle || ''),\n    BODY_POSE: String(anatomy.body_pose || ''),\n    TATTOO_ORIENTATION: String(tattoo.orientation || ''),\n    TATTOO_STYLE_TAGS: Array.isArray(tattoo.style_tags) ? tattoo.style_tags.join(', ') : '',\n    TATTOO_SUBJECT_PRIMARY: String(tattoo.subject_primary || ''),\n    TATTOO_SUBJECT_TAGS: Array.isArray(tattoo.subject_tags) ? tattoo.subject_tags.join(', ') : '',\n    TATTOO_STAGE_STRUCTURAL: String(tattoo.stage || ''),\n    TATTOO_COVERAGE: String(tattoo.coverage || ''),\n    COMPOSITION_SHAPE: String(tattoo.composition_shape || ''),\n    FOCAL_DESCRIPTION: String(framing.focal_description || ''),\n    FOCUS_POINT_NORM: JSON.stringify(framing.focus_point_norm || {}),\n    TATTOO_BBOX_NORM: JSON.stringify(framing.tattoo_bbox_norm || {}),\n    CROP_GUIDANCE_JSON: JSON.stringify(cropGuidance),\n    FORMAT_FIT_JSON: JSON.stringify(formatFit),\n    BEST_FORMATS: Array.isArray(s.best_formats) ? s.best_formats.join(', ') : '',\n    STRUCTURAL_CONFIDENCE: Math.round(confidence),\n    STRUCTURAL_NOTES: String(s.notes || '')\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        -40
+      ],
+      "id": "2c7e5095-2f1d-4afa-bae2-369542ead76b",
+      "name": "BUILD — IMAGE STRUCTURAL WRITE",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(x => {\n  const a = x.analysis || {};\n  const s = a.structure || {};\n  const anatomy = s.anatomy || {};\n  const tattoo = s.tattoo || {};\n  const framing = s.framing || {};\n  const crops = s.crops || {};\n\n  const confidence = Number(s.structural_confidence);\n  if (!x.media_id) throw new Error('STRUCTURAL_BACKFILL_BLOCK: missing media_id');\n  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 100) {\n    throw new Error(`STRUCTURAL_BACKFILL_BLOCK: invalid confidence for ${x.media_id}`);\n  }\n\n  const cropGuidance = {\n    reel_9x16: crops.reel_9x16 || {},\n    story_9x16: crops.story_9x16 || {},\n    feed_4x5: crops.feed_4x5 || {},\n    square_1x1: crops.square_1x1 || {},\n    landscape_16x9: crops.landscape_16x9 || {}\n  };\n\n  const formatFit = Object.fromEntries(\n    Object.entries(cropGuidance).map(([k, v]) => [k, {\n      viability_score: v.viability_score,\n      strategy: v.strategy,\n      anchor: v.anchor,\n      rect_reliability: v.rect_reliability,\n      rationale: v.rationale\n    }])\n  );\n\n  return {json:{\n    ID_MIDIA: x.media_id,\n    STRUCTURAL_ANALYSIS_VERSION: 'SM3_STRUCTURAL_V1',\n    GEOMETRY_MODE: String(s.geometry_mode || ''),\n    BODY_REGION: String(anatomy.body_region || ''),\n    BODY_SUBREGION: String(anatomy.body_subregion || ''),\n    VIEW_ANGLE: String(anatomy.view_angle || ''),\n    BODY_POSE: String(anatomy.body_pose || ''),\n    TATTOO_ORIENTATION: String(tattoo.orientation || ''),\n    TATTOO_STYLE_TAGS: Array.isArray(tattoo.style_tags) ? tattoo.style_tags.join(', ') : '',\n    TATTOO_SUBJECT_PRIMARY: String(tattoo.subject_primary || ''),\n    TATTOO_SUBJECT_TAGS: Array.isArray(tattoo.subject_tags) ? tattoo.subject_tags.join(', ') : '',\n    TATTOO_STAGE_STRUCTURAL: String(tattoo.stage || ''),\n    TATTOO_COVERAGE: String(tattoo.coverage || ''),\n    COMPOSITION_SHAPE: String(tattoo.composition_shape || ''),\n    FOCAL_DESCRIPTION: String(framing.focal_description || ''),\n    FOCUS_POINT_NORM: JSON.stringify(framing.focus_point_norm || {}),\n    TATTOO_BBOX_NORM: JSON.stringify(framing.tattoo_bbox_norm || {}),\n    CROP_GUIDANCE_JSON: JSON.stringify(cropGuidance),\n    FORMAT_FIT_JSON: JSON.stringify(formatFit),\n    BEST_FORMATS: Array.isArray(s.best_formats) ? s.best_formats.join(', ') : '',\n    STRUCTURAL_CONFIDENCE: Math.round(confidence),\n    STRUCTURAL_NOTES: String(s.notes || '')\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        120
+      ],
+      "id": "b9cf56f9-88b5-43cb-9422-7034c1e2ec95",
+      "name": "BUILD — VIDEO STRUCTURAL WRITE",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2440,
+        -40
+      ],
+      "id": "f2b30dd4-6f74-4222-9882-7374660f57bf",
+      "name": "UPDATE — IMAGE STRUCTURAL",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2440,
+        120
+      ],
+      "id": "1682a1ef-e6d9-43ba-b888-dd2416fc3b47",
+      "name": "UPDATE — VIDEO STRUCTURAL",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_WORK',message:'Nenhuma mídia QUEUED + ONLINE pendente de análise.',completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        320
+      ],
+      "id": "d8e803d6-8353-4b05-9e81-2c3bbcdf388c",
+      "name": "NO WORK — COMPLETE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        -160
+      ],
+      "id": "9d6aa728-f8e6-4320-a2b9-576df0d1955f",
+      "name": "READ — PRODUCTION READY CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_DRIVE_DOWNLOAD_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'DOWNLOAD — ORIGINAL',\n    STAGE: 'STRUCTURAL_DRIVE_DOWNLOAD',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'DOWNLOAD — ORIGINAL',\n    stage: 'STRUCTURAL_DRIVE_DOWNLOAD',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_DRIVE_DOWNLOAD',\n    LAST_FAILURE_NODE: 'DOWNLOAD — ORIGINAL',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        620
+      ],
+      "id": "4a0a5952-db6c-4166-a68b-8dedcacf4697",
+      "name": "FAIL — STRUCTURAL_DRIVE_DOWNLOAD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 2;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_LOCAL_TEMP_WRITE_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'WRITE — TEMP',\n    STAGE: 'STRUCTURAL_LOCAL_TEMP_WRITE',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'WRITE — TEMP',\n    stage: 'STRUCTURAL_LOCAL_TEMP_WRITE',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_LOCAL_TEMP_WRITE',\n    LAST_FAILURE_NODE: 'WRITE — TEMP',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1350,
+        620
+      ],
+      "id": "aace75bc-1df0-4716-bef0-6b3063f6b761",
+      "name": "FAIL — STRUCTURAL_LOCAL_TEMP_WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 2;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_WORKER_PROCESS_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'WORKER — PROCESS',\n    STAGE: 'STRUCTURAL_WORKER_PROCESS',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'WORKER — PROCESS',\n    stage: 'STRUCTURAL_WORKER_PROCESS',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_WORKER_PROCESS',\n    LAST_FAILURE_NODE: 'WORKER — PROCESS',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        620
+      ],
+      "id": "7fb4a6f3-eccd-4dd0-bb82-7f53d2d13a87",
+      "name": "FAIL — STRUCTURAL_WORKER_PROCESS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_VISION_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'VISION — ANALYZE',\n    STAGE: 'STRUCTURAL_VISION',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'VISION — ANALYZE',\n    stage: 'STRUCTURAL_VISION',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_VISION',\n    LAST_FAILURE_NODE: 'VISION — ANALYZE',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        620
+      ],
+      "id": "cb324f6e-1bc3-4acd-8633-f53f31246e63",
+      "name": "FAIL — STRUCTURAL_VISION"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 1;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_AUDIT_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'AUDIT — STRUCTURAL',\n    STAGE: 'STRUCTURAL_AUDIT',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'AUDIT — STRUCTURAL',\n    stage: 'STRUCTURAL_AUDIT',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_AUDIT',\n    LAST_FAILURE_NODE: 'AUDIT — STRUCTURAL',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        830
+      ],
+      "id": "2d5568e4-c9bc-4e40-bff6-b707b1bd0c41",
+      "name": "FAIL — STRUCTURAL_AUDIT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 1;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_CONTRACT_BUILD_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'BUILD — STRUCTURAL WRITE',\n    STAGE: 'STRUCTURAL_CONTRACT_BUILD',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'BUILD — STRUCTURAL WRITE',\n    stage: 'STRUCTURAL_CONTRACT_BUILD',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_CONTRACT_BUILD',\n    LAST_FAILURE_NODE: 'BUILD — STRUCTURAL WRITE',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1350,
+        830
+      ],
+      "id": "d2b35f2c-4193-4a14-ba20-aea2a46c57b4",
+      "name": "FAIL — STRUCTURAL_CONTRACT_BUILD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'STRUCTURAL_SHEET_WRITE_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'UPDATE — STRUCTURAL',\n    STAGE: 'STRUCTURAL_SHEET_WRITE',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'UPDATE — STRUCTURAL',\n    stage: 'STRUCTURAL_SHEET_WRITE',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'STRUCTURAL',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'STRUCTURAL_SHEET_WRITE',\n    LAST_FAILURE_NODE: 'UPDATE — STRUCTURAL',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        830
+      ],
+      "id": "c345e221-626a-4921-9d64-cc259afcaca5",
+      "name": "FAIL — STRUCTURAL_SHEET_WRITE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/ops/dead-letter",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {event_id:$json.event_id,created_at:$json.created_at,workflow:$json.workflow,node:$json.node,stage:$json.stage,entity_type:$json.entity_type,entity_id:$json.entity_id,project_id:$json.project_id,media_id:$json.media_id,content_id:$json.content_id,error_code:$json.error_code,error_message:$json.error_message,attempt_count:$json.attempt_count,max_tries:$json.max_tries,retryable:$json.retryable,disposition:$json.disposition,execution_id:$json.execution_id,payload:$json.payload,version:$json.version} }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2300,
+        560
+      ],
+      "id": "4e471c9a-ed9b-4359-9291-32b2741fee81",
+      "name": "SINK — DEAD LETTER LOCAL",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1938475611,
+          "mode": "list",
+          "cachedResultName": "17_OS_FAILURES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "EVENT_ID": "={{ $json.EVENT_ID }}",
+            "CREATED_AT": "={{ $json.CREATED_AT }}",
+            "WORKFLOW": "={{ $json.WORKFLOW }}",
+            "NODE": "={{ $json.NODE }}",
+            "STAGE": "={{ $json.STAGE }}",
+            "ENTITY_TYPE": "={{ $json.ENTITY_TYPE }}",
+            "ENTITY_ID": "={{ $json.ENTITY_ID }}",
+            "PROJECT_ID": "={{ $json.PROJECT_ID }}",
+            "MEDIA_ID": "={{ $json.MEDIA_ID }}",
+            "CONTENT_ID": "={{ $json.CONTENT_ID }}",
+            "ERROR_CODE": "={{ $json.ERROR_CODE }}",
+            "ERROR_MESSAGE": "={{ $json.ERROR_MESSAGE }}",
+            "ATTEMPT_COUNT": "={{ $json.ATTEMPT_COUNT }}",
+            "MAX_TRIES": "={{ $json.MAX_TRIES }}",
+            "RETRYABLE": "={{ $json.RETRYABLE }}",
+            "DISPOSITION": "={{ $json.DISPOSITION }}",
+            "EXECUTION_ID": "={{ $json.EXECUTION_ID }}",
+            "PAYLOAD_JSON": "={{ $json.PAYLOAD_JSON }}",
+            "RESOLVED_AT": "={{ $json.RESOLVED_AT }}",
+            "RESOLUTION_NOTES": "={{ $json.RESOLUTION_NOTES }}",
+            "VERSION": "={{ $json.VERSION }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "EVENT_ID",
+              "displayName": "EVENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "WORKFLOW",
+              "displayName": "WORKFLOW",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NODE",
+              "displayName": "NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STAGE",
+              "displayName": "STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_TYPE",
+              "displayName": "ENTITY_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_ID",
+              "displayName": "ENTITY_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_ID",
+              "displayName": "PROJECT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MEDIA_ID",
+              "displayName": "MEDIA_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_ID",
+              "displayName": "CONTENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ERROR_CODE",
+              "displayName": "ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ERROR_MESSAGE",
+              "displayName": "ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATTEMPT_COUNT",
+              "displayName": "ATTEMPT_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MAX_TRIES",
+              "displayName": "MAX_TRIES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRYABLE",
+              "displayName": "RETRYABLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DISPOSITION",
+              "displayName": "DISPOSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EXECUTION_ID",
+              "displayName": "EXECUTION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PAYLOAD_JSON",
+              "displayName": "PAYLOAD_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESOLVED_AT",
+              "displayName": "RESOLVED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESOLUTION_NOTES",
+              "displayName": "RESOLUTION_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VERSION",
+              "displayName": "VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2300,
+        720
+      ],
+      "id": "c9c70f7f-f4d3-4cd5-8fd7-0665200ca8ec",
+      "name": "SINK — 17_OS_FAILURES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all()\n  .map(i => i.json)\n  .filter(x => String(x.ID_MIDIA || '').trim())\n  .map(x => ({json:{\n    ID_MIDIA:x.ID_MIDIA,\n    PROCESS_STATUS:x.PROCESS_STATUS,\n    RETRY_COUNT:x.RETRY_COUNT,\n    LAST_ATTEMPT_AT:x.LAST_ATTEMPT_AT,\n    LAST_ERROR_CODE:x.LAST_ERROR_CODE,\n    LAST_ERROR_MESSAGE:x.LAST_ERROR_MESSAGE,\n    LAST_FAILURE_STAGE:x.LAST_FAILURE_STAGE,\n    LAST_FAILURE_NODE:x.LAST_FAILURE_NODE,\n    NEXT_RETRY_AT:x.NEXT_RETRY_AT,\n    DEAD_LETTER_AT:x.DEAD_LETTER_AT,\n    DEAD_LETTER_ID:x.DEAD_LETTER_ID,\n    RELIABILITY_VERSION:x.RELIABILITY_VERSION\n  }}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        880
+      ],
+      "id": "bc87263c-a7d5-4c53-99be-ebace972e16e",
+      "name": "BUILD — MEDIA FAILURE STATUS"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2570,
+        880
+      ],
+      "id": "eaa89f17-4b11-487c-b6b4-d40c1c095309",
+      "name": "UPDATE — MEDIA FAILURE STATUS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{contract:'SM3_RELIABILITY_V1',workflow:'PROJETO_SM3_02B_STRUCTURAL_BACKFILL_V2',mode:'ISOLATE_ITEM',backfill_kind:'STRUCTURAL',auto_replay:false}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        920
+      ],
+      "id": "e0fbbec9-482b-454c-9dc5-dd3b3e0007f9",
+      "name": "DOC — RELIABILITY V1",
+      "disabled": true,
+      "notesInFlow": true,
+      "notes": "Backfill reliability: retries + per-media error output + dual dead-letter sink. Success does not clear an unrelated existing dead-letter; explicit replay will own recovery."
+    }
+  ],
+  "connections": {
+    "MANUAL — STRUCTURAL BACKFILL": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION READY CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS QUEUE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — STRUCTURAL BACKFILL QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — STRUCTURAL BACKFILL QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — TRIAGE QUEUE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ROUTE — ANALYSIS INPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ANALYSIS INPUT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — IMAGE WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — VIDEO WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UNSUPPORTED — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — IMAGE WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IMAGE ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IMAGE ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IMAGE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_DRIVE_DOWNLOAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IMAGE TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_LOCAL_TEMP_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS IMAGE": {
+      "main": [
+        [
+          {
+            "node": "VISION — ANALYZE IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_WORKER_PROCESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — VIDEO WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — VIDEO ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — VIDEO ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — VIDEO TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_DRIVE_DOWNLOAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — VIDEO TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_LOCAL_TEMP_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS VIDEO": {
+      "main": [
+        [
+          {
+            "node": "VISION — ANALYZE VIDEO CONTACT SHEET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_WORKER_PROCESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — ANALYZE IMAGE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — IMAGE STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_VISION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — ANALYZE VIDEO CONTACT SHEET": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VIDEO STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_VISION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — IMAGE STRUCTURAL": {
+      "main": [
+        [
+          {
+            "node": "BUILD — IMAGE STRUCTURAL WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_AUDIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — IMAGE STRUCTURAL WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — IMAGE STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_CONTRACT_BUILD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — VIDEO STRUCTURAL": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VIDEO STRUCTURAL WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_AUDIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VIDEO STRUCTURAL WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — VIDEO STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_CONTRACT_BUILD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION READY CONTENT": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_DRIVE_DOWNLOAD": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_LOCAL_TEMP_WRITE": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_WORKER_PROCESS": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_VISION": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_AUDIT": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_CONTRACT_BUILD": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — IMAGE STRUCTURAL": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_SHEET_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — VIDEO STRUCTURAL": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FAIL — STRUCTURAL_SHEET_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — STRUCTURAL_SHEET_WRITE": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — MEDIA FAILURE STATUS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SINK — DEAD LETTER LOCAL": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "SINK — 17_OS_FAILURES": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "UPDATE — MEDIA FAILURE STATUS": {
+      "main": [
+        [],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

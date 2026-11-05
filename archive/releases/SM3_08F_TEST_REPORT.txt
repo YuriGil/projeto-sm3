@@ -1,0 +1,16 @@
+SM3 08F TEST REPORT
+===================
+PASS Python py_compile Worker 2.14.0
+PASS Synthetic 3-strategy render
+PASS 3 assets per strategy
+PASS all variant assets 1080x1350
+PASS review comparison rendered separately
+PASS video representative frame path exercised via FFmpeg
+PASS no redundant text in publishable variant pixels
+PASS identity application limited to outside-photo margin in EDITORIAL_MOLOTOV / RAW_ARCHIVE
+PASS no auto publish
+PASS no new edit revision contract
+PASS 08E publication renderer remains 2.13.1
+PASS canonical edit renderer remains 2.8.0
+PASS baseline human review required before variant render
+PASS art-direction learning adaptations consume positive/negative review traits

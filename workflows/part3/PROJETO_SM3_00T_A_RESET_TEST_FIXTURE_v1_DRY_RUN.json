@@ -1,0 +1,243 @@
+{
+  "name": "PROJETO SM3 — 00T-A — RESET TEST FIXTURE — v1 DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1240,
+        0
+      ],
+      "id": "e43e7573-f995-4c19-bce5-89eaceec7e38",
+      "name": "MANUAL — RESET DRY RUN"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  project_id:'TATTOO_0002',\n  reset_mode:'FULL_PIPELINE',\n  reset_version:'SM3_TEST_FIXTURE_RESET_V1',\n  confirmation_token:'RESET_TATTOO_0002_DERIVED_STATE',\n  expected_confirmation_token:'RESET_TATTOO_0002_DERIVED_STATE',\n  allowed_project_id:'TATTOO_0002',\n  allowed_modes:['FULL_PIPELINE'],\n  requested_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1020,
+        0
+      ],
+      "id": "64734831-1156-4860-99be-72400eacba37",
+      "name": "CONFIG — TEST FIXTURE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "131ff449-5dff-453e-b0c7-86e6b5026817",
+      "name": "READ — FIXTURE MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -580,
+        0
+      ],
+      "id": "2c08e644-c183-4bb9-8984-1e9b39001aec",
+      "name": "READ — FIXTURE PROJECT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -360,
+        0
+      ],
+      "id": "6c1ab4e4-380d-492b-93b8-5187c08184a3",
+      "name": "READ — FIXTURE CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('CONFIG — TEST FIXTURE').first().json;\nconst mediaRows = $('READ — FIXTURE MEDIA').all().map(i=>i.json);\nconst projectRows = $('READ — FIXTURE PROJECT').all().map(i=>i.json);\nconst contentRows = $('READ — FIXTURE CONTENT').all().map(i=>i.json);\n\nconst PROJECT_ID = String(cfg.project_id || '').trim();\nconst RESET_MODE = String(cfg.reset_mode || '').trim().toUpperCase();\nconst RESET_VERSION = String(cfg.reset_version || '').trim();\nconst now = new Date().toISOString();\nconst snapshotId = `SM3_TF_${Date.now()}`;\n\nif (PROJECT_ID !== cfg.allowed_project_id) {\n  throw new Error(`TEST_FIXTURE_BLOCK: project ${PROJECT_ID} is not allowed`);\n}\nif (!(cfg.allowed_modes || []).includes(RESET_MODE)) {\n  throw new Error(`TEST_FIXTURE_BLOCK: mode ${RESET_MODE} is not allowed`);\n}\n\nconst targetMedia = mediaRows.filter(r => String(r.ID_PROJETO || '').trim() === PROJECT_ID);\nconst targetProjects = projectRows.filter(r => String(r.ID_PROJETO || '').trim() === PROJECT_ID);\nconst targetContent = contentRows.filter(r => String(r.ID_PROJETO || '').trim() === PROJECT_ID);\n\nif (targetMedia.length === 0) throw new Error('TEST_FIXTURE_BLOCK: no media for fixture project');\nif (targetProjects.length !== 1) throw new Error(`TEST_FIXTURE_BLOCK: expected exactly 1 project row, found ${targetProjects.length}`);\n\nconst mediaDerivedFields = [\"TRIAGEM\", \"QUALIDADE\", \"CONTEÚDO_VISUAL\", \"MELHOR_TRECHO\", \"USAR_EM\", \"ANALYSIS_STATUS\", \"ANALYSIS_VERSION\", \"ANALYSIS_SOURCE\", \"VISION_PROVIDER\", \"VISION_MODEL\", \"ANALYZED_AT\", \"ANALYSIS_ERROR\", \"EDITORIAL_SCORE\", \"PROXY_STATUS\", \"ANALYSIS_STAGE\", \"SHOT_TYPE\", \"TECHNICAL_NOTES\", \"TECHNICAL_SCORE\", \"COMPOSITION_SCORE\", \"TATTOO_VISIBILITY\", \"ANALYSIS_CONFIDENCE\", \"REDUNDANCY_HINT\", \"SCORE_SCALE_DETECTED\", \"SCORE_NORMALIZATION\", \"STRUCTURAL_ANALYSIS_VERSION\", \"GEOMETRY_MODE\", \"BODY_REGION\", \"BODY_SUBREGION\", \"VIEW_ANGLE\", \"BODY_POSE\", \"TATTOO_ORIENTATION\", \"TATTOO_STYLE_TAGS\", \"TATTOO_SUBJECT_PRIMARY\", \"TATTOO_SUBJECT_TAGS\", \"TATTOO_STAGE_STRUCTURAL\", \"TATTOO_COVERAGE\", \"COMPOSITION_SHAPE\", \"FOCAL_DESCRIPTION\", \"FOCUS_POINT_NORM\", \"TATTOO_BBOX_NORM\", \"CROP_GUIDANCE_JSON\", \"FORMAT_FIT_JSON\", \"BEST_FORMATS\", \"STRUCTURAL_CONFIDENCE\", \"STRUCTURAL_NOTES\", \"DATA_CAPTURA\", \"MIME_TYPE\", \"FILE_SIZE_BYTES\", \"CONTENT_HASH\", \"CAPTURED_AT_SOURCE\", \"TECHNICAL_METADATA_JSON\", \"PROCESS_STATUS\", \"RETRY_COUNT\", \"LAST_ATTEMPT_AT\", \"LAST_ERROR_CODE\", \"LAST_ERROR_MESSAGE\", \"LAST_FAILURE_STAGE\", \"LAST_FAILURE_NODE\", \"NEXT_RETRY_AT\", \"DEAD_LETTER_AT\", \"DEAD_LETTER_ID\", \"RELIABILITY_VERSION\", \"VIDEO_SAMPLING_MODE\", \"VIDEO_SAMPLING_VERSION\", \"SCENE_DETECTED_COUNT\", \"SELECTED_FRAME_COUNT\", \"SAMPLING_FALLBACK_USED\", \"SAMPLING_FALLBACK_REASON\", \"SAMPLING_DETAILS_JSON\", \"VIDEO_REANALYZED_AT\", \"CURATION_STATUS\", \"CURATION_VERSION\", \"CURATION_ROLE\", \"CURATION_RANK\", \"REDUNDANCY_GROUP\", \"REDUNDANCY_PREFERRED\", \"REDUNDANCY_REASON\", \"CAROUSEL_POSITION\", \"REEL_CANDIDATE\", \"CURATED_AT\", \"CURATION_PROVIDER\", \"CURATION_MODEL\", \"CURATION_CONFIDENCE\", \"CURATION_RUN_ID\"];\nconst projectDerivedFields = [\"CURATION_STATUS\", \"CURATION_VERSION\", \"CURATION_HERO_ID\", \"CURATION_SELECTED_IDS\", \"CURATION_RESERVE_IDS\", \"CURATION_DISCARD_IDS\", \"CURATION_CAROUSEL_ORDER\", \"CURATION_REEL_IDS\", \"CURATION_NARRATIVE\", \"CURATION_CONFIDENCE\", \"CURATED_AT\", \"CURATION_PROVIDER\", \"CURATION_MODEL\", \"CURATION_RUN_ID\", \"CONTENT_PLAN_STATUS\", \"CONTENT_PLAN_VERSION\", \"CONTENT_PLAN_RUN_ID\", \"CONTENT_PLAN_CURATED_FROM\", \"CONTENT_PLAN_AT\", \"CONTENT_PLAN_COUNT\", \"CONTENT_PLAN_PROVIDER\", \"CONTENT_PLAN_MODEL\"];\n\nfunction snapshot(entityType, entityId, sheet, row) {\n  return {\n    SNAPSHOT_ID:snapshotId,\n    CREATED_AT:now,\n    PROJECT_ID:PROJECT_ID,\n    RESET_MODE:RESET_MODE,\n    ENTITY_TYPE:entityType,\n    ENTITY_ID:entityId,\n    SOURCE_SHEET:sheet,\n    SOURCE_ROW_NUMBER:String(row.row_number || ''),\n    PAYLOAD_JSON:JSON.stringify(row),\n    RESET_VERSION:RESET_VERSION,\n    EXECUTION_ID:String($execution.id || ''),\n    RESTORE_STATUS:'',\n    RESTORED_AT:'',\n    NOTES:'Snapshot automático antes do reset do lote canônico de regressão.'\n  };\n}\n\nconst snapshots = [];\nfor (const r of targetMedia) snapshots.push(snapshot('MEDIA', String(r.ID_MIDIA || ''), '03_MIDIAS', r));\nfor (const r of targetProjects) snapshots.push(snapshot('PROJECT', String(r.ID_PROJETO || ''), '01_PROJETOS', r));\nfor (const r of targetContent) snapshots.push(snapshot('CONTENT', String(r.ID_CONTEÚDO || ''), '04_CONTEUDOS', r));\n\nconst mediaUpdates = targetMedia.map(r => {\n  const u = {ID_MIDIA:r.ID_MIDIA};\n  for (const f of mediaDerivedFields) u[f] = '';\n\n  // Canonical starting state for a complete regression pass.\n  u.TRIAGEM = 'PENDENTE';\n  u.ANALYSIS_STATUS = 'QUEUED';\n  u.PROCESS_STATUS = 'READY';\n  u.RETRY_COUNT = 0;\n  u.RELIABILITY_VERSION = 'SM3_RELIABILITY_V1';\n\n  return u;\n});\n\nconst projectUpdates = targetProjects.map(r => {\n  const u = {ID_PROJETO:r.ID_PROJETO};\n  for (const f of projectDerivedFields) u[f] = '';\n  return u;\n});\n\nconst contentUpdates = targetContent.map(r => ({\n  ID_CONTEÚDO:r.ID_CONTEÚDO,\n  PLAN_STATUS:'TEST_ARCHIVED',\n  STATUS_EDIÇÃO:'ARQUIVADO_TESTE',\n  STATUS_APROVAÇÃO:'ARQUIVADO_TESTE',\n\n  EDITORIAL_APPROVAL_STATUS:'TEST_ARCHIVED',\n  EDITORIAL_COMMITTED_STATUS:'',\n  EDITORIAL_APPROVAL_NOTES:'',\n  EDITORIAL_DECIDED_AT:'',\n  EDITORIAL_APPROVAL_VERSION:'SM3_EDITORIAL_GATE_V2',\n  EDITORIAL_APPROVAL_SOURCE:'SM3_TEST_FIXTURE_RESET',\n\n  FINAL_APPROVAL_STATUS:'TEST_ARCHIVED',\n  FINAL_COMMITTED_STATUS:'',\n  FINAL_APPROVAL_NOTES:'',\n  FINAL_APPROVAL_DECIDED_AT:'',\n  FINAL_APPROVAL_VERSION:'',\n  FINAL_APPROVAL_SOURCE:'',\n\n  ROUTING_STATUS:'TEST_ARCHIVED',\n  ROUTING_VERSION:'SM3_ROUTING_V2_EDITORIAL',\n  ROUTING_DECISION:'',\n  ROUTING_TARGET:'ARCHIVE',\n  ROUTED_AT:'',\n  ROUTING_SOURCE:'SM3_TEST_FIXTURE_RESET',\n  ROUTED_FROM_EDITORIAL_AT:'',\n\n  PRODUCTION_STATUS:'NOT_APPLICABLE',\n  REVISION_STATUS:'NOT_APPLICABLE',\n  EDITORIAL_STATUS:'ARCHIVED_TEST',\n  RENDER_STATUS:'NOT_APPLICABLE',\n  RENDER_ID:'',\n  RENDER_RECIPE_ID:'',\n  QA_STATUS:'NOT_APPLICABLE',\n  QA_NOTES:'',\n  PIPELINE_STATE:'TEST_ARCHIVED',\n  STATE_UPDATED_AT:now,\n  STATE_VERSION:RESET_VERSION,\n  FINAL_ARTIFACT_HASH:'',\n  OBSERVAÇÕES:`${String(r.OBSERVAÇÕES || '').trim()}${String(r.OBSERVAÇÕES || '').trim() ? ' | ' : ''}[${RESET_VERSION} ${snapshotId}] Arquivado automaticamente para novo ciclo de regressão.`\n}));\n\nreturn [{\n  json:{\n    dry_run:false,\n    project_id:PROJECT_ID,\n    reset_mode:RESET_MODE,\n    reset_version:RESET_VERSION,\n    snapshot_id:snapshotId,\n    media_count:targetMedia.length,\n    project_count:targetProjects.length,\n    content_count:targetContent.length,\n    snapshots,\n    media_updates:mediaUpdates,\n    project_updates:projectUpdates,\n    content_updates:contentUpdates,\n    preservation_contract:{\n      preserves:[\n        'ID_MIDIA','ID_PROJETO','ARQUIVO','LINK_DRIVE','TIPO','SESSÃO',\n        'DRIVE_FILE_ID','PROJECT_FOLDER_ID','PARENT_FOLDER_ID','RELATIVE_PATH',\n        'INGESTION_KEY','STORAGE_STATUS','FIRST_SEEN_AT','LAST_SEEN_AT',\n        'OFFLINE_AT','TREE_DEPTH','DISCOVERY_VERSION'\n      ],\n      archives_content_rows:true,\n      deletes_rows:false\n    },\n    prepared_at:now\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "737991d8-28a9-4f18-b80e-70a5e5c16557",
+      "name": "BUILD — RESET PLAN"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nreturn [{json:{\n  status:'SM3_TEST_FIXTURE_RESET_DRY_RUN_PASS',\n  dry_run:true,\n  project_id:x.project_id,\n  reset_mode:x.reset_mode,\n  reset_version:x.reset_version,\n  proposed_snapshot_id:x.snapshot_id,\n  media_to_reset:x.media_count,\n  projects_to_reset:x.project_count,\n  content_to_archive:x.content_count,\n  media_ids:(x.media_updates||[]).map(r=>r.ID_MIDIA),\n  content_ids:(x.content_updates||[]).map(r=>r.ID_CONTEÚDO),\n  preservation_contract:x.preservation_contract,\n  checked_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        0
+      ],
+      "id": "987f4679-cb12-41d5-98fe-ec8e063fb97f",
+      "name": "ASSERT — RESET DRY RUN"
+    }
+  ],
+  "connections": {
+    "MANUAL — RESET DRY RUN": {
+      "main": [
+        [
+          {
+            "node": "CONFIG — TEST FIXTURE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG — TEST FIXTURE": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE PROJECT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE PROJECT": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE CONTENT": {
+      "main": [
+        [
+          {
+            "node": "BUILD — RESET PLAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — RESET PLAN": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — RESET DRY RUN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

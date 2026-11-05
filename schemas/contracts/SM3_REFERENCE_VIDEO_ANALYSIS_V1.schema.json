@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_VIDEO_ANALYSIS_V1",
+  "type": "object",
+  "required": [
+    "analysis_id",
+    "reference_item_id",
+    "source_sha256",
+    "features",
+    "analysis_confidence"
+  ],
+  "properties": {
+    "analysis_id": {
+      "type": "string",
+      "pattern": "^RVA_[a-f0-9]{32}$"
+    },
+    "reference_item_id": {
+      "type": "string",
+      "pattern": "^RI_[a-f0-9]{32}$"
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysis_confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "features": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

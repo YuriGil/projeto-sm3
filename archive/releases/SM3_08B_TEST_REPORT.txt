@@ -1,0 +1,23 @@
+SM3 08B DIRECTION PROFILES + LEARNING ROUTER — TEST REPORT
+Date: 2026-09-21
+
+PASS  Python py_compile — Worker 2.10.0
+PASS  Profile catalog — 4 starter profiles
+PASS  Profile inheritance — child intent overrides + shared foundation invariants
+PASS  Legacy SM3_VISUAL_FEEDBACK_V1 readable
+PASS  Legacy REV4 policy — V1 routes to FOUNDATION without mutating record
+PASS  Learning router — FOUNDATION shared across profiles
+PASS  Learning router — parent profile inheritance
+PASS  Learning router — no cross-profile style contamination
+PASS  Direction profile binding — creates new revision
+PASS  Direction profile binding — idempotent retry
+PASS  Direction profile binding — same-profile no-op
+PASS  Health contract — SM3_DIRECTION_PROFILE_V1 / SM3_PROFILE_BINDING_V1 / SM3_LEARNING_ROUTER_V1
+PASS  Editor JavaScript syntax
+PASS  07F v3.2 workflow JSON
+PASS  12 n8n Code-node JavaScript syntax checks
+PASS  CONTROLE_MOLOTOV — 20_DIRECTION_PROFILES created
+PASS  CONTROLE_MOLOTOV — 19_VISUAL_FEEDBACK routing columns added
+
+Renderer intentionally remains 2.8.0 in this phase.
+Profiles are control/learning-routing contracts; semantic geometry and profile-aware visual execution come next.

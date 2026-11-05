@@ -1,0 +1,1051 @@
+{
+  "name": "PROJETO SM3 — 09A.1 — SPREADSHEET REFERENCE PROFILE SYNC — v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        0
+      ],
+      "id": "a36c87dc-f036-4c94-a9d2-173e78667868",
+      "name": "MANUAL — SYNC REFERENCE PROFILES"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "d83c30d1-923b-445b-9861-e4f61ee92be9",
+      "name": "WORKER — HEALTH 2.15.1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h=$json;\nif(h.ok!==true||h.version!=='2.15.1'||h.reference_corpus!==true||\n h.reference_profile_contract!=='SM3_REFERENCE_PROFILE_V1'||\n h.reference_profile_sync_contract!=='SM3_REFERENCE_PROFILE_SYNC_V1'||\n h.reference_profile_history_contract!=='SM3_REFERENCE_PROFILE_HISTORY_V1'||\n h.reference_spreadsheet_sync!==true||h.reference_mutable_current_state!==true||\n h.reference_immutable_preference_history!==true||h.reference_foundation_override_allowed!==false||\n h.reference_copying_allowed!==false)\n throw new Error('SM3_09A1_WORKER_SYNC_CONTRACT_INVALID');\nreturn {json:{status:'WORKER_2_15_1_REFERENCE_SYNC_VERIFIED'}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "d945e538-44f2-4083-8636-69eaa5e2ce60",
+      "name": "ASSERT — REFERENCE SYNC CONTRACT"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -600,
+        0
+      ],
+      "id": "3a4fbfca-aa1d-4e7e-abce-a35f0b3681c4",
+      "name": "READ — 31_REFERENCE_PROFILES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst rows=$input.all().map(i=>i.json);\nconst norm=x=>String(x??'').trim();\nconst bool=x=>{if(typeof x==='boolean')return x;const s=norm(x).toUpperCase();return ['TRUE','1','YES','SIM','Y'].includes(s)};\nconst interests=x=>[...new Set(norm(x).split(/[;,\\n]+/).map(v=>v.trim().toUpperCase()).filter(Boolean))].sort();\nconst out=[]; const handles=new Set(), ids=new Set();\nfor(const r of rows){\n  const network=norm(r.NETWORK).toLowerCase(), rawHandle=norm(r.HANDLE), rid=norm(r.REFERENCE_PROFILE_ID);\n  if(!network&&!rawHandle&&!rid)continue;\n  if(!network||!rawHandle)throw new Error('SM3_09A1_PROFILE_ROW_INCOMPLETE:'+rawHandle+':'+rid);\n  if(!['instagram','tiktok'].includes(network))throw new Error('SM3_09A1_NETWORK_INVALID:'+network);\n  const hk=network+'|'+rawHandle.replace(/^@/,'').toLowerCase();\n  if(handles.has(hk))throw new Error('SM3_09A1_DUPLICATE_HANDLE:'+hk); handles.add(hk);\n  if(rid){if(ids.has(rid))throw new Error('SM3_09A1_DUPLICATE_PROFILE_ID:'+rid);ids.add(rid)}\n  const pRaw=norm(r.HUMAN_PRIORITY); const priority=pRaw===''?50:Number(pRaw);\n  if(!Number.isInteger(priority)||priority<0||priority>100)throw new Error('SM3_09A1_PRIORITY_INVALID:'+rawHandle);\n  const verRaw=norm(r.PREFERENCE_VERSION); const expected=rid?(verRaw===''?null:Number(verRaw)):null;\n  if(rid&&(expected===null||!Number.isInteger(expected)||expected<1))throw new Error('SM3_09A1_PREFERENCE_VERSION_INVALID:'+rawHandle);\n  out.push({json:{\n    reference_profile_id:rid||null,network,handle:rawHandle,profile_url:norm(r.PROFILE_URL)||null,label:norm(r.LABEL)||null,\n    user_interest:interests(r.USER_INTEREST),style_notes:norm(r.STYLE_NOTES),dislike_notes:norm(r.DISLIKE_NOTES),\n    source:(norm(r.SOURCE)||'HUMAN').toUpperCase(),active:bool(r.ACTIVE),human_priority:priority,notes:norm(r.NOTES),\n    expected_preference_version:expected,change_reason:'SPREADSHEET_SYNC',human_reviewed_at:null,\n    client_context:{had_profile_id:!!rid,sheet_reference_profile_id:rid||null,sheet_network:network,sheet_match_handle:rawHandle}\n  }});\n}\nif(!out.length)return [{json:{route:'NO_WORK'}}];\nreturn out.map(x=>({json:{route:'SYNC',...x.json}}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        0
+      ],
+      "id": "ac7855bc-af9c-4d47-9013-3a57d893eb11",
+      "name": "BUILD — PROFILE SYNC QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "SYNC",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f817ea1d-1a31-4233-947e-da4f071f635f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SYNC"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "45c0dff4-a13d-4871-820a-277e973e00cc"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -200,
+        0
+      ],
+      "id": "dd26468b-9810-44ac-a072-5633c5e30502",
+      "name": "ROUTE — PROFILE SYNC QUEUE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/profile/sync",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {reference_profile_id:$json.reference_profile_id,network:$json.network,handle:$json.handle,profile_url:$json.profile_url,label:$json.label,user_interest:$json.user_interest,style_notes:$json.style_notes,dislike_notes:$json.dislike_notes,source:$json.source,active:$json.active,human_priority:$json.human_priority,notes:$json.notes,expected_preference_version:$json.expected_preference_version,change_reason:$json.change_reason,human_reviewed_at:$json.human_reviewed_at,client_context:$json.client_context} }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        0,
+        -100
+      ],
+      "id": "3e649c70-5145-4e16-ad8c-12794da94328",
+      "name": "WORKER — SYNC REFERENCE PROFILE",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst out=[];\nfor(const it of $input.all()){\n const r=it.json,p=r.profile,c=r.client_context||{};\n if(r.ok!==true||r.sync_contract_version!=='SM3_REFERENCE_PROFILE_SYNC_V1'||!p||p.contract_version!=='SM3_REFERENCE_PROFILE_V1'||\n   !/^RP_[a-f0-9]{32}$/.test(String(p.reference_profile_id||''))||!/^[a-f0-9]{64}$/.test(String(p.profile_sha256||''))||\n   !Number.isInteger(Number(p.preference_version))||Number(p.preference_version)<1)\n   throw new Error('SM3_09A1_PROFILE_SYNC_RESULT_INVALID');\n const now=new Date().toISOString();\n const current={\n   REFERENCE_PROFILE_ID:p.reference_profile_id,\n   NETWORK:String(c.sheet_network||p.network),HANDLE:String(c.sheet_match_handle||p.handle),\n   METRICOOL_COMPETITOR_CONFIGURED:!!p.metricool_competitor_configured,\n   PROFILE_SHA256:p.profile_sha256,CREATED_AT:p.created_at,UPDATED_AT:p.updated_at,\n   PREFERENCE_VERSION:p.preference_version,LAST_HUMAN_REVIEW_AT:p.last_human_review_at||'',\n   SYNC_STATUS:'SYNCED',SYNC_MESSAGE:r.change_type,LAST_SYNC_AT:now\n };\n out.push({json:{write_target:c.had_profile_id?'CURRENT_EXISTING':'CURRENT_NEW',currentRow:current}});\n if(r.history_snapshot){\n  const h=r.history_snapshot;\n  if(h.contract_version!=='SM3_REFERENCE_PROFILE_HISTORY_V1'||!/^[a-f0-9]{64}$/.test(String(h.snapshot_sha256||'')))\n    throw new Error('SM3_09A1_HISTORY_RESULT_INVALID');\n  out.push({json:{write_target:'HISTORY',historyRow:{\n    PREFERENCE_SNAPSHOT_ID:h.preference_snapshot_id,REFERENCE_PROFILE_ID:h.reference_profile_id,NETWORK:h.network,HANDLE:h.handle,\n    PROFILE_URL:h.profile_url||'',LABEL:h.label||'',USER_INTEREST:(h.user_interest||[]).join(', '),STYLE_NOTES:h.style_notes||'',DISLIKE_NOTES:h.dislike_notes||'',\n    HUMAN_PRIORITY:h.human_priority,ACTIVE:!!h.active,PREFERENCE_VERSION:h.preference_version,VALID_FROM:h.valid_from||'',VALID_TO:h.valid_to||'',\n    CHANGE_REASON:h.change_reason||'',SOURCE:h.source||'',SNAPSHOT_SHA256:h.snapshot_sha256,CAPTURED_AT:h.captured_at||''\n  }}});\n }\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        -100
+      ],
+      "id": "e93735a5-3249-4892-90dd-163e0cb85a90",
+      "name": "BUILD — SHEET WRITE OPERATIONS"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.write_target }}",
+                    "rightValue": "CURRENT_NEW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b96c3711-9104-419e-81f8-f612e7805273"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CURRENT_NEW"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.write_target }}",
+                    "rightValue": "CURRENT_EXISTING",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b8911259-d3aa-4ea8-a8cb-59178e4ae35e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CURRENT_EXISTING"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.write_target }}",
+                    "rightValue": "HISTORY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "4ea4f005-6151-49b4-a085-4135b1524395"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "HISTORY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        400,
+        -100
+      ],
+      "id": "c8bf2645-77ac-4602-9578-79b9dfc20736",
+      "name": "ROUTE — SHEET WRITES"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_PROFILE_ID": "={ $json.currentRow.REFERENCE_PROFILE_ID }",
+            "NETWORK": "={{ $json.currentRow.NETWORK }}",
+            "HANDLE": "={ $json.currentRow.HANDLE }",
+            "METRICOOL_COMPETITOR_CONFIGURED": "={ $json.currentRow.METRICOOL_COMPETITOR_CONFIGURED }",
+            "PROFILE_SHA256": "={ $json.currentRow.PROFILE_SHA256 }",
+            "CREATED_AT": "={ $json.currentRow.CREATED_AT }",
+            "UPDATED_AT": "={ $json.currentRow.UPDATED_AT }",
+            "PREFERENCE_VERSION": "={ $json.currentRow.PREFERENCE_VERSION }",
+            "LAST_HUMAN_REVIEW_AT": "={ $json.currentRow.LAST_HUMAN_REVIEW_AT }",
+            "SYNC_STATUS": "={ $json.currentRow.SYNC_STATUS }",
+            "SYNC_MESSAGE": "={ $json.currentRow.SYNC_MESSAGE }",
+            "LAST_SYNC_AT": "={ $json.currentRow.LAST_SYNC_AT }"
+          },
+          "matchingColumns": [
+            "NETWORK",
+            "HANDLE"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HANDLE",
+              "displayName": "HANDLE",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "METRICOOL_COMPETITOR_CONFIGURED",
+              "displayName": "METRICOOL_COMPETITOR_CONFIGURED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROFILE_SHA256",
+              "displayName": "PROFILE_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UPDATED_AT",
+              "displayName": "UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PREFERENCE_VERSION",
+              "displayName": "PREFERENCE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_HUMAN_REVIEW_AT",
+              "displayName": "LAST_HUMAN_REVIEW_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_STATUS",
+              "displayName": "SYNC_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_MESSAGE",
+              "displayName": "SYNC_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SYNC_AT",
+              "displayName": "LAST_SYNC_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        650,
+        -250
+      ],
+      "id": "fedaa376-33f6-42cd-b05d-8c659276ced6",
+      "name": "UPDATE — 31 NEW PROFILE BY HANDLE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_PROFILE_ID": "={ $json.currentRow.REFERENCE_PROFILE_ID }",
+            "NETWORK": "={{ $json.currentRow.NETWORK }}",
+            "HANDLE": "={ $json.currentRow.HANDLE }",
+            "METRICOOL_COMPETITOR_CONFIGURED": "={ $json.currentRow.METRICOOL_COMPETITOR_CONFIGURED }",
+            "PROFILE_SHA256": "={ $json.currentRow.PROFILE_SHA256 }",
+            "CREATED_AT": "={ $json.currentRow.CREATED_AT }",
+            "UPDATED_AT": "={ $json.currentRow.UPDATED_AT }",
+            "PREFERENCE_VERSION": "={ $json.currentRow.PREFERENCE_VERSION }",
+            "LAST_HUMAN_REVIEW_AT": "={ $json.currentRow.LAST_HUMAN_REVIEW_AT }",
+            "SYNC_STATUS": "={ $json.currentRow.SYNC_STATUS }",
+            "SYNC_MESSAGE": "={ $json.currentRow.SYNC_MESSAGE }",
+            "LAST_SYNC_AT": "={ $json.currentRow.LAST_SYNC_AT }"
+          },
+          "matchingColumns": [
+            "REFERENCE_PROFILE_ID"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HANDLE",
+              "displayName": "HANDLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "METRICOOL_COMPETITOR_CONFIGURED",
+              "displayName": "METRICOOL_COMPETITOR_CONFIGURED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROFILE_SHA256",
+              "displayName": "PROFILE_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UPDATED_AT",
+              "displayName": "UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PREFERENCE_VERSION",
+              "displayName": "PREFERENCE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_HUMAN_REVIEW_AT",
+              "displayName": "LAST_HUMAN_REVIEW_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_STATUS",
+              "displayName": "SYNC_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_MESSAGE",
+              "displayName": "SYNC_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SYNC_AT",
+              "displayName": "LAST_SYNC_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        650,
+        -100
+      ],
+      "id": "2524b59e-4476-47a4-9543-754c344608f5",
+      "name": "UPDATE — 31 EXISTING PROFILE BY ID",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000018,
+          "mode": "list",
+          "cachedResultName": "36_REFERENCE_PROFILE_HISTORY"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "PREFERENCE_SNAPSHOT_ID": "={ $json.historyRow.PREFERENCE_SNAPSHOT_ID }",
+            "REFERENCE_PROFILE_ID": "={ $json.historyRow.REFERENCE_PROFILE_ID }",
+            "NETWORK": "={ $json.historyRow.NETWORK }",
+            "HANDLE": "={ $json.historyRow.HANDLE }",
+            "PROFILE_URL": "={ $json.historyRow.PROFILE_URL }",
+            "LABEL": "={ $json.historyRow.LABEL }",
+            "USER_INTEREST": "={ $json.historyRow.USER_INTEREST }",
+            "STYLE_NOTES": "={ $json.historyRow.STYLE_NOTES }",
+            "DISLIKE_NOTES": "={ $json.historyRow.DISLIKE_NOTES }",
+            "HUMAN_PRIORITY": "={ $json.historyRow.HUMAN_PRIORITY }",
+            "ACTIVE": "={ $json.historyRow.ACTIVE }",
+            "PREFERENCE_VERSION": "={ $json.historyRow.PREFERENCE_VERSION }",
+            "VALID_FROM": "={ $json.historyRow.VALID_FROM }",
+            "VALID_TO": "={ $json.historyRow.VALID_TO }",
+            "CHANGE_REASON": "={ $json.historyRow.CHANGE_REASON }",
+            "SOURCE": "={ $json.historyRow.SOURCE }",
+            "SNAPSHOT_SHA256": "={ $json.historyRow.SNAPSHOT_SHA256 }",
+            "CAPTURED_AT": "={ $json.historyRow.CAPTURED_AT }"
+          },
+          "matchingColumns": [
+            "PREFERENCE_SNAPSHOT_ID"
+          ],
+          "schema": [
+            {
+              "id": "PREFERENCE_SNAPSHOT_ID",
+              "displayName": "PREFERENCE_SNAPSHOT_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HANDLE",
+              "displayName": "HANDLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROFILE_URL",
+              "displayName": "PROFILE_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LABEL",
+              "displayName": "LABEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USER_INTEREST",
+              "displayName": "USER_INTEREST",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STYLE_NOTES",
+              "displayName": "STYLE_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DISLIKE_NOTES",
+              "displayName": "DISLIKE_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HUMAN_PRIORITY",
+              "displayName": "HUMAN_PRIORITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ACTIVE",
+              "displayName": "ACTIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PREFERENCE_VERSION",
+              "displayName": "PREFERENCE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VALID_FROM",
+              "displayName": "VALID_FROM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VALID_TO",
+              "displayName": "VALID_TO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CHANGE_REASON",
+              "displayName": "CHANGE_REASON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SOURCE",
+              "displayName": "SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SNAPSHOT_SHA256",
+              "displayName": "SNAPSHOT_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT",
+              "displayName": "CAPTURED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        650,
+        80
+      ],
+      "id": "34c234ac-0c1e-42c0-94d0-9586a721c678",
+      "name": "UPSERT — 36 REFERENCE PROFILE HISTORY",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'SM3_09A1_CURRENT_PROFILE_SYNCED',reference_profile_id:$json.REFERENCE_PROFILE_ID||''}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -170
+      ],
+      "id": "b6c9f3ed-eb8c-4a30-aeb8-d0d3eec688c6",
+      "name": "DONE — CURRENT PROFILE SYNCED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'SM3_09A1_HISTORY_SNAPSHOT_SYNCED',snapshot_id:$json.PREFERENCE_SNAPSHOT_ID||''}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        80
+      ],
+      "id": "d5d88c45-d342-4d08-932d-5a5400f18ac8",
+      "name": "DONE — HISTORY SNAPSHOT SYNCED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'SM3_09A1_REFERENCE_PROFILE_SYNC_NO_WORK'}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        180
+      ],
+      "id": "f8886035-1e17-4b6d-bd2d-53a1913a360f",
+      "name": "DONE — NO PROFILE ROWS"
+    }
+  ],
+  "connections": {
+    "MANUAL — SYNC REFERENCE PROFILES": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.15.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.15.1": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — REFERENCE SYNC CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — REFERENCE SYNC CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 31_REFERENCE_PROFILES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 31_REFERENCE_PROFILES": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PROFILE SYNC QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PROFILE SYNC QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — PROFILE SYNC QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — PROFILE SYNC QUEUE": {
+      "main": [
+        [
+          {
+            "node": "WORKER — SYNC REFERENCE PROFILE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DONE — NO PROFILE ROWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — SYNC REFERENCE PROFILE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — SHEET WRITE OPERATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — SHEET WRITE OPERATIONS": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SHEET WRITES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SHEET WRITES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 31 NEW PROFILE BY HANDLE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UPDATE — 31 EXISTING PROFILE BY ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UPSERT — 36 REFERENCE PROFILE HISTORY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 31 NEW PROFILE BY HANDLE": {
+      "main": [
+        [
+          {
+            "node": "DONE — CURRENT PROFILE SYNCED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 31 EXISTING PROFILE BY ID": {
+      "main": [
+        [
+          {
+            "node": "DONE — CURRENT PROFILE SYNCED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 36 REFERENCE PROFILE HISTORY": {
+      "main": [
+        [
+          {
+            "node": "DONE — HISTORY SNAPSHOT SYNCED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "6041e079-6b64-4671-bcbb-a1068b64aa1d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

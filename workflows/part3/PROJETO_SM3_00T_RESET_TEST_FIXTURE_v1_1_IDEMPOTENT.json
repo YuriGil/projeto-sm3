@@ -1,0 +1,2302 @@
+{
+  "name": "PROJETO SM3 — 00T — RESET TEST FIXTURE — v1.1 IDEMPOTENT",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1240,
+        0
+      ],
+      "id": "6e8795fa-9d95-43a5-a85e-74fa1ad42563",
+      "name": "MANUAL — RESET FIXTURE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  project_id:'TATTOO_0002',\n  reset_mode:'FULL_PIPELINE',\n  reset_version:'SM3_TEST_FIXTURE_RESET_V1',\n  confirmation_token:'RESET_TATTOO_0002_DERIVED_STATE',\n  expected_confirmation_token:'RESET_TATTOO_0002_DERIVED_STATE',\n  allowed_project_id:'TATTOO_0002',\n  allowed_modes:['FULL_PIPELINE'],\n  requested_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1020,
+        0
+      ],
+      "id": "966b2e60-0835-433d-a897-4387c6e7537c",
+      "name": "CONFIG — TEST FIXTURE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "dd350840-2fe8-4e39-9a1e-4c87cf4e2639",
+      "name": "READ — FIXTURE MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -580,
+        0
+      ],
+      "id": "7ac8317e-1598-4b33-bd86-df5f95253196",
+      "name": "READ — FIXTURE PROJECT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -360,
+        0
+      ],
+      "id": "5efc664c-207b-433f-bc88-9a5de71c4069",
+      "name": "READ — FIXTURE CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('CONFIG — TEST FIXTURE').first().json;\nconst mediaRows = $('READ — FIXTURE MEDIA').all().map(i=>i.json);\nconst projectRows = $('READ — FIXTURE PROJECT').all().map(i=>i.json);\nconst contentRows = $('READ — FIXTURE CONTENT').all().map(i=>i.json);\n\nconst PROJECT_ID = String(cfg.project_id || '').trim();\nconst RESET_MODE = String(cfg.reset_mode || '').trim().toUpperCase();\nconst RESET_VERSION = String(cfg.reset_version || '').trim();\nconst now = new Date().toISOString();\nconst snapshotId = `SM3_TF_${Date.now()}`;\n\nif (PROJECT_ID !== cfg.allowed_project_id) {\n  throw new Error(`TEST_FIXTURE_BLOCK: project ${PROJECT_ID} is not allowed`);\n}\nif (!(cfg.allowed_modes || []).includes(RESET_MODE)) {\n  throw new Error(`TEST_FIXTURE_BLOCK: mode ${RESET_MODE} is not allowed`);\n}\n\nconst targetMedia = mediaRows.filter(r => String(r.ID_PROJETO || '').trim() === PROJECT_ID);\nconst targetProjects = projectRows.filter(r => String(r.ID_PROJETO || '').trim() === PROJECT_ID);\nconst targetContent = contentRows.filter(r => String(r.ID_PROJETO || '').trim() === PROJECT_ID);\n\nif (targetMedia.length === 0) throw new Error('TEST_FIXTURE_BLOCK: no media for fixture project');\nif (targetProjects.length !== 1) throw new Error(`TEST_FIXTURE_BLOCK: expected exactly 1 project row, found ${targetProjects.length}`);\n\nconst mediaDerivedFields = [\"TRIAGEM\", \"QUALIDADE\", \"CONTEÚDO_VISUAL\", \"MELHOR_TRECHO\", \"USAR_EM\", \"ANALYSIS_STATUS\", \"ANALYSIS_VERSION\", \"ANALYSIS_SOURCE\", \"VISION_PROVIDER\", \"VISION_MODEL\", \"ANALYZED_AT\", \"ANALYSIS_ERROR\", \"EDITORIAL_SCORE\", \"PROXY_STATUS\", \"ANALYSIS_STAGE\", \"SHOT_TYPE\", \"TECHNICAL_NOTES\", \"TECHNICAL_SCORE\", \"COMPOSITION_SCORE\", \"TATTOO_VISIBILITY\", \"ANALYSIS_CONFIDENCE\", \"REDUNDANCY_HINT\", \"SCORE_SCALE_DETECTED\", \"SCORE_NORMALIZATION\", \"STRUCTURAL_ANALYSIS_VERSION\", \"GEOMETRY_MODE\", \"BODY_REGION\", \"BODY_SUBREGION\", \"VIEW_ANGLE\", \"BODY_POSE\", \"TATTOO_ORIENTATION\", \"TATTOO_STYLE_TAGS\", \"TATTOO_SUBJECT_PRIMARY\", \"TATTOO_SUBJECT_TAGS\", \"TATTOO_STAGE_STRUCTURAL\", \"TATTOO_COVERAGE\", \"COMPOSITION_SHAPE\", \"FOCAL_DESCRIPTION\", \"FOCUS_POINT_NORM\", \"TATTOO_BBOX_NORM\", \"CROP_GUIDANCE_JSON\", \"FORMAT_FIT_JSON\", \"BEST_FORMATS\", \"STRUCTURAL_CONFIDENCE\", \"STRUCTURAL_NOTES\", \"DATA_CAPTURA\", \"MIME_TYPE\", \"FILE_SIZE_BYTES\", \"CONTENT_HASH\", \"CAPTURED_AT_SOURCE\", \"TECHNICAL_METADATA_JSON\", \"PROCESS_STATUS\", \"RETRY_COUNT\", \"LAST_ATTEMPT_AT\", \"LAST_ERROR_CODE\", \"LAST_ERROR_MESSAGE\", \"LAST_FAILURE_STAGE\", \"LAST_FAILURE_NODE\", \"NEXT_RETRY_AT\", \"DEAD_LETTER_AT\", \"DEAD_LETTER_ID\", \"RELIABILITY_VERSION\", \"VIDEO_SAMPLING_MODE\", \"VIDEO_SAMPLING_VERSION\", \"SCENE_DETECTED_COUNT\", \"SELECTED_FRAME_COUNT\", \"SAMPLING_FALLBACK_USED\", \"SAMPLING_FALLBACK_REASON\", \"SAMPLING_DETAILS_JSON\", \"VIDEO_REANALYZED_AT\", \"CURATION_STATUS\", \"CURATION_VERSION\", \"CURATION_ROLE\", \"CURATION_RANK\", \"REDUNDANCY_GROUP\", \"REDUNDANCY_PREFERRED\", \"REDUNDANCY_REASON\", \"CAROUSEL_POSITION\", \"REEL_CANDIDATE\", \"CURATED_AT\", \"CURATION_PROVIDER\", \"CURATION_MODEL\", \"CURATION_CONFIDENCE\", \"CURATION_RUN_ID\"];\nconst projectDerivedFields = [\"CURATION_STATUS\", \"CURATION_VERSION\", \"CURATION_HERO_ID\", \"CURATION_SELECTED_IDS\", \"CURATION_RESERVE_IDS\", \"CURATION_DISCARD_IDS\", \"CURATION_CAROUSEL_ORDER\", \"CURATION_REEL_IDS\", \"CURATION_NARRATIVE\", \"CURATION_CONFIDENCE\", \"CURATED_AT\", \"CURATION_PROVIDER\", \"CURATION_MODEL\", \"CURATION_RUN_ID\", \"CONTENT_PLAN_STATUS\", \"CONTENT_PLAN_VERSION\", \"CONTENT_PLAN_RUN_ID\", \"CONTENT_PLAN_CURATED_FROM\", \"CONTENT_PLAN_AT\", \"CONTENT_PLAN_COUNT\", \"CONTENT_PLAN_PROVIDER\", \"CONTENT_PLAN_MODEL\"];\n\nfunction snapshot(entityType, entityId, sheet, row) {\n  return {\n    SNAPSHOT_ID:snapshotId,\n    CREATED_AT:now,\n    PROJECT_ID:PROJECT_ID,\n    RESET_MODE:RESET_MODE,\n    ENTITY_TYPE:entityType,\n    ENTITY_ID:entityId,\n    SOURCE_SHEET:sheet,\n    SOURCE_ROW_NUMBER:String(row.row_number || ''),\n    PAYLOAD_JSON:JSON.stringify(row),\n    RESET_VERSION:RESET_VERSION,\n    EXECUTION_ID:String($execution.id || ''),\n    RESTORE_STATUS:'',\n    RESTORED_AT:'',\n    NOTES:'Snapshot automático antes do reset do lote canônico de regressão.'\n  };\n}\n\nconst snapshots = [];\nfor (const r of targetMedia) snapshots.push(snapshot('MEDIA', String(r.ID_MIDIA || ''), '03_MIDIAS', r));\nfor (const r of targetProjects) snapshots.push(snapshot('PROJECT', String(r.ID_PROJETO || ''), '01_PROJETOS', r));\nfor (const r of targetContent) snapshots.push(snapshot('CONTENT', String(r.ID_CONTEÚDO || ''), '04_CONTEUDOS', r));\n\n\nconst mediaAlreadyReset = targetMedia.every(r =>\n  String(r.TRIAGEM || '').trim().toUpperCase() === 'PENDENTE' &&\n  String(r.ANALYSIS_STATUS || '').trim().toUpperCase() === 'QUEUED' &&\n  String(r.PROCESS_STATUS || '').trim().toUpperCase() === 'READY' &&\n  !String(r.ANALYSIS_VERSION || '').trim() &&\n  !String(r.CURATION_STATUS || '').trim() &&\n  !String(r.STRUCTURAL_ANALYSIS_VERSION || '').trim()\n);\n\nconst projectAlreadyReset = targetProjects.every(r =>\n  !String(r.CURATION_STATUS || '').trim() &&\n  !String(r.CONTENT_PLAN_STATUS || '').trim()\n);\n\nconst contentAlreadyArchived = targetContent.every(r =>\n  String(r.PLAN_STATUS || '').trim().toUpperCase() === 'TEST_ARCHIVED' &&\n  String(r.PIPELINE_STATE || '').trim().toUpperCase() === 'TEST_ARCHIVED'\n);\n\nconst alreadyReset = mediaAlreadyReset && projectAlreadyReset && contentAlreadyArchived;\n\nconst mediaUpdates = targetMedia.map(r => {\n  const u = {ID_MIDIA:r.ID_MIDIA};\n  for (const f of mediaDerivedFields) u[f] = '';\n\n  // Canonical starting state for a complete regression pass.\n  u.TRIAGEM = 'PENDENTE';\n  u.ANALYSIS_STATUS = 'QUEUED';\n  u.PROCESS_STATUS = 'READY';\n  u.RETRY_COUNT = 0;\n  u.RELIABILITY_VERSION = 'SM3_RELIABILITY_V1';\n\n  return u;\n});\n\nconst projectUpdates = targetProjects.map(r => {\n  const u = {ID_PROJETO:r.ID_PROJETO};\n  for (const f of projectDerivedFields) u[f] = '';\n  return u;\n});\n\nconst contentUpdates = targetContent.map(r => ({\n  ID_CONTEÚDO:r.ID_CONTEÚDO,\n  PLAN_STATUS:'TEST_ARCHIVED',\n  STATUS_EDIÇÃO:'ARQUIVADO_TESTE',\n  STATUS_APROVAÇÃO:'ARQUIVADO_TESTE',\n\n  EDITORIAL_APPROVAL_STATUS:'TEST_ARCHIVED',\n  EDITORIAL_COMMITTED_STATUS:'',\n  EDITORIAL_APPROVAL_NOTES:'',\n  EDITORIAL_DECIDED_AT:'',\n  EDITORIAL_APPROVAL_VERSION:'SM3_EDITORIAL_GATE_V2',\n  EDITORIAL_APPROVAL_SOURCE:'SM3_TEST_FIXTURE_RESET',\n\n  FINAL_APPROVAL_STATUS:'TEST_ARCHIVED',\n  FINAL_COMMITTED_STATUS:'',\n  FINAL_APPROVAL_NOTES:'',\n  FINAL_APPROVAL_DECIDED_AT:'',\n  FINAL_APPROVAL_VERSION:'',\n  FINAL_APPROVAL_SOURCE:'',\n\n  ROUTING_STATUS:'TEST_ARCHIVED',\n  ROUTING_VERSION:'SM3_ROUTING_V2_EDITORIAL',\n  ROUTING_DECISION:'',\n  ROUTING_TARGET:'ARCHIVE',\n  ROUTED_AT:'',\n  ROUTING_SOURCE:'SM3_TEST_FIXTURE_RESET',\n  ROUTED_FROM_EDITORIAL_AT:'',\n\n  PRODUCTION_STATUS:'NOT_APPLICABLE',\n  REVISION_STATUS:'NOT_APPLICABLE',\n  EDITORIAL_STATUS:'ARCHIVED_TEST',\n  RENDER_STATUS:'NOT_APPLICABLE',\n  RENDER_ID:'',\n  RENDER_RECIPE_ID:'',\n  QA_STATUS:'NOT_APPLICABLE',\n  QA_NOTES:'',\n  PIPELINE_STATE:'TEST_ARCHIVED',\n  STATE_UPDATED_AT:now,\n  STATE_VERSION:RESET_VERSION,\n  FINAL_ARTIFACT_HASH:'',\n  OBSERVAÇÕES:`${String(r.OBSERVAÇÕES || '').trim()}${String(r.OBSERVAÇÕES || '').trim() ? ' | ' : ''}[${RESET_VERSION} ${snapshotId}] Arquivado automaticamente para novo ciclo de regressão.`\n}));\n\nreturn [{\n  json:{\n    dry_run:false,\n    route_key: alreadyReset ? 'NO_WORK' : 'RESET',\n    already_reset: alreadyReset,\n    project_id:PROJECT_ID,\n    reset_mode:RESET_MODE,\n    reset_version:RESET_VERSION,\n    snapshot_id:snapshotId,\n    media_count:targetMedia.length,\n    project_count:targetProjects.length,\n    content_count:targetContent.length,\n    snapshots,\n    media_updates:mediaUpdates,\n    project_updates:projectUpdates,\n    content_updates:contentUpdates,\n    preservation_contract:{\n      preserves:[\n        'ID_MIDIA','ID_PROJETO','ARQUIVO','LINK_DRIVE','TIPO','SESSÃO',\n        'DRIVE_FILE_ID','PROJECT_FOLDER_ID','PARENT_FOLDER_ID','RELATIVE_PATH',\n        'INGESTION_KEY','STORAGE_STATUS','FIRST_SEEN_AT','LAST_SEEN_AT',\n        'OFFLINE_AT','TREE_DEPTH','DISCOVERY_VERSION'\n      ],\n      archives_content_rows:true,\n      deletes_rows:false\n    },\n    prepared_at:now\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "d631576f-1fea-4cb6-96a8-6186590d595e",
+      "name": "BUILD — RESET PLAN"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nreturn [{json:{\n  ...x,\n  audit:{\n    safe_project:x.project_id==='TATTOO_0002',\n    full_pipeline:x.reset_mode==='FULL_PIPELINE',\n    snapshots_expected:x.media_count+x.project_count+x.content_count,\n    media_ids:(x.media_updates||[]).map(r=>r.ID_MIDIA),\n    project_ids:(x.project_updates||[]).map(r=>r.ID_PROJETO),\n    content_ids:(x.content_updates||[]).map(r=>r.ID_CONTEÚDO)\n  }\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        0
+      ],
+      "id": "085f848c-82a6-4f65-b140-537ff55a5415",
+      "name": "AUDIT — RESET PLAN"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nconst cfg=$('CONFIG — TEST FIXTURE').first().json;\n\nif(cfg.confirmation_token !== cfg.expected_confirmation_token){\n  throw new Error('TEST_FIXTURE_BLOCK: confirmation token mismatch');\n}\nif(x.project_id!=='TATTOO_0002') throw new Error('TEST_FIXTURE_BLOCK: wrong project');\nif(x.reset_mode!=='FULL_PIPELINE') throw new Error('TEST_FIXTURE_BLOCK: unsupported mode');\nif(!Array.isArray(x.snapshots) || x.snapshots.length < 2) throw new Error('TEST_FIXTURE_BLOCK: snapshots missing');\nif(!Array.isArray(x.media_updates) || x.media_updates.length < 1) throw new Error('TEST_FIXTURE_BLOCK: no media reset rows');\nif(!Array.isArray(x.project_updates) || x.project_updates.length !== 1) throw new Error('TEST_FIXTURE_BLOCK: invalid project reset rows');\n\nreturn [{json:{...x,guard_pass:true,guarded_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        0
+      ],
+      "id": "6478aa79-0056-4441-bcc6-f260f81b948e",
+      "name": "GUARD — RESET COMMIT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESET COMMIT').first().json;\nreturn (x.snapshots || []).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ],
+      "id": "9f1dcd3b-89d0-4ab8-9b3f-9cd6b311ff2b",
+      "name": "EXPAND — SNAPSHOTS"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 580327213,
+          "mode": "list",
+          "cachedResultName": "18_TEST_FIXTURE_SNAPSHOTS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SNAPSHOT_ID": "={{ $json.SNAPSHOT_ID }}",
+            "CREATED_AT": "={{ $json.CREATED_AT }}",
+            "PROJECT_ID": "={{ $json.PROJECT_ID }}",
+            "RESET_MODE": "={{ $json.RESET_MODE }}",
+            "ENTITY_TYPE": "={{ $json.ENTITY_TYPE }}",
+            "ENTITY_ID": "={{ $json.ENTITY_ID }}",
+            "SOURCE_SHEET": "={{ $json.SOURCE_SHEET }}",
+            "SOURCE_ROW_NUMBER": "={{ $json.SOURCE_ROW_NUMBER }}",
+            "PAYLOAD_JSON": "={{ $json.PAYLOAD_JSON }}",
+            "RESET_VERSION": "={{ $json.RESET_VERSION }}",
+            "EXECUTION_ID": "={{ $json.EXECUTION_ID }}",
+            "RESTORE_STATUS": "={{ $json.RESTORE_STATUS }}",
+            "RESTORED_AT": "={{ $json.RESTORED_AT }}",
+            "NOTES": "={{ $json.NOTES }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "SNAPSHOT_ID",
+              "displayName": "SNAPSHOT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_ID",
+              "displayName": "PROJECT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESET_MODE",
+              "displayName": "RESET_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_TYPE",
+              "displayName": "ENTITY_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_ID",
+              "displayName": "ENTITY_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SOURCE_SHEET",
+              "displayName": "SOURCE_SHEET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SOURCE_ROW_NUMBER",
+              "displayName": "SOURCE_ROW_NUMBER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PAYLOAD_JSON",
+              "displayName": "PAYLOAD_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESET_VERSION",
+              "displayName": "RESET_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EXECUTION_ID",
+              "displayName": "EXECUTION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESTORE_STATUS",
+              "displayName": "RESTORE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESTORED_AT",
+              "displayName": "RESTORED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        840,
+        0
+      ],
+      "id": "bbb3b56b-2518-4ea3-a13a-e10e2828022b",
+      "name": "APPEND — FIXTURE SNAPSHOTS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESET COMMIT').first().json;\nreturn (x.media_updates || []).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        0
+      ],
+      "id": "c7b34b3d-a727-4dd2-b498-24d960cc5e29",
+      "name": "EXPAND — MEDIA RESET"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "TRIAGEM": "={{ $json.TRIAGEM }}",
+            "QUALIDADE": "={{ $json.QUALIDADE }}",
+            "CONTEÚDO_VISUAL": "={{ $json.CONTEÚDO_VISUAL }}",
+            "MELHOR_TRECHO": "={{ $json.MELHOR_TRECHO }}",
+            "USAR_EM": "={{ $json.USAR_EM }}",
+            "ANALYSIS_STATUS": "={{ $json.ANALYSIS_STATUS }}",
+            "ANALYSIS_VERSION": "={{ $json.ANALYSIS_VERSION }}",
+            "ANALYSIS_SOURCE": "={{ $json.ANALYSIS_SOURCE }}",
+            "VISION_PROVIDER": "={{ $json.VISION_PROVIDER }}",
+            "VISION_MODEL": "={{ $json.VISION_MODEL }}",
+            "ANALYZED_AT": "={{ $json.ANALYZED_AT }}",
+            "ANALYSIS_ERROR": "={{ $json.ANALYSIS_ERROR }}",
+            "EDITORIAL_SCORE": "={{ $json.EDITORIAL_SCORE }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}",
+            "ANALYSIS_STAGE": "={{ $json.ANALYSIS_STAGE }}",
+            "SHOT_TYPE": "={{ $json.SHOT_TYPE }}",
+            "TECHNICAL_NOTES": "={{ $json.TECHNICAL_NOTES }}",
+            "TECHNICAL_SCORE": "={{ $json.TECHNICAL_SCORE }}",
+            "COMPOSITION_SCORE": "={{ $json.COMPOSITION_SCORE }}",
+            "TATTOO_VISIBILITY": "={{ $json.TATTOO_VISIBILITY }}",
+            "ANALYSIS_CONFIDENCE": "={{ $json.ANALYSIS_CONFIDENCE }}",
+            "REDUNDANCY_HINT": "={{ $json.REDUNDANCY_HINT }}",
+            "SCORE_SCALE_DETECTED": "={{ $json.SCORE_SCALE_DETECTED }}",
+            "SCORE_NORMALIZATION": "={{ $json.SCORE_NORMALIZATION }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}",
+            "VIDEO_SAMPLING_MODE": "={{ $json.VIDEO_SAMPLING_MODE }}",
+            "VIDEO_SAMPLING_VERSION": "={{ $json.VIDEO_SAMPLING_VERSION }}",
+            "SCENE_DETECTED_COUNT": "={{ $json.SCENE_DETECTED_COUNT }}",
+            "SELECTED_FRAME_COUNT": "={{ $json.SELECTED_FRAME_COUNT }}",
+            "SAMPLING_FALLBACK_USED": "={{ $json.SAMPLING_FALLBACK_USED }}",
+            "SAMPLING_FALLBACK_REASON": "={{ $json.SAMPLING_FALLBACK_REASON }}",
+            "SAMPLING_DETAILS_JSON": "={{ $json.SAMPLING_DETAILS_JSON }}",
+            "VIDEO_REANALYZED_AT": "={{ $json.VIDEO_REANALYZED_AT }}",
+            "CURATION_STATUS": "={{ $json.CURATION_STATUS }}",
+            "CURATION_VERSION": "={{ $json.CURATION_VERSION }}",
+            "CURATION_ROLE": "={{ $json.CURATION_ROLE }}",
+            "CURATION_RANK": "={{ $json.CURATION_RANK }}",
+            "REDUNDANCY_GROUP": "={{ $json.REDUNDANCY_GROUP }}",
+            "REDUNDANCY_PREFERRED": "={{ $json.REDUNDANCY_PREFERRED }}",
+            "REDUNDANCY_REASON": "={{ $json.REDUNDANCY_REASON }}",
+            "CAROUSEL_POSITION": "={{ $json.CAROUSEL_POSITION }}",
+            "REEL_CANDIDATE": "={{ $json.REEL_CANDIDATE }}",
+            "CURATED_AT": "={{ $json.CURATED_AT }}",
+            "CURATION_PROVIDER": "={{ $json.CURATION_PROVIDER }}",
+            "CURATION_MODEL": "={{ $json.CURATION_MODEL }}",
+            "CURATION_CONFIDENCE": "={{ $json.CURATION_CONFIDENCE }}",
+            "CURATION_RUN_ID": "={{ $json.CURATION_RUN_ID }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STATUS",
+              "displayName": "ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_VERSION",
+              "displayName": "ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_SOURCE",
+              "displayName": "ANALYSIS_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_PROVIDER",
+              "displayName": "VISION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_MODEL",
+              "displayName": "VISION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYZED_AT",
+              "displayName": "ANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_ERROR",
+              "displayName": "ANALYSIS_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_SCORE",
+              "displayName": "EDITORIAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STAGE",
+              "displayName": "ANALYSIS_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SHOT_TYPE",
+              "displayName": "SHOT_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_NOTES",
+              "displayName": "TECHNICAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_SCORE",
+              "displayName": "TECHNICAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SCORE",
+              "displayName": "COMPOSITION_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_VISIBILITY",
+              "displayName": "TATTOO_VISIBILITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_CONFIDENCE",
+              "displayName": "ANALYSIS_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_HINT",
+              "displayName": "REDUNDANCY_HINT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_SCALE_DETECTED",
+              "displayName": "SCORE_SCALE_DETECTED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_NORMALIZATION",
+              "displayName": "SCORE_NORMALIZATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_SAMPLING_MODE",
+              "displayName": "VIDEO_SAMPLING_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_SAMPLING_VERSION",
+              "displayName": "VIDEO_SAMPLING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCENE_DETECTED_COUNT",
+              "displayName": "SCENE_DETECTED_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SELECTED_FRAME_COUNT",
+              "displayName": "SELECTED_FRAME_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SAMPLING_FALLBACK_USED",
+              "displayName": "SAMPLING_FALLBACK_USED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SAMPLING_FALLBACK_REASON",
+              "displayName": "SAMPLING_FALLBACK_REASON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SAMPLING_DETAILS_JSON",
+              "displayName": "SAMPLING_DETAILS_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_REANALYZED_AT",
+              "displayName": "VIDEO_REANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_STATUS",
+              "displayName": "CURATION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_VERSION",
+              "displayName": "CURATION_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_ROLE",
+              "displayName": "CURATION_ROLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RANK",
+              "displayName": "CURATION_RANK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_GROUP",
+              "displayName": "REDUNDANCY_GROUP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_PREFERRED",
+              "displayName": "REDUNDANCY_PREFERRED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_REASON",
+              "displayName": "REDUNDANCY_REASON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAROUSEL_POSITION",
+              "displayName": "CAROUSEL_POSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REEL_CANDIDATE",
+              "displayName": "REEL_CANDIDATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATED_AT",
+              "displayName": "CURATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_PROVIDER",
+              "displayName": "CURATION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_MODEL",
+              "displayName": "CURATION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CONFIDENCE",
+              "displayName": "CURATION_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "bf98ac62-0542-44be-be06-3b96d56b2de6",
+      "name": "UPDATE — 03_MIDIAS RESET",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESET COMMIT').first().json;\nreturn (x.project_updates || []).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ],
+      "id": "605805bc-21b6-4063-8834-f3d666440c9f",
+      "name": "EXPAND — PROJECT RESET"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_PROJETO": "={{ $json.ID_PROJETO }}",
+            "CURATION_STATUS": "={{ $json.CURATION_STATUS }}",
+            "CURATION_VERSION": "={{ $json.CURATION_VERSION }}",
+            "CURATION_HERO_ID": "={{ $json.CURATION_HERO_ID }}",
+            "CURATION_SELECTED_IDS": "={{ $json.CURATION_SELECTED_IDS }}",
+            "CURATION_RESERVE_IDS": "={{ $json.CURATION_RESERVE_IDS }}",
+            "CURATION_DISCARD_IDS": "={{ $json.CURATION_DISCARD_IDS }}",
+            "CURATION_CAROUSEL_ORDER": "={{ $json.CURATION_CAROUSEL_ORDER }}",
+            "CURATION_REEL_IDS": "={{ $json.CURATION_REEL_IDS }}",
+            "CURATION_NARRATIVE": "={{ $json.CURATION_NARRATIVE }}",
+            "CURATION_CONFIDENCE": "={{ $json.CURATION_CONFIDENCE }}",
+            "CURATED_AT": "={{ $json.CURATED_AT }}",
+            "CURATION_PROVIDER": "={{ $json.CURATION_PROVIDER }}",
+            "CURATION_MODEL": "={{ $json.CURATION_MODEL }}",
+            "CURATION_RUN_ID": "={{ $json.CURATION_RUN_ID }}",
+            "CONTENT_PLAN_STATUS": "={{ $json.CONTENT_PLAN_STATUS }}",
+            "CONTENT_PLAN_VERSION": "={{ $json.CONTENT_PLAN_VERSION }}",
+            "CONTENT_PLAN_RUN_ID": "={{ $json.CONTENT_PLAN_RUN_ID }}",
+            "CONTENT_PLAN_CURATED_FROM": "={{ $json.CONTENT_PLAN_CURATED_FROM }}",
+            "CONTENT_PLAN_AT": "={{ $json.CONTENT_PLAN_AT }}",
+            "CONTENT_PLAN_COUNT": "={{ $json.CONTENT_PLAN_COUNT }}",
+            "CONTENT_PLAN_PROVIDER": "={{ $json.CONTENT_PLAN_PROVIDER }}",
+            "CONTENT_PLAN_MODEL": "={{ $json.CONTENT_PLAN_MODEL }}"
+          },
+          "matchingColumns": [
+            "ID_PROJETO"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_STATUS",
+              "displayName": "CURATION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_VERSION",
+              "displayName": "CURATION_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_HERO_ID",
+              "displayName": "CURATION_HERO_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_SELECTED_IDS",
+              "displayName": "CURATION_SELECTED_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RESERVE_IDS",
+              "displayName": "CURATION_RESERVE_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_DISCARD_IDS",
+              "displayName": "CURATION_DISCARD_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CAROUSEL_ORDER",
+              "displayName": "CURATION_CAROUSEL_ORDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_REEL_IDS",
+              "displayName": "CURATION_REEL_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_NARRATIVE",
+              "displayName": "CURATION_NARRATIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CONFIDENCE",
+              "displayName": "CURATION_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATED_AT",
+              "displayName": "CURATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_PROVIDER",
+              "displayName": "CURATION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_MODEL",
+              "displayName": "CURATION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_STATUS",
+              "displayName": "CONTENT_PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_VERSION",
+              "displayName": "CONTENT_PLAN_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_RUN_ID",
+              "displayName": "CONTENT_PLAN_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_CURATED_FROM",
+              "displayName": "CONTENT_PLAN_CURATED_FROM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_AT",
+              "displayName": "CONTENT_PLAN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_COUNT",
+              "displayName": "CONTENT_PLAN_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_PROVIDER",
+              "displayName": "CONTENT_PLAN_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_MODEL",
+              "displayName": "CONTENT_PLAN_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1800,
+        0
+      ],
+      "id": "9d7667cb-08cc-4616-9581-21b2cde92cc7",
+      "name": "UPDATE — 01_PROJETOS RESET",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESET COMMIT').first().json;\nreturn (x.content_updates || []).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        0
+      ],
+      "id": "cad3cea0-ff87-41c6-89a4-6fa2e2f80070",
+      "name": "EXPAND — CONTENT ARCHIVE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "PLAN_STATUS": "={{ $json.PLAN_STATUS }}",
+            "STATUS_EDIÇÃO": "={{ $json.STATUS_EDIÇÃO }}",
+            "STATUS_APROVAÇÃO": "={{ $json.STATUS_APROVAÇÃO }}",
+            "EDITORIAL_APPROVAL_STATUS": "={{ $json.EDITORIAL_APPROVAL_STATUS }}",
+            "EDITORIAL_COMMITTED_STATUS": "={{ $json.EDITORIAL_COMMITTED_STATUS }}",
+            "EDITORIAL_APPROVAL_NOTES": "={{ $json.EDITORIAL_APPROVAL_NOTES }}",
+            "EDITORIAL_DECIDED_AT": "={{ $json.EDITORIAL_DECIDED_AT }}",
+            "EDITORIAL_APPROVAL_VERSION": "={{ $json.EDITORIAL_APPROVAL_VERSION }}",
+            "EDITORIAL_APPROVAL_SOURCE": "={{ $json.EDITORIAL_APPROVAL_SOURCE }}",
+            "FINAL_APPROVAL_STATUS": "={{ $json.FINAL_APPROVAL_STATUS }}",
+            "FINAL_COMMITTED_STATUS": "={{ $json.FINAL_COMMITTED_STATUS }}",
+            "FINAL_APPROVAL_NOTES": "={{ $json.FINAL_APPROVAL_NOTES }}",
+            "FINAL_APPROVAL_DECIDED_AT": "={{ $json.FINAL_APPROVAL_DECIDED_AT }}",
+            "FINAL_APPROVAL_VERSION": "={{ $json.FINAL_APPROVAL_VERSION }}",
+            "FINAL_APPROVAL_SOURCE": "={{ $json.FINAL_APPROVAL_SOURCE }}",
+            "ROUTING_STATUS": "={{ $json.ROUTING_STATUS }}",
+            "ROUTING_VERSION": "={{ $json.ROUTING_VERSION }}",
+            "ROUTING_DECISION": "={{ $json.ROUTING_DECISION }}",
+            "ROUTING_TARGET": "={{ $json.ROUTING_TARGET }}",
+            "ROUTED_AT": "={{ $json.ROUTED_AT }}",
+            "ROUTING_SOURCE": "={{ $json.ROUTING_SOURCE }}",
+            "ROUTED_FROM_EDITORIAL_AT": "={{ $json.ROUTED_FROM_EDITORIAL_AT }}",
+            "PRODUCTION_STATUS": "={{ $json.PRODUCTION_STATUS }}",
+            "REVISION_STATUS": "={{ $json.REVISION_STATUS }}",
+            "EDITORIAL_STATUS": "={{ $json.EDITORIAL_STATUS }}",
+            "RENDER_STATUS": "={{ $json.RENDER_STATUS }}",
+            "RENDER_ID": "={{ $json.RENDER_ID }}",
+            "RENDER_RECIPE_ID": "={{ $json.RENDER_RECIPE_ID }}",
+            "QA_STATUS": "={{ $json.QA_STATUS }}",
+            "QA_NOTES": "={{ $json.QA_NOTES }}",
+            "PIPELINE_STATE": "={{ $json.PIPELINE_STATE }}",
+            "STATE_UPDATED_AT": "={{ $json.STATE_UPDATED_AT }}",
+            "STATE_VERSION": "={{ $json.STATE_VERSION }}",
+            "FINAL_ARTIFACT_HASH": "={{ $json.FINAL_ARTIFACT_HASH }}",
+            "OBSERVAÇÕES": "={{ $json.OBSERVAÇÕES }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_STATUS",
+              "displayName": "PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_EDIÇÃO",
+              "displayName": "STATUS_EDIÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_APROVAÇÃO",
+              "displayName": "STATUS_APROVAÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_STATUS",
+              "displayName": "EDITORIAL_APPROVAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_COMMITTED_STATUS",
+              "displayName": "EDITORIAL_COMMITTED_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_NOTES",
+              "displayName": "EDITORIAL_APPROVAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_DECIDED_AT",
+              "displayName": "EDITORIAL_DECIDED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_VERSION",
+              "displayName": "EDITORIAL_APPROVAL_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_SOURCE",
+              "displayName": "EDITORIAL_APPROVAL_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_STATUS",
+              "displayName": "FINAL_APPROVAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_COMMITTED_STATUS",
+              "displayName": "FINAL_COMMITTED_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_NOTES",
+              "displayName": "FINAL_APPROVAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_DECIDED_AT",
+              "displayName": "FINAL_APPROVAL_DECIDED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_VERSION",
+              "displayName": "FINAL_APPROVAL_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_SOURCE",
+              "displayName": "FINAL_APPROVAL_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_STATUS",
+              "displayName": "ROUTING_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_VERSION",
+              "displayName": "ROUTING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_DECISION",
+              "displayName": "ROUTING_DECISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_TARGET",
+              "displayName": "ROUTING_TARGET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_AT",
+              "displayName": "ROUTED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_SOURCE",
+              "displayName": "ROUTING_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_FROM_EDITORIAL_AT",
+              "displayName": "ROUTED_FROM_EDITORIAL_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_STATUS",
+              "displayName": "PRODUCTION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_STATUS",
+              "displayName": "REVISION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_STATUS",
+              "displayName": "EDITORIAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_STATUS",
+              "displayName": "RENDER_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_ID",
+              "displayName": "RENDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_RECIPE_ID",
+              "displayName": "RENDER_RECIPE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QA_STATUS",
+              "displayName": "QA_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QA_NOTES",
+              "displayName": "QA_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PIPELINE_STATE",
+              "displayName": "PIPELINE_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_UPDATED_AT",
+              "displayName": "STATE_UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_VERSION",
+              "displayName": "STATE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_ARTIFACT_HASH",
+              "displayName": "FINAL_ARTIFACT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2280,
+        0
+      ],
+      "id": "0c38d050-7f0d-4ef6-859d-f887771e9cae",
+      "name": "UPDATE — 04_CONTEUDOS ARCHIVE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESET COMMIT').first().json;\nreturn [{json:{\n  status:'SM3_TEST_FIXTURE_RESET_PASS',\n  project_id:x.project_id,\n  reset_mode:x.reset_mode,\n  reset_version:x.reset_version,\n  snapshot_id:x.snapshot_id,\n  snapshots_written:x.snapshots.length,\n  media_reset:x.media_updates.length,\n  projects_reset:x.project_updates.length,\n  content_archived:x.content_updates.length,\n  next_mainline:[\n    '02 TRIAGE v9',\n    '03 CURATION v6',\n    '04 CONTENT PLAN v3',\n    '05 EDITORIAL GATE v3',\n    '06 EDITORIAL ROUTING v3'\n  ],\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        0
+      ],
+      "id": "e4215252-5ccd-4afb-bcf8-b39105715037",
+      "name": "ASSERT — RESET COMPLETE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f0911df6-1c62-42b9-930f-6696d8b2cf04"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "RESET",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5f00bc47-49b1-4e01-8fbb-e4caffd6f963"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RESET"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        120,
+        0
+      ],
+      "id": "333dcfb5-3dc1-41c6-9c0b-e6680c88fd93",
+      "name": "ROUTE — RESET ACTION"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nreturn [{json:{\n  status:'SM3_TEST_FIXTURE_ALREADY_RESET',\n  project_id:x.project_id,\n  reset_mode:x.reset_mode,\n  reset_version:x.reset_version,\n  already_reset:true,\n  writes_performed:false,\n  message:'Fixture already at canonical reset baseline. No snapshot or write was performed.',\n  checked_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        -180
+      ],
+      "id": "6556c285-ec7f-4cfe-90df-7f8735e8f5da",
+      "name": "NO WORK — FIXTURE ALREADY RESET"
+    }
+  ],
+  "connections": {
+    "MANUAL — RESET FIXTURE": {
+      "main": [
+        [
+          {
+            "node": "CONFIG — TEST FIXTURE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG — TEST FIXTURE": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE PROJECT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE PROJECT": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE CONTENT": {
+      "main": [
+        [
+          {
+            "node": "BUILD — RESET PLAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — RESET PLAN": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — RESET ACTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — RESET PLAN": {
+      "main": [
+        [
+          {
+            "node": "GUARD — RESET COMMIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GUARD — RESET COMMIT": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — SNAPSHOTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — SNAPSHOTS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — FIXTURE SNAPSHOTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "APPEND — FIXTURE SNAPSHOTS": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — MEDIA RESET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA RESET": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 03_MIDIAS RESET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 03_MIDIAS RESET": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT RESET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT RESET": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 01_PROJETOS RESET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 01_PROJETOS RESET": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — CONTENT ARCHIVE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — CONTENT ARCHIVE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 04_CONTEUDOS ARCHIVE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 04_CONTEUDOS ARCHIVE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — RESET COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — RESET ACTION": {
+      "main": [
+        [
+          {
+            "node": "NO WORK — FIXTURE ALREADY RESET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — RESET PLAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NO WORK — FIXTURE ALREADY RESET": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

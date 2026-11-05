@@ -1,0 +1,20 @@
+{
+  "metricool": {
+    "brand_id": "6935248",
+    "timezone": "America/Sao_Paulo",
+    "validated_tool_contract": "createScheduledPost",
+    "duplicate_preflight": "getScheduledPosts",
+    "instagram_requires_media": true,
+    "instagram_reel_requires_video": true,
+    "tiktok_requires_media": true,
+    "default_first_live_mode": "autoPublish=false",
+    "live_call_performed": false
+  },
+  "molotov_gate": {
+    "status": "APROVADO",
+    "decision": "APROVAR",
+    "render_qa": "PASS",
+    "future_slot": true,
+    "duplicate": false
+  }
+}

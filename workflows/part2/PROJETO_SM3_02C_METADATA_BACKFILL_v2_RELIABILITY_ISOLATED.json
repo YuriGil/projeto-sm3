@@ -1,0 +1,1671 @@
+{
+  "name": "PROJETO SM3 — 02C — METADATA BACKFILL — v2 RELIABILITY ISOLATED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d189b8b-be52-444b-9bd5-a674d5318d24",
+      "name": "MANUAL — METADATA BACKFILL"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        -160
+      ],
+      "id": "3d011ece-40a8-4cfb-abe3-71045d954d5a",
+      "name": "READ — 03_MIDIAS QUEUE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Projeto SM3 — metadata backfill for CURRENT production-ready media.\n// No AI call. Uses media-worker deterministic process-path only.\n\nconst mediaRows = $input.all().map(i => i.json);\nconst contentRows = $('READ — PRODUCTION READY CONTENT').all().map(i => i.json);\n\nconst targetIds = new Set();\n\nfor (const c of contentRows) {\n  const productionReady =\n    String(c.ROUTING_TARGET || '').trim().toUpperCase() === 'PRODUCTION' &&\n    String(c.PRODUCTION_STATUS || '').trim().toUpperCase() === 'READY' &&\n    (\n      String(c.EDITORIAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO' ||\n      String(c.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO'\n    );\n\n  if (!productionReady) continue;\n\n  const ids = String(c.BRUTOS_USADOS || '').match(/M\\d{4}/g) || [];\n  for (const id of ids) targetIds.add(id);\n}\n\nconst eligible = mediaRows.filter(r => {\n  const id = String(r.ID_MIDIA || '').trim();\n  if (!targetIds.has(id)) return false;\n  if (String(r.STORAGE_STATUS || '').trim().toUpperCase() !== 'ONLINE') return false;\n  if (String(r.PROCESS_STATUS || '').trim().toUpperCase() === 'DEAD_LETTER') return false;\n\n  const missing =\n    !String(r.CONTENT_HASH || '').trim() ||\n    !String(r.MIME_TYPE || '').trim() ||\n    !String(r.TECHNICAL_METADATA_JSON || '').trim();\n\n  return missing;\n});\n\nif (eligible.length === 0) {\n  return [{\n    json:{\n      queue_empty:true,\n      analysis_route:'NO_WORK',\n      target_media_ids:[...targetIds],\n      queued_at:new Date().toISOString()\n    }\n  }];\n}\n\nreturn eligible.map(r => {\n  const type = String(r.TIPO || '').trim().toUpperCase();\n  const route =\n    type === 'FOTO' ? 'IMAGE_ORIGINAL' :\n    type === 'VÍDEO' || type === 'VIDEO' ? 'VIDEO_PROXY' :\n    'UNSUPPORTED';\n\n  return {\n    json:{\n      ...r,\n      queue_empty:false,\n      analysis_route:route,\n      metadata_backfill:true,\n      queued_at:new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "4136e57a-f5ba-4084-bcb9-f12d11ad934e",
+      "name": "BUILD — METADATA BACKFILL QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "IMAGE_ORIGINAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a89483cb-610c-48fc-a91e-2021f0755ca2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE_ORIGINAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "VIDEO_PROXY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b7f6f5d-e9a5-4984-bdad-100ac5001a67"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VIDEO_PROXY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "UNSUPPORTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e031c51f-3c4b-4cf3-9be2-bbddf13c8096"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNSUPPORTED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5ae2ecb7-4db7-4746-9f34-a26d80bff1c7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        80
+      ],
+      "id": "85fcb316-40cc-4eb5-b204-5a03fe6a0960",
+      "name": "ROUTE — ANALYSIS INPUT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json, next_action:'SKIP_UNSUPPORTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "aac306f4-122e-4450-9fb8-6854efc67568",
+      "name": "UNSUPPORTED — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'jpg').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'image',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "b13d63c6-cfcc-4372-b1c6-bb9792e49c3f",
+      "name": "PREPARE — IMAGE WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        -40
+      ],
+      "id": "211b4648-5c50-41cb-be38-388484c6b566",
+      "name": "DOWNLOAD — IMAGE ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ],
+      "id": "89ded77d-2f7a-45d9-b67c-bfe6041431c3",
+      "name": "WRITE — IMAGE TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'image',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -40
+      ],
+      "id": "8f4b55c3-2902-4a6e-939a-17ebaf87d635",
+      "name": "WORKER — PROCESS IMAGE",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'mp4').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'video',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        120
+      ],
+      "id": "5a1eb337-e763-4850-92c9-33df4f0a778e",
+      "name": "PREPARE — VIDEO WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "aa33612a-3920-4667-889f-c8e10eb3ccfb",
+      "name": "DOWNLOAD — VIDEO ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        120
+      ],
+      "id": "790c2d01-4863-4fab-b7ed-bf880b50e3ef",
+      "name": "WRITE — VIDEO TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'video',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        120
+      ],
+      "id": "4abc5dbb-c381-4c18-8b97-fa830c858fd9",
+      "name": "WORKER — PROCESS VIDEO",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_WORK',message:'Nenhuma mídia QUEUED + ONLINE pendente de análise.',completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        320
+      ],
+      "id": "d8e803d6-8353-4b05-9e81-2c3bbcdf388c",
+      "name": "NO WORK — COMPLETE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        -160
+      ],
+      "id": "9d6aa728-f8e6-4320-a2b9-576df0d1955f",
+      "name": "READ — PRODUCTION READY CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(w => {\n  const m = w.metadata || {};\n  if (!w.media_id) throw new Error('METADATA_BACKFILL_BLOCK: missing media_id');\n  if (!w.content_hash && !m.sha256) throw new Error(`METADATA_BACKFILL_BLOCK: missing hash for ${w.media_id}`);\n\n  return {json:{\n    ID_MIDIA:w.media_id,\n    DATA_CAPTURA:String(m.captured_at || ''),\n    MIME_TYPE:String(m.mime_type || ''),\n    FILE_SIZE_BYTES:Number(m.bytes || 0) || '',\n    CONTENT_HASH:String(w.content_hash || m.sha256 || ''),\n    CAPTURED_AT_SOURCE:String(m.captured_at_source || ''),\n    TECHNICAL_METADATA_JSON:JSON.stringify(m || {}),\n    PROXY_STATUS:'LOCAL_READY'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2570,
+        -40
+      ],
+      "id": "bd36e7e3-0666-4052-a69f-6db7967b460d",
+      "name": "BUILD — IMAGE METADATA WRITE",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2830,
+        -40
+      ],
+      "id": "dc802470-55ef-4bdf-8d76-03627d977853",
+      "name": "UPDATE — IMAGE METADATA",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(w => {\n  const m = w.metadata || {};\n  if (!w.media_id) throw new Error('METADATA_BACKFILL_BLOCK: missing media_id');\n  if (!w.content_hash && !m.sha256) throw new Error(`METADATA_BACKFILL_BLOCK: missing hash for ${w.media_id}`);\n\n  return {json:{\n    ID_MIDIA:w.media_id,\n    DATA_CAPTURA:String(m.captured_at || ''),\n    MIME_TYPE:String(m.mime_type || ''),\n    FILE_SIZE_BYTES:Number(m.bytes || 0) || '',\n    CONTENT_HASH:String(w.content_hash || m.sha256 || ''),\n    CAPTURED_AT_SOURCE:String(m.captured_at_source || ''),\n    TECHNICAL_METADATA_JSON:JSON.stringify(m || {}),\n    PROXY_STATUS:'LOCAL_READY'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2570,
+        120
+      ],
+      "id": "070b2b48-b44d-4501-ac50-c39a99a46b7a",
+      "name": "BUILD — VIDEO METADATA WRITE",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2830,
+        120
+      ],
+      "id": "40480b4b-61a8-43be-a84e-4d9b60627fea",
+      "name": "UPDATE — VIDEO METADATA",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02C_METADATA_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'METADATA_DRIVE_DOWNLOAD_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'DOWNLOAD — ORIGINAL',\n    STAGE: 'METADATA_DRIVE_DOWNLOAD',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'DOWNLOAD — ORIGINAL',\n    stage: 'METADATA_DRIVE_DOWNLOAD',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'METADATA_DRIVE_DOWNLOAD',\n    LAST_FAILURE_NODE: 'DOWNLOAD — ORIGINAL',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        620
+      ],
+      "id": "6a2420bf-f622-48da-966f-5f74fd89cc44",
+      "name": "FAIL — METADATA_DRIVE_DOWNLOAD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 2;\nconst workflow = 'PROJETO_SM3_02C_METADATA_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'METADATA_LOCAL_TEMP_WRITE_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'WRITE — TEMP',\n    STAGE: 'METADATA_LOCAL_TEMP_WRITE',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'WRITE — TEMP',\n    stage: 'METADATA_LOCAL_TEMP_WRITE',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'METADATA_LOCAL_TEMP_WRITE',\n    LAST_FAILURE_NODE: 'WRITE — TEMP',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1350,
+        620
+      ],
+      "id": "255e2f43-0556-47aa-a9e7-a927ab6a82f6",
+      "name": "FAIL — METADATA_LOCAL_TEMP_WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 2;\nconst workflow = 'PROJETO_SM3_02C_METADATA_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'METADATA_WORKER_PROCESS_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'WORKER — PROCESS',\n    STAGE: 'METADATA_WORKER_PROCESS',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'WORKER — PROCESS',\n    stage: 'METADATA_WORKER_PROCESS',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'METADATA_WORKER_PROCESS',\n    LAST_FAILURE_NODE: 'WORKER — PROCESS',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        620
+      ],
+      "id": "04cb9aa6-7f2c-48d3-bbc9-aa1cfaed2780",
+      "name": "FAIL — METADATA_WORKER_PROCESS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 1;\nconst workflow = 'PROJETO_SM3_02C_METADATA_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'METADATA_CONTRACT_BUILD_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'BUILD — METADATA WRITE',\n    STAGE: 'METADATA_CONTRACT_BUILD',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'BUILD — METADATA WRITE',\n    stage: 'METADATA_CONTRACT_BUILD',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'METADATA_CONTRACT_BUILD',\n    LAST_FAILURE_NODE: 'BUILD — METADATA WRITE',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        620
+      ],
+      "id": "0b2e1833-cf53-41cf-bf7e-074b714c8c09",
+      "name": "FAIL — METADATA_CONTRACT_BUILD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02C_METADATA_BACKFILL_V2';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'METADATA_SHEET_WRITE_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map(item => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${Math.random().toString(36).slice(2, 8)}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'UPDATE — METADATA',\n    STAGE: 'METADATA_SHEET_WRITE',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'UPDATE — METADATA',\n    stage: 'METADATA_SHEET_WRITE',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      backfill_kind: 'METADATA',\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    ID_MIDIA: mediaId,\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'METADATA_SHEET_WRITE',\n    LAST_FAILURE_NODE: 'UPDATE — METADATA',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        830
+      ],
+      "id": "0cf38f58-b566-46b0-a127-b27b4d2b1ee8",
+      "name": "FAIL — METADATA_SHEET_WRITE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/ops/dead-letter",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {event_id:$json.event_id,created_at:$json.created_at,workflow:$json.workflow,node:$json.node,stage:$json.stage,entity_type:$json.entity_type,entity_id:$json.entity_id,project_id:$json.project_id,media_id:$json.media_id,content_id:$json.content_id,error_code:$json.error_code,error_message:$json.error_message,attempt_count:$json.attempt_count,max_tries:$json.max_tries,retryable:$json.retryable,disposition:$json.disposition,execution_id:$json.execution_id,payload:$json.payload,version:$json.version} }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2300,
+        560
+      ],
+      "id": "af20f1c9-2377-487c-8d73-a67f9f72b8e7",
+      "name": "SINK — DEAD LETTER LOCAL",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1938475611,
+          "mode": "list",
+          "cachedResultName": "17_OS_FAILURES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "EVENT_ID": "={{ $json.EVENT_ID }}",
+            "CREATED_AT": "={{ $json.CREATED_AT }}",
+            "WORKFLOW": "={{ $json.WORKFLOW }}",
+            "NODE": "={{ $json.NODE }}",
+            "STAGE": "={{ $json.STAGE }}",
+            "ENTITY_TYPE": "={{ $json.ENTITY_TYPE }}",
+            "ENTITY_ID": "={{ $json.ENTITY_ID }}",
+            "PROJECT_ID": "={{ $json.PROJECT_ID }}",
+            "MEDIA_ID": "={{ $json.MEDIA_ID }}",
+            "CONTENT_ID": "={{ $json.CONTENT_ID }}",
+            "ERROR_CODE": "={{ $json.ERROR_CODE }}",
+            "ERROR_MESSAGE": "={{ $json.ERROR_MESSAGE }}",
+            "ATTEMPT_COUNT": "={{ $json.ATTEMPT_COUNT }}",
+            "MAX_TRIES": "={{ $json.MAX_TRIES }}",
+            "RETRYABLE": "={{ $json.RETRYABLE }}",
+            "DISPOSITION": "={{ $json.DISPOSITION }}",
+            "EXECUTION_ID": "={{ $json.EXECUTION_ID }}",
+            "PAYLOAD_JSON": "={{ $json.PAYLOAD_JSON }}",
+            "RESOLVED_AT": "={{ $json.RESOLVED_AT }}",
+            "RESOLUTION_NOTES": "={{ $json.RESOLUTION_NOTES }}",
+            "VERSION": "={{ $json.VERSION }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "EVENT_ID",
+              "displayName": "EVENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "WORKFLOW",
+              "displayName": "WORKFLOW",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NODE",
+              "displayName": "NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STAGE",
+              "displayName": "STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_TYPE",
+              "displayName": "ENTITY_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_ID",
+              "displayName": "ENTITY_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_ID",
+              "displayName": "PROJECT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MEDIA_ID",
+              "displayName": "MEDIA_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_ID",
+              "displayName": "CONTENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ERROR_CODE",
+              "displayName": "ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ERROR_MESSAGE",
+              "displayName": "ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATTEMPT_COUNT",
+              "displayName": "ATTEMPT_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MAX_TRIES",
+              "displayName": "MAX_TRIES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRYABLE",
+              "displayName": "RETRYABLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DISPOSITION",
+              "displayName": "DISPOSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EXECUTION_ID",
+              "displayName": "EXECUTION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PAYLOAD_JSON",
+              "displayName": "PAYLOAD_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESOLVED_AT",
+              "displayName": "RESOLVED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESOLUTION_NOTES",
+              "displayName": "RESOLUTION_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VERSION",
+              "displayName": "VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2300,
+        720
+      ],
+      "id": "b31cd9a0-3065-4105-aab9-2b1390f9ef37",
+      "name": "SINK — 17_OS_FAILURES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all()\n  .map(i => i.json)\n  .filter(x => String(x.ID_MIDIA || '').trim())\n  .map(x => ({json:{\n    ID_MIDIA:x.ID_MIDIA,\n    PROCESS_STATUS:x.PROCESS_STATUS,\n    RETRY_COUNT:x.RETRY_COUNT,\n    LAST_ATTEMPT_AT:x.LAST_ATTEMPT_AT,\n    LAST_ERROR_CODE:x.LAST_ERROR_CODE,\n    LAST_ERROR_MESSAGE:x.LAST_ERROR_MESSAGE,\n    LAST_FAILURE_STAGE:x.LAST_FAILURE_STAGE,\n    LAST_FAILURE_NODE:x.LAST_FAILURE_NODE,\n    NEXT_RETRY_AT:x.NEXT_RETRY_AT,\n    DEAD_LETTER_AT:x.DEAD_LETTER_AT,\n    DEAD_LETTER_ID:x.DEAD_LETTER_ID,\n    RELIABILITY_VERSION:x.RELIABILITY_VERSION\n  }}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        880
+      ],
+      "id": "7f92ea20-b6fc-42e8-9132-8005eebb010c",
+      "name": "BUILD — MEDIA FAILURE STATUS"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2570,
+        880
+      ],
+      "id": "87e5ddf5-e35e-4878-a628-720a22b69d28",
+      "name": "UPDATE — MEDIA FAILURE STATUS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{contract:'SM3_RELIABILITY_V1',workflow:'PROJETO_SM3_02C_METADATA_BACKFILL_V2',mode:'ISOLATE_ITEM',backfill_kind:'METADATA',auto_replay:false}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        920
+      ],
+      "id": "b78a6014-fd63-4e6f-bfa6-1df9797a0cf7",
+      "name": "DOC — RELIABILITY V1",
+      "disabled": true,
+      "notesInFlow": true,
+      "notes": "Backfill reliability: retries + per-media error output + dual dead-letter sink. Success does not clear an unrelated existing dead-letter; explicit replay will own recovery."
+    }
+  ],
+  "connections": {
+    "MANUAL — METADATA BACKFILL": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION READY CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION READY CONTENT": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS QUEUE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — METADATA BACKFILL QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — METADATA BACKFILL QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — ANALYSIS INPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ANALYSIS INPUT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — IMAGE WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — VIDEO WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UNSUPPORTED — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — IMAGE WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IMAGE ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IMAGE ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IMAGE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_DRIVE_DOWNLOAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IMAGE TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_LOCAL_TEMP_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS IMAGE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — IMAGE METADATA WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_WORKER_PROCESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — IMAGE METADATA WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — IMAGE METADATA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_CONTRACT_BUILD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — VIDEO WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — VIDEO ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — VIDEO ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — VIDEO TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_DRIVE_DOWNLOAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — VIDEO TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_LOCAL_TEMP_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS VIDEO": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VIDEO METADATA WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_WORKER_PROCESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VIDEO METADATA WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — VIDEO METADATA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — METADATA_CONTRACT_BUILD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — METADATA_DRIVE_DOWNLOAD": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — METADATA_LOCAL_TEMP_WRITE": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — METADATA_WORKER_PROCESS": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — METADATA_CONTRACT_BUILD": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — IMAGE METADATA": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FAIL — METADATA_SHEET_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — VIDEO METADATA": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FAIL — METADATA_SHEET_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — METADATA_SHEET_WRITE": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — MEDIA FAILURE STATUS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SINK — DEAD LETTER LOCAL": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "SINK — 17_OS_FAILURES": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "UPDATE — MEDIA FAILURE STATUS": {
+      "main": [
+        [],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_ART_DIRECTION_VARIANT_SET_V1",
+  "title": "SM3 Art Direction Variant Set V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ok",
+    "variant_set_id",
+    "contract_version",
+    "renderer_version",
+    "grammar_version",
+    "project_id",
+    "content_id",
+    "edit_session_id",
+    "revision",
+    "state_etag",
+    "variant_keys",
+    "variants",
+    "review_asset",
+    "set_sha256"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "variant_set_id": {
+      "type": "string",
+      "pattern": "^AV_[a-f0-9]{32}$"
+    },
+    "contract_version": {
+      "const": "SM3_ART_DIRECTION_VARIANT_SET_V1"
+    },
+    "renderer_version": {
+      "const": "2.14.0"
+    },
+    "grammar_version": {
+      "const": "SM3_ART_DIRECTION_GRAMMAR_V1"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "state_etag": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "set_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "variant_keys": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "PHOTO_DOMINANT"
+        },
+        {
+          "const": "EDITORIAL_MOLOTOV"
+        },
+        {
+          "const": "RAW_ARCHIVE"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "human_review_required": {
+      "const": true
+    },
+    "auto_publish_allowed": {
+      "const": false
+    },
+    "no_new_edit_revision": {
+      "const": true
+    }
+  }
+}

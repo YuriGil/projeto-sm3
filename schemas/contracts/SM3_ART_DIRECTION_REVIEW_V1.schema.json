@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_ART_DIRECTION_REVIEW_V1",
+  "title": "SM3 Art Direction Review V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ok",
+    "review_id",
+    "contract_version",
+    "project_id",
+    "content_id",
+    "edit_session_id",
+    "revision",
+    "state_etag",
+    "source_type",
+    "source_id",
+    "source_sha256",
+    "dimension_scores",
+    "positive_traits",
+    "negative_traits",
+    "learning_scope",
+    "review_sha256"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "review_id": {
+      "type": "string",
+      "pattern": "^AR_[a-f0-9]{32}$"
+    },
+    "contract_version": {
+      "const": "SM3_ART_DIRECTION_REVIEW_V1"
+    },
+    "state_etag": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "source_type": {
+      "enum": [
+        "PUBLICATION_ARTIFACT",
+        "VARIANT_SET"
+      ]
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "learning_scope": {
+      "enum": [
+        "FOUNDATION",
+        "PROFILE",
+        "CONTENT"
+      ]
+    },
+    "review_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

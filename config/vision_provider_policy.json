@@ -1,0 +1,22 @@
+{
+  "strategy": "deterministic_first_then_semantic_provider",
+  "provider_locked": false,
+  "provider_slots": {
+    "VISION_PRIMARY": "UNBOUND",
+    "VISION_FALLBACK": "UNBOUND"
+  },
+  "input_policy": "proxy/contact-sheet by default; original only when explicitly required for final-quality judgment",
+  "output": "canonical media_analysis contract",
+  "fail_closed": [
+    "invalid JSON",
+    "missing scores",
+    "invalid decision",
+    "near duplicate selected"
+  ],
+  "cost_control": [
+    "batch contact sheets when appropriate",
+    "do not send full-resolution video when proxy is sufficient",
+    "cache by content hash+analysis_version"
+  ],
+  "privacy": "credentials live only in orchestrator secret store"
+}

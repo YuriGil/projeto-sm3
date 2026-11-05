@@ -1,0 +1,15 @@
+{
+  "trigger_contract": {
+    "watch_root_id": "10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk",
+    "project_pattern": "^TATTOO_[0-9]{4}$",
+    "event": "NEW_PROJECT_FOLDER_OR_NEW_MEDIA",
+    "dedupe_key": "drive_file_id + modifiedTime; content hash later when bytes available"
+  },
+  "ingestion": {
+    "project_lookup": "01_PROJETOS.ID_PROJETO",
+    "if_exists": "UPDATE_INDEX_ONLY_WHEN_NEW_MEDIA",
+    "if_missing": "CREATE_PROJECT_RECORD",
+    "never_delete_original": true,
+    "never_move_original": true
+  }
+}

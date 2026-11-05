@@ -1,0 +1,22 @@
+services:
+  n8n:
+    environment:
+      N8N_AVAILABLE_BINARY_DATA_MODES: filesystem
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+    volumes:
+      - molotov_media:/data/media
+
+  media-worker:
+    build:
+      context: ..
+      dockerfile: deployment/media-worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      MEDIA_ROOT: /data/media
+    ports:
+      - "8090:8090"
+    volumes:
+      - molotov_media:/data/media
+
+volumes:
+  molotov_media:

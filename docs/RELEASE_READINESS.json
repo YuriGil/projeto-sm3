@@ -1,0 +1,16 @@
+{
+  "release_candidate": "1.0.0-rc7",
+  "regression_suite": "PASS 7/7",
+  "live_external_actions_performed": false,
+  "remaining_for_v1_0": [
+    "deploy persistent n8n/Postgres/worker",
+    "bind real Drive/Sheets trigger+write",
+    "bind real vision provider",
+    "real renderer test",
+    "explicitly approve one test item",
+    "Metricool assisted publication autoPublish=false",
+    "verify real metrics",
+    "backup/restore smoke test"
+  ],
+  "promotion_rule": "One credential-bound end-to-end cycle must pass before v1.0."
+}

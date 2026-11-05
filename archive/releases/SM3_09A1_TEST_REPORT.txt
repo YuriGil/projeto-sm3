@@ -1,0 +1,24 @@
+SM3 09A.1 — TEST REPORT
+==========================
+
+Worker: 2.15.1
+Profile sync: SM3_REFERENCE_PROFILE_SYNC_V1
+Profile history: SM3_REFERENCE_PROFILE_HISTORY_V1
+
+PASS  Python py_compile
+PASS  create profile via sync -> preference_version 1
+PASS  unchanged sync -> reused / no duplicate snapshot
+PASS  update profile -> preference_version 2
+PASS  immutable history -> versions 1,2
+PASS  summary history count
+PASS  client context round-trip for sheet correlation
+PASS  n8n workflow JSON
+PASS  all n8n Code nodes syntax checked with Node.js
+PASS  manual sync workflow has valid connection graph
+PASS  Foundation override still forbidden
+PASS  reference copying still forbidden
+PASS  art-direction renderer remains 2.14.0
+PASS  native artifact renderer remains 2.13.1
+PASS  canonical renderer remains 2.8.0
+
+The workflow is intentionally manual in v1. Automatic scheduling can be enabled after real-profile validation.

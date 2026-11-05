@@ -1,0 +1,37 @@
+{
+  "contract_version": "SM3_09A_FOUNDATION_DIRECTIVES_V1",
+  "scope": "FOUNDATION",
+  "source": "HUMAN_FEEDBACK_08F",
+  "directives": [
+    {
+      "code": "STATIC_FRAME_FRAMING_MUST_BE_EDITORIALLY_VALID",
+      "priority": "MAX",
+      "rule": "Technical crop validity is insufficient; framing must preserve subject reading, axis, scale and editorial intent. Bad representative video frames must be rejected and resampled."
+    },
+    {
+      "code": "IDENTITY_OVERLAYS_INSIDE_IMAGE_BOUNDS",
+      "priority": "MAX",
+      "rule": "Stamp, frame and identity overlays must be applied over image pixels and inside the image bounds, never as automatic exterior decoration; they still may not cover protected tattoo regions."
+    },
+    {
+      "code": "OUTER_TEXTURE_BORDERS_FORBIDDEN_BY_DEFAULT",
+      "priority": "HIGH",
+      "rule": "External textured borders and texture filler bands are forbidden by default."
+    },
+    {
+      "code": "GLOBAL_FIXED_FILTER_PRESETS_FORBIDDEN",
+      "priority": "MAX",
+      "rule": "Brightness, contrast, saturation, sharpness and temperature must be source-adaptive and conservatively bounded rather than fixed global presets."
+    },
+    {
+      "code": "VIDEO_PRIMARY_DEVELOPMENT_PRIORITY",
+      "priority": "HIGH",
+      "rule": "Video/Reels are the primary development and learning priority for social media; photo/carousel remains supported."
+    },
+    {
+      "code": "EXTERNAL_REFERENCE_STYLE_IS_EVIDENCE_ONLY",
+      "priority": "MAX",
+      "rule": "External profiles can teach abstract editing features but may not authorize copying creator identity, pixels, exact compositions, or overriding FOUNDATION."
+    }
+  ]
+}

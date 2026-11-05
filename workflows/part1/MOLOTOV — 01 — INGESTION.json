@@ -1,0 +1,397 @@
+{
+  "name": "MOLOTOV — 01 — INGESTION",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "bd97f3f0-a8e4-4f39-a910-6907ab018784",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        224,
+        0
+      ],
+      "id": "8c155d4b-2bc6-48bf-9ffb-f20b2250f46b",
+      "name": "Search files and folders",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const name = item.json.name || '';\n\n  const isProject = /^TATTOO_\\d{4}$/i.test(name);\n  const isYearFolder = /^\\d{4}$/.test(name);\n\n  return {\n    json: {\n      ...item.json,\n      molotov_type: isProject\n        ? 'PROJECT'\n        : isYearFolder\n          ? 'CONTAINER'\n          : 'UNKNOWN',\n      should_ingest: isProject,\n      should_explore: !isProject,\n      discovered_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "b41a4214-d709-4655-81b5-01cc700937f3",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "PROJECT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ae266e5d-94c4-46ed-b2bf-ef79dd302be0"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PROJECT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "1a5d03ec-01b9-4801-8896-efbe8405a2e7",
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "CONTAINER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CONTAINER"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        624,
+        48
+      ],
+      "id": "e5cddda7-24e3-41f2-893e-23cd9c8e0612",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.id + \"' in parents and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        960,
+        -64
+      ],
+      "id": "d9e84cc0-833d-4b9a-acab-c91ddc7f1fd5",
+      "name": "LIST PROJECT MEDIA",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Recupera o projeto que originou esta execução do LIST PROJECT MEDIA.\nconst project = $('LIST PROJECT MEDIA').itemMatching(0)?.pairedItem\n  ? $('Switch').itemMatching(0).json\n  : $('Switch').first().json;\n\n// Como o n8n preserva o item pareado, tentamos obter o projeto\n// correspondente ao lote atual.\nconst projectId = project.name;\nconst projectFolderId = project.id;\n\nfunction getExtension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1\n    ? parts.pop().toLowerCase()\n    : '';\n}\n\nfunction classifyMedia(name) {\n  const ext = getExtension(name);\n\n  const imageExtensions = [\n    'jpg', 'jpeg', 'png', 'webp',\n    'heic', 'heif', 'tif', 'tiff'\n  ];\n\n  const videoExtensions = [\n    'mp4', 'mov', 'm4v', 'avi',\n    'mkv', 'webm'\n  ];\n\n  if (imageExtensions.includes(ext)) return 'IMAGE';\n  if (videoExtensions.includes(ext)) return 'VIDEO';\n\n  return 'OTHER';\n}\n\nreturn items.map((item, index) => {\n  const file = item.json;\n  const name = file.name || '';\n  const mediaType = classifyMedia(name);\n\n  return {\n    json: {\n      project_id: projectId,\n      project_folder_id: projectFolderId,\n\n      drive_file_id: file.id,\n      file_name: name,\n      extension: getExtension(name),\n\n      media_type: mediaType,\n      is_supported_media:\n        mediaType === 'IMAGE' ||\n        mediaType === 'VIDEO',\n\n      source: 'GOOGLE_DRIVE',\n\n      storage_status: 'ONLINE',\n      ingestion_status: 'DISCOVERED',\n\n      ingestion_key: `gdrive:${file.id}`,\n\n      discovery_index: index + 1,\n      discovered_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -64
+      ],
+      "id": "bb90c083-8225-4840-96d7-dd4884956503",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0/edit#gid=444966540"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1312,
+        -64
+      ],
+      "id": "260438b2-0dc7-4836-9fad-7593916c1404",
+      "name": "Get row(s) in sheet",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOLOTOV SOCIAL OS\n// IDEMPOTENCY GATE\n//\n// Compara as mídias descobertas no Google Drive\n// com os registros já existentes em 03_MIDIAS.\n//\n// Não escreve nada.\n// Apenas classifica cada arquivo como:\n// EXISTS = já cadastrado\n// NEW    = ainda não cadastrado\n\nconst discovered = $('Code in JavaScript1').all().map(i => i.json);\nconst existing = $input.all().map(i => i.json);\n\n// Extrai o ID de arquivo Google Drive de um link existente em 03_MIDIAS.\nfunction extractDriveId(url) {\n  if (!url) return null;\n\n  const text = String(url);\n\n  const patterns = [\n    /\\/file\\/d\\/([^/]+)/,\n    /[?&]id=([^&]+)/,\n    /\\/d\\/([^/]+)/\n  ];\n\n  for (const pattern of patterns) {\n    const match = text.match(pattern);\n    if (match?.[1]) return match[1];\n  }\n\n  return null;\n}\n\n// Índices dos registros já existentes.\n// Usamos tanto Drive ID quanto nome do arquivo.\n// O Drive ID é a identidade principal.\n// Nome funciona como proteção para registros antigos.\nconst existingDriveIds = new Set();\nconst existingNames = new Set();\n\nfor (const row of existing) {\n  const driveId = extractDriveId(row.LINK_DRIVE);\n\n  if (driveId) {\n    existingDriveIds.add(driveId);\n  }\n\n  if (row.ARQUIVO) {\n    existingNames.add(\n      String(row.ARQUIVO).trim().toLowerCase()\n    );\n  }\n}\n\nreturn discovered.map(item => {\n\n  const driveId = item.drive_file_id;\n  const fileName = String(item.file_name || '')\n    .trim()\n    .toLowerCase();\n\n  const existsByDriveId =\n    driveId && existingDriveIds.has(driveId);\n\n  const existsByName =\n    fileName && existingNames.has(fileName);\n\n  const alreadyExists =\n    Boolean(existsByDriveId || existsByName);\n\n  return {\n    json: {\n      ...item,\n\n      already_exists: alreadyExists,\n\n      match_method:\n        existsByDriveId\n          ? 'DRIVE_ID'\n          : existsByName\n            ? 'FILE_NAME'\n            : 'NONE',\n\n      ingestion_action:\n        alreadyExists\n          ? 'SKIP'\n          : 'INSERT'\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -64
+      ],
+      "id": "7cff2a7f-9050-40b5-a423-0f579c1bdffd",
+      "name": "IDEMPOTENCY GATE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "INSERT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "dea958c6-936e-457e-b314-7d7771fd50fa"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INSERT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5d72dff9-daa4-4bc9-8cbb-0f5f2ab45170",
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "SKIP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SKIP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        -64
+      ],
+      "id": "985ce5ad-8a0a-43aa-8a15-3ca4b8651aee",
+      "name": "ROUTE INGESTION ACTION"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        784,
+        -64
+      ],
+      "id": "bec12ccd-58b3-4a0e-8a5a-7dc70f6898f2",
+      "name": "PREPARE PROJECT CONTEXT"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "PREPARE PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST PROJECT MEDIA": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "IDEMPOTENCY GATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IDEMPOTENCY GATE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE INGESTION ACTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE PROJECT CONTEXT": {
+      "main": [
+        [
+          {
+            "node": "LIST PROJECT MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "bc3f30e2-2db1-4f69-a41d-48d61d40fb5b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "93bb773851d91d93a3b3a11ebae0f08591129ffdcd94bf5cb5d9e381fe244d7f"
+  },
+  "nodeGroups": [],
+  "id": "AIIqvZHbHRx7k5Cu",
+  "tags": []
+}

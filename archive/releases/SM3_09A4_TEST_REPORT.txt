@@ -1,0 +1,22 @@
+SM3 09A.4 TEST REPORT
+=====================
+
+PASS worker Python syntax compile()
+PASS streamed binary upload endpoint
+PASS 1 GiB upload hard cap
+PASS existing RI item required
+PASS video reference item required
+PASS acquisition SHA-256 verification
+PASS temporary inbox cleanup
+PASS n8n Code-node syntax validation
+PASS n8n graph integrity
+PASS Google Drive folder trigger configured
+PASS RI filename matching
+PASS platform-item fallback matching
+PASS unique profile-handle fallback matching
+PASS ambiguous match fails closed
+PASS automatic media-ready sheet update
+PASS automatic video analysis
+PASS automatic feature write
+PASS FOUNDATION override remains forbidden
+PASS Instagram scraping not required

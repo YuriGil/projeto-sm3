@@ -1,0 +1,367 @@
+{
+  "name": "PROJETO SM3 — 05 — APPROVAL — v2 SHEET GATE PROD CANDIDATE",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3a9b15f6-aeb3-43a6-a805-78df50016822",
+      "name": "MANUAL — APPROVAL"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "bb21ce96-05b9-43d8-b91b-214d0a28e601",
+      "name": "READ — CONTENT FOR APPROVAL",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — HUMAN APPROVAL GATE\n// The human edits STATUS_APROVAÇÃO in 04_CONTEUDOS.\n// This node commits only NEW decisions for AI_PLANNED content.\n// PENDENTE is never treated as a decision.\n\nconst rows = $input.all().map(i => i.json);\nconst allowed = new Set(['APROVADO', 'REVISAR', 'DESCARTADO']);\n\nconst decisions = rows.filter(r => {\n  const planned = String(r.PLAN_STATUS || '').trim().toUpperCase() === 'AI_PLANNED';\n  const current = String(r.STATUS_APROVAÇÃO || '').trim().toUpperCase();\n  const committed = String(r.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase();\n\n  return planned && allowed.has(current) && current !== committed;\n});\n\nif (decisions.length === 0) {\n  return [{\n    json: {\n      no_work: true,\n      route_key: 'NO_WORK',\n      message: 'Nenhuma nova decisão humana precisa ser registrada.',\n      checked_at: new Date().toISOString()\n    }\n  }];\n}\n\nreturn decisions.map((r, index) => ({\n  json: {\n    no_work: false,\n    route_key: 'COMMIT',\n    queue_position: index + 1,\n\n    ID_CONTEÚDO: r.ID_CONTEÚDO,\n    ID_PROJETO: r.ID_PROJETO,\n    TÍTULO_INTERNO: r.TÍTULO_INTERNO,\n    FORMATO: r.FORMATO,\n\n    STATUS_APROVAÇÃO: String(r.STATUS_APROVAÇÃO || '').trim().toUpperCase(),\n    APPROVAL_NOTES: r.APPROVAL_NOTES || '',\n\n    previous_committed_status: r.APPROVAL_COMMITTED_STATUS || '',\n    PLAN_RUN_ID: r.PLAN_RUN_ID || '',\n    CURATION_RUN_ID: r.CURATION_RUN_ID || ''\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "cd453710-7051-4586-9292-8e69f019eafa",
+      "name": "BUILD — APPROVAL DECISIONS"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "41f7fc17-1a01-4be4-8692-82defeea9465"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "COMMIT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "857b76fb-4b44-43af-b63c-953978e4c442"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "COMMIT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        0
+      ],
+      "id": "4a698551-1391-4fb7-a7cc-cfb7d0b896e4",
+      "name": "ROUTE — APPROVAL DECISIONS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    workflow: 'PROJETO_SM3_05_APPROVAL',\n    status: 'NO_CHANGES',\n    message: i.json.message || 'Nenhuma nova decisão humana.',\n    completed_at: new Date().toISOString()\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "id": "fcc87d25-a66a-40f0-83bd-4c4bf74dd89c",
+      "name": "NO WORK — APPROVAL CURRENT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\n\nreturn $input.all().map(i => {\n  const x = i.json;\n  const decision = String(x.STATUS_APROVAÇÃO || '').trim().toUpperCase();\n\n  if (!['APROVADO', 'REVISAR', 'DESCARTADO'].includes(decision)) {\n    throw new Error(`APPROVAL_COMMIT_BLOCK: invalid decision ${decision}`);\n  }\n  if (!String(x.ID_CONTEÚDO || '').trim()) {\n    throw new Error('APPROVAL_COMMIT_BLOCK: missing ID_CONTEÚDO');\n  }\n\n  return {\n    json: {\n      ID_CONTEÚDO: x.ID_CONTEÚDO,\n      STATUS_APROVAÇÃO: decision,\n      APPROVAL_COMMITTED_STATUS: decision,\n      APPROVAL_NOTES: x.APPROVAL_NOTES || '',\n      APPROVAL_DECIDED_AT: now,\n      APPROVAL_VERSION: 'SM3_APPROVAL_V1',\n      APPROVAL_SOURCE: 'HUMAN_GOOGLE_SHEETS'\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "id": "11f1968f-fe39-4457-8eb8-f955abb2aecc",
+      "name": "PREPARE — APPROVAL COMMITS"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "STATUS_APROVAÇÃO": "={{ $json.STATUS_APROVAÇÃO }}",
+            "APPROVAL_COMMITTED_STATUS": "={{ $json.APPROVAL_COMMITTED_STATUS }}",
+            "APPROVAL_NOTES": "={{ $json.APPROVAL_NOTES }}",
+            "APPROVAL_DECIDED_AT": "={{ $json.APPROVAL_DECIDED_AT }}",
+            "APPROVAL_VERSION": "={{ $json.APPROVAL_VERSION }}",
+            "APPROVAL_SOURCE": "={{ $json.APPROVAL_SOURCE }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_APROVAÇÃO",
+              "displayName": "STATUS_APROVAÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "APPROVAL_COMMITTED_STATUS",
+              "displayName": "APPROVAL_COMMITTED_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "APPROVAL_NOTES",
+              "displayName": "APPROVAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "APPROVAL_DECIDED_AT",
+              "displayName": "APPROVAL_DECIDED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "APPROVAL_VERSION",
+              "displayName": "APPROVAL_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "APPROVAL_SOURCE",
+              "displayName": "APPROVAL_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1100,
+        100
+      ],
+      "id": "b981e5ab-b3c9-41d4-8f00-78944ae45ac8",
+      "name": "UPDATE — APPROVAL DECISIONS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst byStatus = {};\n\nfor (const x of items) {\n  const s = String(x.APPROVAL_COMMITTED_STATUS || x.STATUS_APROVAÇÃO || 'UNKNOWN').toUpperCase();\n  byStatus[s] = (byStatus[s] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    workflow: 'PROJETO_SM3_05_APPROVAL',\n    status: 'HUMAN_DECISIONS_COMMITTED',\n    decisions_committed: items.length,\n    by_status: byStatus,\n    content_ids: items.map(x => x.ID_CONTEÚDO),\n    completed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        100
+      ],
+      "id": "3d21b92d-09f8-46f8-8dd1-e67023c3c45d",
+      "name": "AUDIT — APPROVAL COMMITS"
+    }
+  ],
+  "connections": {
+    "MANUAL — APPROVAL": {
+      "main": [
+        [
+          {
+            "node": "READ — CONTENT FOR APPROVAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CONTENT FOR APPROVAL": {
+      "main": [
+        [
+          {
+            "node": "BUILD — APPROVAL DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — APPROVAL DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — APPROVAL DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — APPROVAL DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "NO WORK — APPROVAL CURRENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — APPROVAL COMMITS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — APPROVAL COMMITS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — APPROVAL DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — APPROVAL DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — APPROVAL COMMITS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

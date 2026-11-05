@@ -1,0 +1,15 @@
+SM3 09A.2 v1.1 TEST REPORT
+==========================
+
+PASS workflow JSON parsed
+PASS all Code nodes compile under Node.js
+PASS graph integrity
+PASS no duplicate node names
+PASS READ 32 occurs before READ 31
+PASS READ 31 skipped when there is no pending item
+PASS firstEmptyRow configured on both Google Sheets reads
+PASS retry configured on both Google Sheets reads
+PASS retry configured on Sheet update
+PASS malformed Google Sheets write expressions remaining: 0
+PASS Worker 2.15.1 preserved
+PASS no REV5

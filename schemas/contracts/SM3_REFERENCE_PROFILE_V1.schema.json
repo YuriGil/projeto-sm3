@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_PROFILE_V1",
+  "type": "object",
+  "required": [
+    "network",
+    "handle"
+  ],
+  "properties": {
+    "network": {
+      "enum": [
+        "instagram",
+        "tiktok"
+      ]
+    },
+    "handle": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_interest": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "style_notes": {
+      "type": "string"
+    },
+    "dislike_notes": {
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "HUMAN",
+        "METRICOOL",
+        "CHATGPT"
+      ]
+    },
+    "active": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

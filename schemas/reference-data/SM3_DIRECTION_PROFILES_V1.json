@@ -1,0 +1,270 @@
+{
+  "ok": true,
+  "contract_version": "SM3_DIRECTION_PROFILE_V1",
+  "binding_contract_version": "SM3_PROFILE_BINDING_V1",
+  "count": 4,
+  "profiles": [
+    {
+      "contract_version": "SM3_DIRECTION_PROFILE_V1",
+      "profile_id": "DP_BASE_MOLOTOV",
+      "name": "Base MOLÖTOV",
+      "family": "MOLOTOV",
+      "profile_version": 1,
+      "parent_profile_id": null,
+      "parent_chain": [
+        "DP_BASE_MOLOTOV"
+      ],
+      "description": "Fonte compartilhada da direção visual. Define princípios comuns sem impor um único ritmo de edição.",
+      "resolved_intent": {
+        "pacing": {
+          "energy": 50,
+          "shot_min_s": 1.0,
+          "shot_target_s": 2.2,
+          "shot_max_s": 5.0,
+          "rhythm": "ADAPTIVE"
+        },
+        "motion": {
+          "intensity": 35,
+          "reframe_speed": "CONSERVATIVE",
+          "zoom_energy": "LOW"
+        },
+        "transitions": {
+          "density": "LOW",
+          "preferred": [
+            "CUT",
+            "DISSOLVE"
+          ],
+          "avoid": [
+            "RANDOM_EFFECTS"
+          ]
+        },
+        "composition": {
+          "subject_priority": 100,
+          "crop_aggressiveness": "CONSERVATIVE",
+          "negative_space_bias": "PRESERVE_WHEN_USEFUL"
+        },
+        "identity": {
+          "density": "LOW",
+          "role_policy": "CONTEXTUAL",
+          "repetition_limit": "STRICT"
+        },
+        "text": {
+          "density": "LOW",
+          "animation_energy": "LOW"
+        },
+        "audio": {
+          "sync": "NARRATIVE",
+          "energy": 45
+        }
+      },
+      "foundation_invariants": [
+        "TATTOO_OR_ARTWORK_IS_PRIMARY_CONTENT",
+        "DO_NOT_OBSCURE_PRIMARY_SUBJECT",
+        "DO_NOT_DISTORT_BRAND_ASSETS",
+        "IDENTITY_IS_PACKAGING_NOT_CONTENT",
+        "NO_DECORATION_WITHOUT_FUNCTION",
+        "PRESERVE_ORIGINAL_MEDIA_INTEGRITY"
+      ],
+      "profile_sha256": "84032d3717c70182d7e487dcfa236595a59c1d305a0ad594037b5b452311d23f",
+      "resolved_profile_sha256": "d951c91b34b9dec3d6fc5708db7fc7d4256f05a4b89e312c538b1b8ce9f738dd"
+    },
+    {
+      "contract_version": "SM3_DIRECTION_PROFILE_V1",
+      "profile_id": "DP_SLOW_MELODIC",
+      "name": "Lento / Melódico",
+      "family": "MOLOTOV",
+      "profile_version": 1,
+      "parent_profile_id": "DP_BASE_MOLOTOV",
+      "parent_chain": [
+        "DP_BASE_MOLOTOV",
+        "DP_SLOW_MELODIC"
+      ],
+      "description": "Edição contemplativa, pausada e musical, com tempo para leitura da arte e movimentos discretos.",
+      "resolved_intent": {
+        "pacing": {
+          "energy": 25,
+          "shot_min_s": 2.0,
+          "shot_target_s": 4.0,
+          "shot_max_s": 8.0,
+          "rhythm": "MELODIC"
+        },
+        "motion": {
+          "intensity": 18,
+          "reframe_speed": "SLOW",
+          "zoom_energy": "SUBTLE"
+        },
+        "transitions": {
+          "density": "LOW",
+          "preferred": [
+            "CUT",
+            "DISSOLVE",
+            "FADE"
+          ],
+          "avoid": [
+            "RAPID_FLASH",
+            "WHIP_RANDOM"
+          ]
+        },
+        "composition": {
+          "subject_priority": 100,
+          "crop_aggressiveness": "CONSERVATIVE",
+          "negative_space_bias": "HIGH"
+        },
+        "identity": {
+          "density": "LOW",
+          "role_policy": "SPARSE_CONTEXTUAL",
+          "repetition_limit": "VERY_STRICT"
+        },
+        "text": {
+          "density": "LOW",
+          "animation_energy": "SUBTLE"
+        },
+        "audio": {
+          "sync": "MELODIC_PHRASE",
+          "energy": 25
+        }
+      },
+      "foundation_invariants": [
+        "TATTOO_OR_ARTWORK_IS_PRIMARY_CONTENT",
+        "DO_NOT_OBSCURE_PRIMARY_SUBJECT",
+        "DO_NOT_DISTORT_BRAND_ASSETS",
+        "IDENTITY_IS_PACKAGING_NOT_CONTENT",
+        "NO_DECORATION_WITHOUT_FUNCTION",
+        "PRESERVE_ORIGINAL_MEDIA_INTEGRITY"
+      ],
+      "profile_sha256": "62943908f7115bf7d4fb12f93ac52130801a677d2edf6e76469c1308ca5ecea1",
+      "resolved_profile_sha256": "fe7343a350514fda9e6a2a21aeb0cad7f91bd423fb6f522084e029e18826f778"
+    },
+    {
+      "contract_version": "SM3_DIRECTION_PROFILE_V1",
+      "profile_id": "DP_FAST_ENERGETIC",
+      "name": "Rápido / Agitado",
+      "family": "MOLOTOV",
+      "profile_version": 1,
+      "parent_profile_id": "DP_BASE_MOLOTOV",
+      "parent_chain": [
+        "DP_BASE_MOLOTOV",
+        "DP_FAST_ENERGETIC"
+      ],
+      "description": "Edição rápida e energética, com cortes curtos e movimento mais intenso sem sacrificar a leitura da tatuagem/arte.",
+      "resolved_intent": {
+        "pacing": {
+          "energy": 85,
+          "shot_min_s": 0.3,
+          "shot_target_s": 0.85,
+          "shot_max_s": 1.8,
+          "rhythm": "PERCUSSIVE"
+        },
+        "motion": {
+          "intensity": 78,
+          "reframe_speed": "FAST",
+          "zoom_energy": "MEDIUM_HIGH"
+        },
+        "transitions": {
+          "density": "MEDIUM",
+          "preferred": [
+            "CUT",
+            "MATCH_CUT",
+            "BEAT_CUT"
+          ],
+          "avoid": [
+            "EFFECT_SPAM"
+          ]
+        },
+        "composition": {
+          "subject_priority": 100,
+          "crop_aggressiveness": "MODERATE",
+          "negative_space_bias": "DYNAMIC"
+        },
+        "identity": {
+          "density": "LOW",
+          "role_policy": "PUNCTUATION_ONLY",
+          "repetition_limit": "STRICT"
+        },
+        "text": {
+          "density": "LOW",
+          "animation_energy": "MEDIUM"
+        },
+        "audio": {
+          "sync": "BEAT",
+          "energy": 90
+        }
+      },
+      "foundation_invariants": [
+        "TATTOO_OR_ARTWORK_IS_PRIMARY_CONTENT",
+        "DO_NOT_OBSCURE_PRIMARY_SUBJECT",
+        "DO_NOT_DISTORT_BRAND_ASSETS",
+        "IDENTITY_IS_PACKAGING_NOT_CONTENT",
+        "NO_DECORATION_WITHOUT_FUNCTION",
+        "PRESERVE_ORIGINAL_MEDIA_INTEGRITY"
+      ],
+      "profile_sha256": "56032f68693f25560dc15d6da770bf5d1515449a1746fc1b9a230fff72f5d48d",
+      "resolved_profile_sha256": "46b4f416642179bfd3af16f389a5cbc5f2cb2ff8e7cab9af174a69380ecc25f3"
+    },
+    {
+      "contract_version": "SM3_DIRECTION_PROFILE_V1",
+      "profile_id": "DP_PROCESS_DOCUMENTAL",
+      "name": "Processo / Documental",
+      "family": "MOLOTOV",
+      "profile_version": 1,
+      "parent_profile_id": "DP_BASE_MOLOTOV",
+      "parent_chain": [
+        "DP_BASE_MOLOTOV",
+        "DP_PROCESS_DOCUMENTAL"
+      ],
+      "description": "Mostra processo, etapas e evolução com clareza narrativa; ritmo subordinado ao que precisa ser compreendido.",
+      "resolved_intent": {
+        "pacing": {
+          "energy": 45,
+          "shot_min_s": 1.0,
+          "shot_target_s": 2.8,
+          "shot_max_s": 6.0,
+          "rhythm": "NARRATIVE"
+        },
+        "motion": {
+          "intensity": 28,
+          "reframe_speed": "CONSERVATIVE",
+          "zoom_energy": "LOW"
+        },
+        "transitions": {
+          "density": "LOW",
+          "preferred": [
+            "CUT",
+            "MATCH_CUT"
+          ],
+          "avoid": [
+            "DECORATIVE_TRANSITIONS"
+          ]
+        },
+        "composition": {
+          "subject_priority": 100,
+          "crop_aggressiveness": "CONSERVATIVE",
+          "negative_space_bias": "FUNCTIONAL"
+        },
+        "identity": {
+          "density": "LOW",
+          "role_policy": "STRUCTURAL_ONLY",
+          "repetition_limit": "STRICT"
+        },
+        "text": {
+          "density": "MEDIUM",
+          "animation_energy": "LOW"
+        },
+        "audio": {
+          "sync": "NARRATIVE",
+          "energy": 45
+        }
+      },
+      "foundation_invariants": [
+        "TATTOO_OR_ARTWORK_IS_PRIMARY_CONTENT",
+        "DO_NOT_OBSCURE_PRIMARY_SUBJECT",
+        "DO_NOT_DISTORT_BRAND_ASSETS",
+        "IDENTITY_IS_PACKAGING_NOT_CONTENT",
+        "NO_DECORATION_WITHOUT_FUNCTION",
+        "PRESERVE_ORIGINAL_MEDIA_INTEGRITY"
+      ],
+      "profile_sha256": "9137f44c02780218495e84615998d6cd34f7f46d8553acdd5ba09cd7400be894",
+      "resolved_profile_sha256": "f7446b9b62b7c72c5a3f8fea6a12302488521ff5672548eaba046692abe88a84"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_HARVEST_V1",
+  "type": "object",
+  "required": [
+    "provider",
+    "network",
+    "source_window_from",
+    "source_window_to",
+    "profiles",
+    "posts"
+  ],
+  "properties": {
+    "provider": {
+      "const": "METRICOOL"
+    },
+    "network": {
+      "enum": [
+        "instagram",
+        "tiktok"
+      ]
+    },
+    "source_window_from": {
+      "type": "string"
+    },
+    "source_window_to": {
+      "type": "string"
+    },
+    "captured_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "configured_competitors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "promotion_enabled": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "posts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

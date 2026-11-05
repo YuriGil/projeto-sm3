@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_VISUAL_FEEDBACK_V2",
+  "title": "SM3 Visual Feedback V2 request",
+  "type": "object",
+  "required": [
+    "project_id",
+    "content_id",
+    "edit_session_id",
+    "expected_revision",
+    "expected_state_etag",
+    "expected_preview_sha256",
+    "idempotency_key",
+    "verdict",
+    "overall_comment",
+    "learning_scope"
+  ],
+  "properties": {
+    "learning_scope": {
+      "enum": [
+        "FOUNDATION",
+        "PROFILE",
+        "CONTENT"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "APPROVED",
+        "NEEDS_REVISION",
+        "REJECTED"
+      ]
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expected_state_etag": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expected_preview_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "issues": {
+      "type": "array"
+    },
+    "preserve": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

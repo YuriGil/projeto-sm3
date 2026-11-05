@@ -1,0 +1,15 @@
+SM3 09A.3 TEST REPORT
+=====================
+PASS python py_compile worker 2.16.1
+PASS acquisition contract added
+PASS inbox path restricted under /data/media/reference_inbox
+PASS ffprobe video validation
+PASS SHA-256 canonical copy verification
+PASS immutable acquisition manifest
+PASS idempotent acquisition by item + source hash
+PASS list/latest endpoints
+PASS no remote scraping dependency
+PASS n8n workflow JSON generation
+PASS all n8n Code nodes compile under Node.js
+PASS Worker 2.16.0 video analyzer behavior preserved
+PASS no REV5

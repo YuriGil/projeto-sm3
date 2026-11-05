@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_PROFILE_SYNC_V1",
+  "type": "object",
+  "required": [
+    "network",
+    "handle"
+  ],
+  "properties": {
+    "reference_profile_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^RP_[a-f0-9]{32}$"
+    },
+    "network": {
+      "enum": [
+        "instagram",
+        "tiktok"
+      ]
+    },
+    "handle": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_interest": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "style_notes": {
+      "type": "string"
+    },
+    "dislike_notes": {
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "HUMAN",
+        "METRICOOL",
+        "CHATGPT"
+      ]
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "human_priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "notes": {
+      "type": "string"
+    },
+    "expected_preference_version": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "change_reason": {
+      "type": "string"
+    },
+    "human_reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "client_context": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,94 @@
+{
+  "name": "MOLOTOV SOCIAL OS RC4 - Media Worker Dispatch",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "TESTE MANUAL",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{project_id:'TATTOO_0002',media_id:'M0001',drive_file_id:'EXAMPLE',kind:'image',original_read_only:true}}];"
+      },
+      "id": "e",
+      "name": "Indexed Media",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "if(!$json.original_read_only) throw new Error('ORIGINAL_POLICY_VIOLATION'); return [{json:{...$json,steps:['HASH_METADATA','EXIF_TRANSPOSE','PROXY','SEMANTIC_ANALYSIS','SCORING','DATABASE_UPDATE'],state:'READY_FOR_WORKER'}}];"
+      },
+      "id": "p",
+      "name": "Dispatch Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'AWAITING_SELF_HOSTED_WORKER',mutation:false}}];"
+      },
+      "id": "s",
+      "name": "Deployment Boundary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TESTE MANUAL": {
+      "main": [
+        [
+          {
+            "node": "Indexed Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Indexed Media": {
+      "main": [
+        [
+          {
+            "node": "Dispatch Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatch Plan": {
+      "main": [
+        [
+          {
+            "node": "Deployment Boundary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

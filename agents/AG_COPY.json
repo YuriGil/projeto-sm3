@@ -1,0 +1,6 @@
+{
+  "id": "AG_COPY",
+  "name": "Copywriter",
+  "uses_llm": true,
+  "version": "1.0"
+}

@@ -1,0 +1,25 @@
+{
+  "original_policy": "KEEP_SINGLE_ORIGINAL_READ_ONLY",
+  "exif_before_crop": true,
+  "crop": "SEMANTIC",
+  "carousel_redundancy": "FORBID_NEAR_DUPLICATES",
+  "discard_means_delete": false,
+  "logo_mutable": false,
+  "stamp_mutable": false,
+  "pipeline": [
+    "INGESTAO",
+    "INDEXACAO",
+    "PROXY",
+    "TRIAGEM",
+    "SCORING",
+    "EDITORIAL",
+    "ART_DIRECTION",
+    "RENDER",
+    "QA",
+    "APPROVAL",
+    "SMART_QUEUE",
+    "PUBLISH",
+    "METRICS",
+    "LEARNING"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "id": "AG_ANALYTICS",
+  "name": "Analyst",
+  "uses_llm": true,
+  "version": "1.0"
+}

@@ -1,0 +1,1281 @@
+{
+  "name": "PROJETO SM3 — 02B — STRUCTURAL BACKFILL — v1 PRODUCTION READY",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d189b8b-be52-444b-9bd5-a674d5318d24",
+      "name": "MANUAL — STRUCTURAL BACKFILL"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        -160
+      ],
+      "id": "3d011ece-40a8-4cfb-abe3-71045d954d5a",
+      "name": "READ — 03_MIDIAS QUEUE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Projeto SM3 — structural backfill for media that is CURRENTLY production-ready.\n// Generic: no project/media IDs are hardcoded.\n\nconst mediaRows = $input.all().map(i => i.json);\nconst contentRows = $('READ — PRODUCTION READY CONTENT').all().map(i => i.json);\n\nconst targetIds = new Set();\n\nfor (const c of contentRows) {\n  const productionReady =\n    String(c.ROUTING_TARGET || '').trim().toUpperCase() === 'PRODUCTION' &&\n    String(c.PRODUCTION_STATUS || '').trim().toUpperCase() === 'READY' &&\n    String(c.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO';\n\n  if (!productionReady) continue;\n\n  const ids = String(c.BRUTOS_USADOS || '').match(/M\\d{4}/g) || [];\n  for (const id of ids) targetIds.add(id);\n}\n\nconst eligible = mediaRows.filter(r =>\n  targetIds.has(String(r.ID_MIDIA || '').trim()) &&\n  String(r.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE' &&\n  String(r.STRUCTURAL_ANALYSIS_VERSION || '').trim() !== 'SM3_STRUCTURAL_V1'\n);\n\nif (eligible.length === 0) {\n  return [{\n    json: {\n      queue_empty: true,\n      analysis_route: 'NO_WORK',\n      target_media_ids: [...targetIds],\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  }];\n}\n\nreturn eligible.map(r => {\n  const type = String(r.TIPO || '').trim().toUpperCase();\n  const route =\n    type === 'FOTO' ? 'IMAGE_ORIGINAL' :\n    type === 'VÍDEO' || type === 'VIDEO' ? 'VIDEO_PROXY' :\n    'UNSUPPORTED';\n\n  return {\n    json: {\n      ...r,\n      queue_empty: false,\n      analysis_route: route,\n      structural_backfill: true,\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "4136e57a-f5ba-4084-bcb9-f12d11ad934e",
+      "name": "BUILD — STRUCTURAL BACKFILL QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const all = $input.all().map(i => i.json);\nconst items = all.filter(x => !x.queue_empty);\n\nconst summary = {\n  queue_empty: items.length === 0,\n  queued_total: items.length,\n  image_original: items.filter(x => x.analysis_route === 'IMAGE_ORIGINAL').length,\n  video_proxy: items.filter(x => x.analysis_route === 'VIDEO_PROXY').length,\n  unsupported: items.filter(x => x.analysis_route === 'UNSUPPORTED').length,\n  projects: {}\n};\n\nfor (const x of items) {\n  const p = x.ID_PROJETO || 'NO_PROJECT';\n  summary.projects[p] = (summary.projects[p] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    dry_run: false,\n    summary,\n    queued_ids: items.map(x => x.ID_MIDIA),\n    queue: items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -140
+      ],
+      "id": "73ba0345-b0da-44fa-96d3-29c916c4c3a2",
+      "name": "AUDIT — TRIAGE QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "IMAGE_ORIGINAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a89483cb-610c-48fc-a91e-2021f0755ca2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE_ORIGINAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "VIDEO_PROXY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b7f6f5d-e9a5-4984-bdad-100ac5001a67"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VIDEO_PROXY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "UNSUPPORTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e031c51f-3c4b-4cf3-9be2-bbddf13c8096"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNSUPPORTED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5ae2ecb7-4db7-4746-9f34-a26d80bff1c7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        80
+      ],
+      "id": "85fcb316-40cc-4eb5-b204-5a03fe6a0960",
+      "name": "ROUTE — ANALYSIS INPUT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json, next_action:'SKIP_UNSUPPORTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "aac306f4-122e-4450-9fb8-6854efc67568",
+      "name": "UNSUPPORTED — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'jpg').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'image',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "b13d63c6-cfcc-4372-b1c6-bb9792e49c3f",
+      "name": "PREPARE — IMAGE WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        -40
+      ],
+      "id": "211b4648-5c50-41cb-be38-388484c6b566",
+      "name": "DOWNLOAD — IMAGE ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ],
+      "id": "89ded77d-2f7a-45d9-b67c-bfe6041431c3",
+      "name": "WRITE — IMAGE TEMP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'image',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -40
+      ],
+      "id": "8f4b55c3-2902-4a6e-939a-17ebaf87d635",
+      "name": "WORKER — PROCESS IMAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    media_id: i.json.media_id,\n    project_id: i.json.project_id,\n    row_number: i.json.row_number,\n    provider: i.json.provider,\n    model: i.json.model,\n    analysis: i.json.analysis,\n    analysis_path: i.json.analysis_path,\n    dry_run: true\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -40
+      ],
+      "id": "bd78e1fd-b319-4bed-8a84-07a2d71c83f1",
+      "name": "AUDIT — IMAGE STRUCTURAL"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'mp4').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'video',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        120
+      ],
+      "id": "5a1eb337-e763-4850-92c9-33df4f0a778e",
+      "name": "PREPARE — VIDEO WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "aa33612a-3920-4667-889f-c8e10eb3ccfb",
+      "name": "DOWNLOAD — VIDEO ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        120
+      ],
+      "id": "790c2d01-4863-4fab-b7ed-bf880b50e3ef",
+      "name": "WRITE — VIDEO TEMP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'video',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        120
+      ],
+      "id": "4abc5dbb-c381-4c18-8b97-fa830c858fd9",
+      "name": "WORKER — PROCESS VIDEO"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    media_id: i.json.media_id,\n    project_id: i.json.project_id,\n    row_number: i.json.row_number,\n    provider: i.json.provider,\n    model: i.json.model,\n    analysis: i.json.analysis,\n    analysis_path: i.json.analysis_path,\n    dry_run: true\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        120
+      ],
+      "id": "679c8a36-6895-423d-aaf5-97f91fffd823",
+      "name": "AUDIT — VIDEO STRUCTURAL"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/analyze-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,media_id:$json.media_id,kind:'image',analysis_path:$json.proxy_path,file_name:$json.file_name,row_number:$json.row_number,drive_file_id:$json.drive_file_id,relative_path:$json.relative_path,context:'Triagem de portfólio de tatuagem para redes sociais.'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        -40
+      ],
+      "id": "731665b2-4ec6-48a2-9e84-ed3db3a34211",
+      "name": "VISION — ANALYZE IMAGE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/analyze-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,media_id:$json.media_id,kind:'video',analysis_path:$json.contact_sheet_path,file_name:$json.file_name,row_number:$json.row_number,drive_file_id:$json.drive_file_id,relative_path:$json.relative_path,context:'Contact sheet com timestamps de um vídeo de tatuagem. Escolha o melhor momento aproximado visualmente.'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        120
+      ],
+      "id": "aa7db2da-bd14-48ec-8502-776d01029f65",
+      "name": "VISION — ANALYZE VIDEO CONTACT SHEET"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(x => {\n  const a = x.analysis || {};\n  const s = a.structure || {};\n  const anatomy = s.anatomy || {};\n  const tattoo = s.tattoo || {};\n  const framing = s.framing || {};\n  const crops = s.crops || {};\n\n  const confidence = Number(s.structural_confidence);\n  if (!x.media_id) throw new Error('STRUCTURAL_BACKFILL_BLOCK: missing media_id');\n  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 100) {\n    throw new Error(`STRUCTURAL_BACKFILL_BLOCK: invalid confidence for ${x.media_id}`);\n  }\n\n  const cropGuidance = {\n    reel_9x16: crops.reel_9x16 || {},\n    story_9x16: crops.story_9x16 || {},\n    feed_4x5: crops.feed_4x5 || {},\n    square_1x1: crops.square_1x1 || {},\n    landscape_16x9: crops.landscape_16x9 || {}\n  };\n\n  const formatFit = Object.fromEntries(\n    Object.entries(cropGuidance).map(([k, v]) => [k, {\n      viability_score: v.viability_score,\n      strategy: v.strategy,\n      anchor: v.anchor,\n      rect_reliability: v.rect_reliability,\n      rationale: v.rationale\n    }])\n  );\n\n  return {json:{\n    ID_MIDIA: x.media_id,\n    STRUCTURAL_ANALYSIS_VERSION: 'SM3_STRUCTURAL_V1',\n    GEOMETRY_MODE: String(s.geometry_mode || ''),\n    BODY_REGION: String(anatomy.body_region || ''),\n    BODY_SUBREGION: String(anatomy.body_subregion || ''),\n    VIEW_ANGLE: String(anatomy.view_angle || ''),\n    BODY_POSE: String(anatomy.body_pose || ''),\n    TATTOO_ORIENTATION: String(tattoo.orientation || ''),\n    TATTOO_STYLE_TAGS: Array.isArray(tattoo.style_tags) ? tattoo.style_tags.join(', ') : '',\n    TATTOO_SUBJECT_PRIMARY: String(tattoo.subject_primary || ''),\n    TATTOO_SUBJECT_TAGS: Array.isArray(tattoo.subject_tags) ? tattoo.subject_tags.join(', ') : '',\n    TATTOO_STAGE_STRUCTURAL: String(tattoo.stage || ''),\n    TATTOO_COVERAGE: String(tattoo.coverage || ''),\n    COMPOSITION_SHAPE: String(tattoo.composition_shape || ''),\n    FOCAL_DESCRIPTION: String(framing.focal_description || ''),\n    FOCUS_POINT_NORM: JSON.stringify(framing.focus_point_norm || {}),\n    TATTOO_BBOX_NORM: JSON.stringify(framing.tattoo_bbox_norm || {}),\n    CROP_GUIDANCE_JSON: JSON.stringify(cropGuidance),\n    FORMAT_FIT_JSON: JSON.stringify(formatFit),\n    BEST_FORMATS: Array.isArray(s.best_formats) ? s.best_formats.join(', ') : '',\n    STRUCTURAL_CONFIDENCE: Math.round(confidence),\n    STRUCTURAL_NOTES: String(s.notes || '')\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        -40
+      ],
+      "id": "2c7e5095-2f1d-4afa-bae2-369542ead76b",
+      "name": "BUILD — IMAGE STRUCTURAL WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(x => {\n  const a = x.analysis || {};\n  const s = a.structure || {};\n  const anatomy = s.anatomy || {};\n  const tattoo = s.tattoo || {};\n  const framing = s.framing || {};\n  const crops = s.crops || {};\n\n  const confidence = Number(s.structural_confidence);\n  if (!x.media_id) throw new Error('STRUCTURAL_BACKFILL_BLOCK: missing media_id');\n  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 100) {\n    throw new Error(`STRUCTURAL_BACKFILL_BLOCK: invalid confidence for ${x.media_id}`);\n  }\n\n  const cropGuidance = {\n    reel_9x16: crops.reel_9x16 || {},\n    story_9x16: crops.story_9x16 || {},\n    feed_4x5: crops.feed_4x5 || {},\n    square_1x1: crops.square_1x1 || {},\n    landscape_16x9: crops.landscape_16x9 || {}\n  };\n\n  const formatFit = Object.fromEntries(\n    Object.entries(cropGuidance).map(([k, v]) => [k, {\n      viability_score: v.viability_score,\n      strategy: v.strategy,\n      anchor: v.anchor,\n      rect_reliability: v.rect_reliability,\n      rationale: v.rationale\n    }])\n  );\n\n  return {json:{\n    ID_MIDIA: x.media_id,\n    STRUCTURAL_ANALYSIS_VERSION: 'SM3_STRUCTURAL_V1',\n    GEOMETRY_MODE: String(s.geometry_mode || ''),\n    BODY_REGION: String(anatomy.body_region || ''),\n    BODY_SUBREGION: String(anatomy.body_subregion || ''),\n    VIEW_ANGLE: String(anatomy.view_angle || ''),\n    BODY_POSE: String(anatomy.body_pose || ''),\n    TATTOO_ORIENTATION: String(tattoo.orientation || ''),\n    TATTOO_STYLE_TAGS: Array.isArray(tattoo.style_tags) ? tattoo.style_tags.join(', ') : '',\n    TATTOO_SUBJECT_PRIMARY: String(tattoo.subject_primary || ''),\n    TATTOO_SUBJECT_TAGS: Array.isArray(tattoo.subject_tags) ? tattoo.subject_tags.join(', ') : '',\n    TATTOO_STAGE_STRUCTURAL: String(tattoo.stage || ''),\n    TATTOO_COVERAGE: String(tattoo.coverage || ''),\n    COMPOSITION_SHAPE: String(tattoo.composition_shape || ''),\n    FOCAL_DESCRIPTION: String(framing.focal_description || ''),\n    FOCUS_POINT_NORM: JSON.stringify(framing.focus_point_norm || {}),\n    TATTOO_BBOX_NORM: JSON.stringify(framing.tattoo_bbox_norm || {}),\n    CROP_GUIDANCE_JSON: JSON.stringify(cropGuidance),\n    FORMAT_FIT_JSON: JSON.stringify(formatFit),\n    BEST_FORMATS: Array.isArray(s.best_formats) ? s.best_formats.join(', ') : '',\n    STRUCTURAL_CONFIDENCE: Math.round(confidence),\n    STRUCTURAL_NOTES: String(s.notes || '')\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        120
+      ],
+      "id": "b9cf56f9-88b5-43cb-9422-7034c1e2ec95",
+      "name": "BUILD — VIDEO STRUCTURAL WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2440,
+        -40
+      ],
+      "id": "f2b30dd4-6f74-4222-9882-7374660f57bf",
+      "name": "UPDATE — IMAGE STRUCTURAL",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2440,
+        120
+      ],
+      "id": "1682a1ef-e6d9-43ba-b888-dd2416fc3b47",
+      "name": "UPDATE — VIDEO STRUCTURAL",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_WORK',message:'Nenhuma mídia QUEUED + ONLINE pendente de análise.',completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        320
+      ],
+      "id": "d8e803d6-8353-4b05-9e81-2c3bbcdf388c",
+      "name": "NO WORK — COMPLETE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        -160
+      ],
+      "id": "9d6aa728-f8e6-4320-a2b9-576df0d1955f",
+      "name": "READ — PRODUCTION READY CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "MANUAL — STRUCTURAL BACKFILL": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION READY CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS QUEUE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — STRUCTURAL BACKFILL QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — STRUCTURAL BACKFILL QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — TRIAGE QUEUE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ROUTE — ANALYSIS INPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ANALYSIS INPUT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — IMAGE WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — VIDEO WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UNSUPPORTED — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — IMAGE WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IMAGE ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IMAGE ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IMAGE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IMAGE TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS IMAGE": {
+      "main": [
+        [
+          {
+            "node": "VISION — ANALYZE IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — VIDEO WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — VIDEO ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — VIDEO ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — VIDEO TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — VIDEO TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS VIDEO": {
+      "main": [
+        [
+          {
+            "node": "VISION — ANALYZE VIDEO CONTACT SHEET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — ANALYZE IMAGE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — IMAGE STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — ANALYZE VIDEO CONTACT SHEET": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VIDEO STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — IMAGE STRUCTURAL": {
+      "main": [
+        [
+          {
+            "node": "BUILD — IMAGE STRUCTURAL WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — IMAGE STRUCTURAL WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — IMAGE STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — VIDEO STRUCTURAL": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VIDEO STRUCTURAL WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VIDEO STRUCTURAL WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — VIDEO STRUCTURAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION READY CONTENT": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

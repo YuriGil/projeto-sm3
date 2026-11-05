@@ -1,0 +1,46 @@
+{
+  "pipeline": [
+    {
+      "step": "HASH_METADATA",
+      "executor": "CODE",
+      "llm": false
+    },
+    {
+      "step": "EXIF_TRANSPOSE",
+      "executor": "PILLOW",
+      "llm": false
+    },
+    {
+      "step": "PROXY",
+      "executor": "PILLOW_OR_FFMPEG",
+      "llm": false
+    },
+    {
+      "step": "SEMANTIC_ANALYSIS",
+      "executor": "VISION_PROVIDER",
+      "llm": true,
+      "contract": "media_analysis.schema.json"
+    },
+    {
+      "step": "SCORING",
+      "executor": "CODE",
+      "llm": false
+    },
+    {
+      "step": "DATABASE_UPDATE",
+      "executor": "N8N_GOOGLE_SHEETS",
+      "llm": false
+    }
+  ],
+  "vision_provider": {
+    "primary": "UNBOUND",
+    "fallbacks": [
+      "OpenAI",
+      "Gemini",
+      "Claude_or_future_provider"
+    ],
+    "provider_locked": false
+  },
+  "publish_original": false,
+  "final_render_returns_to_original": true
+}

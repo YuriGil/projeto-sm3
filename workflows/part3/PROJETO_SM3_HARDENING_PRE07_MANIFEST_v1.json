@@ -1,0 +1,130 @@
+{
+  "project": "Projeto SM3",
+  "brand": "MOLOTOV",
+  "package": "HARDENING_PRE07_V1",
+  "control_sheet_id": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+  "implemented": [
+    {
+      "id": "STATE_V2",
+      "status": "DONE",
+      "detail": "State machine v2 persisted in 15_OS_ESTADOS."
+    },
+    {
+      "id": "EDITORIAL_FINAL_SPLIT",
+      "status": "DONE",
+      "detail": "Editorial gate fields separated from final approval fields in 04_CONTEUDOS."
+    },
+    {
+      "id": "CONFIG_CONTROL_PLANE",
+      "status": "DONE",
+      "detail": "New canonical config rows in 11_OS_CONFIG."
+    },
+    {
+      "id": "SCORING_CONFIG_V2",
+      "status": "DONE",
+      "detail": "Executable scoring source fields/rule modes added to 14_OS_SCORING."
+    },
+    {
+      "id": "RENDER_RECIPES_TABLE",
+      "status": "DONE",
+      "detail": "16_RENDER_RECIPES created with ACTIVE/PLANNED capability declarations."
+    },
+    {
+      "id": "WORKER_1_8",
+      "status": "DONE",
+      "detail": "Structural downstream + metadata contract + adaptive uniform contact sheets."
+    },
+    {
+      "id": "WF02_V7",
+      "status": "DONE",
+      "detail": "Triage persists hash/metadata/structural v2."
+    },
+    {
+      "id": "WF02C",
+      "status": "DONE",
+      "detail": "Production-ready metadata backfill without AI."
+    },
+    {
+      "id": "WF03_V6",
+      "status": "DONE",
+      "detail": "Curation uses scoring table and structural fields when available."
+    },
+    {
+      "id": "WF04_V3",
+      "status": "DONE",
+      "detail": "Content Plan respects format viability and initializes canonical editorial/final states."
+    },
+    {
+      "id": "WF05_V3",
+      "status": "DONE",
+      "detail": "Human gate is explicitly editorial authorization to produce."
+    },
+    {
+      "id": "WF06_V3",
+      "status": "DONE",
+      "detail": "Routing consumes editorial committed status and writes state v2."
+    }
+  ],
+  "remaining_before_definitive_wf07": [
+    {
+      "id": "TRUE_RECURSION",
+      "priority": "HIGH",
+      "status": "OPEN",
+      "detail": "Replace fixed L0-L4 discovery."
+    },
+    {
+      "id": "RETRY_DEAD_LETTER",
+      "priority": "HIGH",
+      "status": "OPEN",
+      "detail": "Per-media retry/dead-letter state."
+    },
+    {
+      "id": "SCENE_AWARE_VIDEO_SAMPLING",
+      "priority": "HIGH",
+      "status": "OPEN",
+      "detail": "v1.8 adaptive count is still uniform sampling."
+    },
+    {
+      "id": "RENDER_RECIPE_RESOLVER",
+      "priority": "CRITICAL",
+      "status": "OPEN",
+      "detail": "Resolve Structural Vision strategy against ACTIVE recipes and explicit fallback."
+    },
+    {
+      "id": "IMMUTABLE_RENDER_IDS",
+      "priority": "CRITICAL",
+      "status": "OPEN",
+      "detail": "Never overwrite preview.mp4; version every artifact."
+    },
+    {
+      "id": "QA_WORKFLOW",
+      "priority": "CRITICAL",
+      "status": "OPEN",
+      "detail": "Technical/visual QA before final approval."
+    },
+    {
+      "id": "FINAL_HUMAN_APPROVAL",
+      "priority": "CRITICAL",
+      "status": "OPEN",
+      "detail": "Only FINAL_APPROVED may schedule/publish."
+    },
+    {
+      "id": "PRIVACY_CONSENT",
+      "priority": "MEDIUM",
+      "status": "OPEN",
+      "detail": "Publication consent + privacy review flags."
+    },
+    {
+      "id": "POSTGRES17",
+      "priority": "MEDIUM",
+      "status": "OPEN",
+      "detail": "n8n currently warns Postgres 16 compatibility-only."
+    },
+    {
+      "id": "PERCEPTUAL_DUPLICATE",
+      "priority": "MEDIUM",
+      "status": "OPEN",
+      "detail": "Visual fingerprint for recompressed duplicates."
+    }
+  ]
+}

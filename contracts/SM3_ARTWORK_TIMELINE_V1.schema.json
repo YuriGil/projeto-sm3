@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_ARTWORK_TIMELINE_V1",
+  "title": "SM3 Artwork Timeline V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "artwork_id",
+    "nodes"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_ARTWORK_TIMELINE_V1"
+    },
+    "artwork_id": {
+      "type": "string"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "phase",
+          "medium"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "medium": {
+            "type": "string"
+          },
+          "stage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tool": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

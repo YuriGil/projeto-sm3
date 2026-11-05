@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_METRIC_SNAPSHOT_V1",
+  "type": "object",
+  "required": [
+    "reference_item_id"
+  ],
+  "properties": {
+    "reference_item_id": {
+      "type": "string"
+    },
+    "provider": {
+      "enum": [
+        "METRICOOL",
+        "MANUAL"
+      ]
+    },
+    "likes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "comments": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "interactions": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "engagement": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "raw_metrics": {
+      "type": "object"
+    },
+    "captured_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "enum": [
+        "METRICOOL",
+        "MANUAL",
+        "CHATGPT"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

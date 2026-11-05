@@ -1,0 +1,612 @@
+{
+  "name": "PROJETO SM3 — 07 — PRODUCTION — v1 PACKAGE DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "130308ce-dc42-44f6-afa6-69e391235f28",
+      "name": "MANUAL — PRODUCTION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "eb462420-0d15-4fa0-9c5f-49d481a03822",
+      "name": "READ — PRODUCTION CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        0
+      ],
+      "id": "d3d349c3-6e98-4752-9547-b7dacdb02d04",
+      "name": "READ — PRODUCTION MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1445428327,
+          "mode": "list",
+          "cachedResultName": "07_ATIVOS_IDENTIDADE"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        660,
+        0
+      ],
+      "id": "928bd36b-0966-490f-93a8-4142ffee5e3a",
+      "name": "READ — IDENTITY ASSETS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 746329393,
+          "mode": "list",
+          "cachedResultName": "08_REGRAS_IDENTIDADE"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "id": "96847b3c-8bf6-433a-b635-40b73ea4d3aa",
+      "name": "READ — IDENTITY RULES",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1592130734,
+          "mode": "list",
+          "cachedResultName": "09_MOTOR_COMPOSICAO"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "198f4f51-f26b-463a-8bba-a0f0186c72f3",
+      "name": "READ — COMPOSITION ENGINE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1648364747,
+          "mode": "list",
+          "cachedResultName": "10_TEMPLATES"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "d94b01fa-0fbc-4611-8935-ad78a255a035",
+      "name": "READ — PRODUCTION TEMPLATES",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — PRODUCTION PACKAGE v1 (DRY RUN)\n// Builds deterministic production packages from content that passed the human gate.\n// No rendering, no Drive exports and no spreadsheet writes in this version.\n\nconst contentRows = $('READ — PRODUCTION CONTENT').all().map(i => i.json);\nconst mediaRows = $('READ — PRODUCTION MEDIA').all().map(i => i.json);\nconst assetsRows = $('READ — IDENTITY ASSETS').all().map(i => i.json);\nconst rulesRows = $('READ — IDENTITY RULES').all().map(i => i.json);\nconst engineRows = $('READ — COMPOSITION ENGINE').all().map(i => i.json);\nconst templateRows = $input.all().map(i => i.json);\n\nconst mediaById = new Map(\n  mediaRows\n    .filter(r => String(r.ID_MIDIA || '').trim())\n    .map(r => [String(r.ID_MIDIA).trim(), r])\n);\n\nconst templatesById = new Map(\n  templateRows\n    .filter(r => String(r.ID_TEMPLATE || '').trim())\n    .map(r => [String(r.ID_TEMPLATE).trim(), r])\n);\n\nconst activeRules = rulesRows\n  .filter(r => String(r.STATUS || '').trim().toUpperCase() === 'ATIVA')\n  .map(r => ({\n    id: r.ID_REGRA,\n    scope: r.ESCOPO,\n    rule: r.REGRA,\n    priority: r.PRIORIDADE,\n    application: r.APLICAÇÃO,\n    exception: r.EXCEÇÃO || ''\n  }));\n\nconst availableAssets = assetsRows\n  .filter(r => {\n    const s = String(r.STATUS || '').trim().toUpperCase();\n    return ['ATIVO','OFICIAL','MUTÁVEL'].includes(s);\n  })\n  .map(r => ({\n    id: r.ID_ATIVO,\n    category: r.CATEGORIA,\n    name: r.NOME,\n    type: r.TIPO,\n    status: r.STATUS,\n    authority: r.AUTORIDADE,\n    function: r['FUNÇÃO'] || '',\n    recommended_use: r.USO_RECOMENDADO || '',\n    restrictions: r['RESTRIÇÕES'] || '',\n    drive_id: r.ID_DRIVE || '',\n    variant: r.VARIANTE || '',\n    priority: r.PRIORIDADE || ''\n  }));\n\nconst activeProfiles = engineRows\n  .filter(r => String(r.STATUS || '').trim().toUpperCase() === 'ATIVO');\n\nfunction extractMediaIds(value) {\n  const text = String(value || '');\n  const matches = text.match(/M\\d{4}/g) || [];\n  return [...new Set(matches)];\n}\n\nfunction targetFor(format) {\n  const f = String(format || '').trim().toUpperCase();\n  if (f === 'REEL') return {route_key:'REEL', width:1080, height:1920, fps:30, container:'mp4'};\n  if (f === 'CARROSSEL') return {route_key:'CAROUSEL', width:1080, height:1350, fps:null, container:'jpg'};\n  if (f === 'FOTO') return {route_key:'IMAGE', width:1080, height:1350, fps:null, container:'jpg'};\n  if (f === 'STORY') return {route_key:'STORY', width:1080, height:1920, fps:null, container:'jpg_or_mp4'};\n  return {route_key:'BLOCKED', width:null, height:null, fps:null, container:null};\n}\n\nfunction chooseProfile(content) {\n  const objective = String(content.OBJETIVO || '').toUpperCase();\n  const format = String(content.FORMATO || '').toUpperCase();\n\n  // Processo / bastidores / evolução: use MC_002 when available.\n  if (\n    objective.includes('PROCESS') ||\n    objective.includes('EXECU') ||\n    objective.includes('EVOLU') ||\n    objective.includes('BASTIDOR')\n  ) {\n    return activeProfiles.find(p => String(p.ID_PERFIL) === 'MC_002') || activeProfiles[0] || null;\n  }\n\n  // Portfolio/photo: MC_001.\n  if (format === 'FOTO' || objective.includes('PORTF')) {\n    return activeProfiles.find(p => String(p.ID_PERFIL) === 'MC_001') || activeProfiles[0] || null;\n  }\n\n  return activeProfiles[0] || null;\n}\n\nconst eligible = contentRows.filter(r =>\n  String(r.ROUTING_STATUS || '').trim().toUpperCase() === 'ROUTED' &&\n  String(r.ROUTING_TARGET || '').trim().toUpperCase() === 'PRODUCTION' &&\n  String(r.PRODUCTION_STATUS || '').trim().toUpperCase() === 'READY' &&\n  String(r.EDITORIAL_STATUS || '').trim().toUpperCase() === 'ACTIVE' &&\n  String(r.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO'\n);\n\nif (eligible.length === 0) {\n  return [{\n    json: {\n      no_work: true,\n      route_key: 'NO_WORK',\n      status: 'NO_PRODUCTION_READY_CONTENT',\n      message: 'Nenhum conteúdo está pronto para produção.',\n      checked_at: new Date().toISOString()\n    }\n  }];\n}\n\nconst out = [];\n\nfor (const c of eligible) {\n  const mediaIds = extractMediaIds(c.BRUTOS_USADOS);\n  const missingMedia = mediaIds.filter(id => !mediaById.has(id));\n  const media = mediaIds\n    .filter(id => mediaById.has(id))\n    .map(id => {\n      const m = mediaById.get(id);\n      return {\n        media_id: id,\n        project_id: m.ID_PROJETO || '',\n        file_name: m.ARQUIVO || '',\n        drive_file_id: m.DRIVE_FILE_ID || '',\n        link_drive: m.LINK_DRIVE || '',\n        media_type: m.TIPO || '',\n        relative_path: m.RELATIVE_PATH || '',\n        storage_status: m.STORAGE_STATUS || '',\n        analysis_stage: m.ANALYSIS_STAGE || '',\n        shot_type: m.SHOT_TYPE || '',\n        best_moment: m.MELHOR_TRECHO || '',\n        visual_summary: m['CONTEÚDO_VISUAL'] || ''\n      };\n    });\n\n  const templateId = String(c.TEMPLATE_ID || '').trim();\n  const template = templatesById.get(templateId) || null;\n  const profile = chooseProfile(c);\n  const target = targetFor(c.FORMATO);\n\n  const blockingReasons = [];\n\n  if (target.route_key === 'BLOCKED') blockingReasons.push(`UNSUPPORTED_FORMAT:${c.FORMATO}`);\n  if (mediaIds.length === 0) blockingReasons.push('NO_SOURCE_MEDIA');\n  if (missingMedia.length) blockingReasons.push(`MISSING_MEDIA:${missingMedia.join(',')}`);\n  if (media.some(m => String(m.storage_status || '').toUpperCase() !== 'ONLINE')) {\n    blockingReasons.push('SOURCE_MEDIA_OFFLINE');\n  }\n  if (!templateId) blockingReasons.push('NO_TEMPLATE_ID');\n  if (!template) blockingReasons.push(`TEMPLATE_NOT_FOUND:${templateId || 'EMPTY'}`);\n  if (!profile) blockingReasons.push('NO_COMPOSITION_PROFILE');\n\n  out.push({\n    json: {\n      no_work: false,\n      route_key: blockingReasons.length ? 'BLOCKED' : target.route_key,\n      production_ready: blockingReasons.length === 0,\n      blocking_reasons: blockingReasons,\n\n      content_id: c.ID_CONTEÚDO,\n      project_id: c.ID_PROJETO,\n      title: c.TÍTULO_INTERNO,\n      format: c.FORMATO,\n      objective: c.OBJETIVO,\n      priority: c.PRIORIDADE,\n      hook: c.HOOK || '',\n      script: c.ROTEIRO || '',\n      caption: c.LEGENDA || '',\n      cta: c.CTA || '',\n      approval_notes: c.APPROVAL_NOTES || '',\n\n      source_media_ids: mediaIds,\n      source_media: media,\n\n      template_id: templateId,\n      template: template ? {\n        id: template.ID_TEMPLATE,\n        name: template.NOME,\n        format: template.FORMATO,\n        dimension: template.DIMENSAO || '',\n        media_zone: template.ZONA_MIDIA || '',\n        text_zone: template.ZONA_TEXTO || '',\n        signature: template.ASSINATURA || '',\n        crop_rule: template.REGRA_CROP || '',\n        text_rule: template.REGRA_TEXTO || ''\n      } : null,\n\n      composition_profile: profile ? {\n        id: profile.ID_PERFIL,\n        content_type: profile.TIPO_CONTEUDO,\n        objective: profile.OBJETIVO,\n        media_prominence: profile.PROTAGONISMO_MIDIA,\n        identity_density: profile.DENSIDADE_IDENTIDADE,\n        aux_element_count: profile.QTD_ELEMENTOS_AUX,\n        logo: profile.LOGO,\n        stamp: profile.CARIMBO,\n        preferred_assets: profile.ATIVOS_PREFERENCIAIS,\n        avoid: profile.EVITAR,\n        composition: profile.COMPOSICAO\n      } : null,\n\n      identity_assets: availableAssets,\n      identity_rules: activeRules,\n\n      render_target: {\n        width: target.width,\n        height: target.height,\n        fps: target.fps,\n        container: target.container\n      },\n\n      safeguards: {\n        human_approval_required_before_publish: true,\n        exif_transpose_required: true,\n        semantic_crop_required: true,\n        preserve_tattoo_geometry: true,\n        no_random_japanese_text: true,\n        logo_and_stamp_protected: true\n      },\n\n      dry_run: true,\n      built_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "1b91f8e9-39ff-4436-a3b0-46a98b6f7d26",
+      "name": "BUILD — PRODUCTION PACKAGES"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "REEL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "cd7d5bcc-ff4b-4180-ae41-1a974869b4be"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REEL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "CAROUSEL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "9fa6a728-07c1-4749-b209-9d81a9a8691d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CAROUSEL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "IMAGE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b8b04c8e-a271-4ab4-b0e0-1ad9aa46116e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "STORY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "77c5cc6b-88d3-4e5e-9147-0e063741da3e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "STORY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "BLOCKED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "077d862c-d8af-4a86-a2d8-9ff3e246fa4f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BLOCKED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b6c2d386-9561-49b0-8989-ac7aa237b6ee"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "f3fd5aff-7f0f-43c7-9538-a5a9d55a078b",
+      "name": "ROUTE — PRODUCTION FORMAT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  dry_run:true,\n  status:'REEL_READY',\n  count:items.length,\n  content_ids:items.map(x=>x.content_id).filter(Boolean),\n  packages:items\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -240
+      ],
+      "id": "3224eabe-06ef-40e5-9a93-c5095afacd56",
+      "name": "AUDIT — REEL PRODUCTION PACKAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  dry_run:true,\n  status:'CAROUSEL_READY',\n  count:items.length,\n  content_ids:items.map(x=>x.content_id).filter(Boolean),\n  packages:items\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -120
+      ],
+      "id": "e166c9f8-bfd2-4b43-9398-8e171ae3a5e9",
+      "name": "AUDIT — CAROUSEL PRODUCTION PACKAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  dry_run:true,\n  status:'IMAGE_READY',\n  count:items.length,\n  content_ids:items.map(x=>x.content_id).filter(Boolean),\n  packages:items\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        0
+      ],
+      "id": "b36bc9ac-fb91-497d-9929-35a61452e6a5",
+      "name": "AUDIT — IMAGE PRODUCTION PACKAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  dry_run:true,\n  status:'STORY_READY',\n  count:items.length,\n  content_ids:items.map(x=>x.content_id).filter(Boolean),\n  packages:items\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        120
+      ],
+      "id": "5baa9f76-1a8e-4566-b54b-8be14eb0ea09",
+      "name": "AUDIT — STORY PRODUCTION PACKAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  dry_run:true,\n  status:'BLOCKED',\n  count:items.length,\n  content_ids:items.map(x=>x.content_id).filter(Boolean),\n  packages:items\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        240
+      ],
+      "id": "6fd91f82-5217-4ec3-8e39-29413a3e40d1",
+      "name": "AUDIT — PRODUCTION BLOCKED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  dry_run:true,\n  status:'NO_WORK',\n  message:'Nenhum conteúdo está pronto para produção.'\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        360
+      ],
+      "id": "eb32b7a7-12e7-4f40-8ebe-d1708e6c8dfe",
+      "name": "NO WORK — PRODUCTION"
+    }
+  ],
+  "connections": {
+    "MANUAL — PRODUCTION": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION CONTENT": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — IDENTITY ASSETS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — IDENTITY ASSETS": {
+      "main": [
+        [
+          {
+            "node": "READ — IDENTITY RULES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — IDENTITY RULES": {
+      "main": [
+        [
+          {
+            "node": "READ — COMPOSITION ENGINE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — COMPOSITION ENGINE": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION TEMPLATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION TEMPLATES": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PRODUCTION PACKAGES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PRODUCTION PACKAGES": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — PRODUCTION FORMAT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — PRODUCTION FORMAT": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — REEL PRODUCTION PACKAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — CAROUSEL PRODUCTION PACKAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — IMAGE PRODUCTION PACKAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — STORY PRODUCTION PACKAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — PRODUCTION BLOCKED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — PRODUCTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

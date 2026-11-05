@@ -1,0 +1,94 @@
+{
+  "name": "MOLOTOV SOCIAL OS RC5 - Vision Provider Boundary",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "TESTE MANUAL",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{project_id:'TATTOO_0002',media_id:'M0004',proxy_ref:'proxy.jpg',analysis_version:'1.0'}}];"
+      },
+      "id": "i",
+      "name": "Proxy Ready",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,provider:'UNBOUND',contract:'media_analysis.schema.json',cache_key:$json.media_id+':'+$json.analysis_version,state:'READY_FOR_VISION_PROVIDER'}}];"
+      },
+      "id": "p",
+      "name": "Provider Neutral Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'AWAITING_CREDENTIAL_BOUND_PROVIDER',mutation:false}}];"
+      },
+      "id": "s",
+      "name": "Credential Boundary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TESTE MANUAL": {
+      "main": [
+        [
+          {
+            "node": "Proxy Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Proxy Ready": {
+      "main": [
+        [
+          {
+            "node": "Provider Neutral Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Provider Neutral Request": {
+      "main": [
+        [
+          {
+            "node": "Credential Boundary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

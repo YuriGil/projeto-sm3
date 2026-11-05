@@ -1,0 +1,335 @@
+{
+  "name": "PROJETO SM3 — 07C — VARIANT SELECTION + EDIT SESSION — v1.1 SINGLE VERIFY",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1560, 0],
+      "id": "174703db-42e0-4ca4-b216-7f2fd8bcfbc1",
+      "name": "MANUAL — VARIANT SELECTION"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {"timeout": 30000}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-1340, 0],
+      "id": "a6ffabed-0f15-45fb-b13b-286fddc90693",
+      "name": "WORKER — HEALTH CONTRACT",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h = $json;\nconst errors = [];\nif (h.ok !== true) errors.push('ok');\nif (String(h.service || '') !== 'sm3-media-worker') errors.push('service');\nif (String(h.version || '') !== '2.3.0') errors.push(`version=${h.version}`);\nif (String(h.production_edit_contract || '') !== 'SM3_PRODUCTION_EDIT_V1') errors.push('production_edit_contract');\nif (h.variant_planner_idempotent !== true) errors.push('variant_planner_idempotent');\nif (String(h.variant_preview_contract || '') !== 'SM3_VARIANT_PREVIEW_V1') errors.push('variant_preview_contract');\nif (h.edit_session_start !== true) errors.push('edit_session_start');\nif (h.edit_session_start_idempotent !== true) errors.push('edit_session_start_idempotent');\nif (String(h.edit_session_contract || '') !== 'SM3_EDIT_SESSION_V1') errors.push('edit_session_contract');\nif (errors.length) throw new Error(`WORKER_2_3_0_CONTRACT_MISMATCH:${errors.join(',')}`);\nreturn {json:{status:'WORKER_2_3_0_CONTRACT_VERIFIED', checked_at:new Date().toISOString()}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1120, 0],
+      "id": "9a04d81b-ddde-44cd-a563-d4491f4b9fef",
+      "name": "ASSERT — WORKER 2.3.0"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [-900, 0],
+      "id": "d7c2ab23-d28e-46b4-aa17-709e19fc719e",
+      "name": "READ — VARIANT SELECTION STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst upper = v => String(v || '').trim().toUpperCase();\nconst text = v => String(v || '').trim();\nconst starts = [];\nconst blocked = [];\nlet currentCount = 0;\nconst idCounts = new Map();\nfor (const row of rows) {\n  const id = text(row.ID_CONTEÚDO);\n  if (id) idCounts.set(id, (idCounts.get(id) || 0) + 1);\n}\n\nfor (const r of rows) {\n  const projectId = text(r.ID_PROJETO);\n  const contentId = text(r.ID_CONTEÚDO);\n  const setId = text(r.VARIANT_SET_ID);\n  const review = upper(r.VARIANT_REVIEW_STATUS);\n  const selected = upper(r.SELECTED_VARIANT_ID);\n  const revisionMode = upper(r.REVISION_MODE);\n  const render = upper(r.RENDER_STATUS);\n  const pipeline = upper(r.PIPELINE_STATE);\n  const contract = text(r.PRODUCTION_CONTRACT_VERSION);\n  const sessionId = text(r.EDIT_SESSION_ID);\n  const sessionStatus = upper(r.EDIT_SESSION_STATUS);\n  const stateVersion = text(r.STATE_VERSION);\n\n  const isCommitted = review === 'OPEN_EDITOR' && /^V\\d{2}$/.test(selected) &&\n    /^ES_[A-Za-z0-9_-]+$/.test(sessionId) && ['OPEN','SAVED','COMPLETED'].includes(sessionStatus) &&\n    revisionMode === 'VARIANT_SELECTION' && pipeline === 'EDIT_SESSION_READY' &&\n    stateVersion === 'SM3_STATE_V5' && contract === 'SM3_PRODUCTION_EDIT_V1';\n  if (isCommitted) { currentCount += 1; continue; }\n\n  const reviewStage = render === 'VARIANT_PREVIEWS_READY' &&\n    ['VARIANT_REVIEW_READY','EDIT_SESSION_READY'].includes(pipeline);\n  const hasSelectionSignal = review === 'SELECTED' ||\n    (reviewStage && Boolean(selected)) ||\n    (reviewStage && revisionMode === 'VARIANT_SELECTION');\n  if (!hasSelectionSignal) continue;\n\n  const errors = [];\n  if (!projectId) errors.push('ID_PROJETO_MISSING');\n  if (!contentId) errors.push('ID_CONTEUDO_MISSING');\n  if (contentId && idCounts.get(contentId) !== 1) errors.push('ID_CONTEUDO_NOT_UNIQUE');\n  if (!/^VS_[A-Za-z0-9_-]+$/.test(setId)) errors.push('VARIANT_SET_ID_INVALID');\n  if (review !== 'SELECTED') errors.push(`VARIANT_REVIEW_STATUS=${review || 'EMPTY'}`);\n  if (!/^V\\d{2}$/.test(selected)) errors.push(`SELECTED_VARIANT_ID=${selected || 'EMPTY'}`);\n  const selectedNumber = /^V\\d{2}$/.test(selected) ? Number(selected.slice(1)) : 0;\n  const variantCount = Number(r.VARIANT_COUNT || 0);\n  if (!Number.isInteger(variantCount) || variantCount < 1) errors.push('VARIANT_COUNT_INVALID');\n  if (selectedNumber < 1 || selectedNumber > variantCount) errors.push('SELECTED_VARIANT_OUT_OF_RANGE');\n  if (render !== 'VARIANT_PREVIEWS_READY') errors.push(`RENDER_STATUS=${render || 'EMPTY'}`);\n  if (pipeline !== 'VARIANT_REVIEW_READY') errors.push(`PIPELINE_STATE=${pipeline || 'EMPTY'}`);\n  if (contract !== 'SM3_PRODUCTION_EDIT_V1') errors.push(`PRODUCTION_CONTRACT_VERSION=${contract || 'EMPTY'}`);\n  if (!['','UNDECIDED','VARIANT_SELECTION'].includes(revisionMode)) errors.push(`REVISION_MODE=${revisionMode}`);\n  if (sessionId) errors.push('EDIT_SESSION_ID_ALREADY_SET');\n  if (!['','NOT_STARTED'].includes(sessionStatus)) errors.push(`EDIT_SESSION_STATUS=${sessionStatus}`);\n\n  if (errors.length) {\n    blocked.push({project_id:projectId, content_id:contentId, errors});\n    continue;\n  }\n\n  starts.push({\n    route_key:'START',\n    project_id:projectId,\n    content_id:contentId,\n    variant_set_id:setId,\n    variant_id:selected,\n    selection_source:'HUMAN_GOOGLE_SHEETS',\n    force_new:false\n  });\n}\n\nif (blocked.length) {\n  return [{json:{route_key:'BLOCKED', status:'VARIANT_SELECTION_BLOCKED', blocked}}];\n}\nif (starts.length) return starts.map(x => ({json:x}));\nreturn [{json:{route_key:'NO_WORK', status:'NO_EXPLICIT_VARIANT_SELECTION', existing_sessions:currentCount}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 0],
+      "id": "6eecceba-2dbb-4db9-a227-29e0cda26b40",
+      "name": "BUILD — SELECTION COMMIT QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+                "conditions": [{"leftValue": "={{ $json.route_key }}", "rightValue": "START", "operator": {"type": "string", "operation": "equals"}, "id": "6b006ccb-7f01-41e2-a49f-d577851e1577"}],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "START"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+                "conditions": [{"leftValue": "={{ $json.route_key }}", "rightValue": "BLOCKED", "operator": {"type": "string", "operation": "equals"}, "id": "a818e0bc-98df-46bd-aa70-76a4681f57c2"}],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BLOCKED"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+                "conditions": [{"leftValue": "={{ $json.route_key }}", "rightValue": "NO_WORK", "operator": {"type": "string", "operation": "equals"}, "id": "fe62b641-42e4-46c4-953d-aa6052e39b75"}],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [-450, 0],
+      "id": "2a787c4f-89c7-4986-a9c8-8aa30304f660",
+      "name": "ROUTE — SELECTION STATE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/edit-session/start",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,content_id:$json.content_id,variant_set_id:$json.variant_set_id,variant_id:$json.variant_id,selection_source:$json.selection_source,force_new:false} }}",
+        "options": {"timeout": 120000}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-210, -160],
+      "id": "913987e3-0c70-44e6-aa61-577fbe305334",
+      "name": "WORKER — START EDIT SESSION",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const x = $json;\nconst errors = [];\nif (x.ok !== true) errors.push('ok');\nif (String(x.version || '') !== '2.3.0') errors.push(`version=${x.version}`);\nif (String(x.production_contract_version || '') !== 'SM3_PRODUCTION_EDIT_V1') errors.push('production_contract_version');\nif (String(x.edit_session_contract_version || '') !== 'SM3_EDIT_SESSION_V1') errors.push('edit_session_contract_version');\nif (String(x.edit_contract_version || '') !== 'SM3_EDIT_RECIPE_V1') errors.push('edit_contract_version');\nif (!/^ES_[A-Za-z0-9_-]+$/.test(String(x.edit_session_id || ''))) errors.push('edit_session_id');\nif (!/^VS_[A-Za-z0-9_-]+$/.test(String(x.variant_set_id || ''))) errors.push('variant_set_id');\nif (!/^V\\d{2}$/.test(String(x.base_variant_id || ''))) errors.push('base_variant_id');\nif (!['OPEN','SAVED','COMPLETED'].includes(String(x.status || ''))) errors.push(`status=${x.status}`);\nif (Number(x.current_revision || 0) < 1) errors.push('current_revision');\nif (!x.selection_evidence || String(x.selection_evidence.preview_contract_version || '') !== 'SM3_VARIANT_PREVIEW_V1') errors.push('selection_evidence_contract');\nif (!/^[a-f0-9]{64}$/.test(String(x.selection_evidence?.preview_sha256 || ''))) errors.push('selection_evidence_hash');\nif (!String(x.state_path || '').endsWith('/current.json')) errors.push('state_path');\nif (errors.length) throw new Error(`EDIT_SESSION_START_CONTRACT_MISMATCH:${errors.join(',')}`);\nreturn {json:x};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20, -160],
+      "id": "96bb1a70-eada-4182-9356-02cfe0968159",
+      "name": "ASSERT — SESSION START CONTRACT"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/edit-session/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {"timeout": 30000}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [250, -160],
+      "id": "b2fd164c-6c3f-493e-a9bc-6e18953bd084",
+      "name": "VERIFY GET — EDIT SESSION",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const persisted = $json;\nconst started = $('WORKER — START EDIT SESSION').all().map(i => i.json).find(x => String(x.edit_session_id || '') === String(persisted.edit_session_id || ''));\nif (!started) throw new Error(`EDIT_SESSION_START_RESPONSE_NOT_FOUND:${persisted.edit_session_id || 'EMPTY'}`);\nconst fields = ['project_id','content_id','variant_set_id','base_variant_id','edit_session_id','start_fingerprint','edit_session_contract_version','edit_contract_version'];\nfor (const field of fields) {\n  if (String(persisted[field] || '') !== String(started[field] || '')) throw new Error(`EDIT_SESSION_PERSIST_MISMATCH:${field}`);\n}\nif (!['OPEN','SAVED','COMPLETED'].includes(String(persisted.status || ''))) throw new Error(`EDIT_SESSION_PERSIST_STATUS_INVALID:${persisted.status}`);\nif (Number(persisted.current_revision || 0) < 1) throw new Error('EDIT_SESSION_PERSIST_REVISION_INVALID');\nif (String(persisted.selection_evidence?.preview_sha256 || '') !== String(started.selection_evidence?.preview_sha256 || '')) throw new Error('EDIT_SESSION_PERSIST_PREVIEW_HASH_MISMATCH');\nreturn {json:{\n  ID_CONTEÚDO:String(persisted.content_id),\n  VARIANT_REVIEW_STATUS:'OPEN_EDITOR',\n  SELECTED_VARIANT_ID:String(persisted.base_variant_id),\n  REVISION_MODE:'VARIANT_SELECTION',\n  EDIT_SESSION_ID:String(persisted.edit_session_id),\n  EDIT_SESSION_STATUS:String(persisted.status),\n  EDIT_RECIPE_VERSION:'SM3_EDIT_RECIPE_V1',\n  PIPELINE_STATE:'EDIT_SESSION_READY',\n  STATE_UPDATED_AT:new Date().toISOString(),\n  STATE_VERSION:'SM3_STATE_V5',\n  production_contract_version:String(persisted.production_contract_version),\n  edit_session_contract_version:String(persisted.edit_session_contract_version),\n  current_revision:Number(persisted.current_revision),\n  preview_sha256:String(persisted.selection_evidence.preview_sha256),\n  state_path:String(persisted.state_path),\n  reused_existing:Boolean(started.reused_existing)\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, -160],
+      "id": "8317b586-e20b-480f-b341-707338015002",
+      "name": "ASSERT — SESSION PERSISTED"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "VARIANT_REVIEW_STATUS": "={{ $json.VARIANT_REVIEW_STATUS }}",
+            "SELECTED_VARIANT_ID": "={{ $json.SELECTED_VARIANT_ID }}",
+            "REVISION_MODE": "={{ $json.REVISION_MODE }}",
+            "EDIT_SESSION_ID": "={{ $json.EDIT_SESSION_ID }}",
+            "EDIT_SESSION_STATUS": "={{ $json.EDIT_SESSION_STATUS }}",
+            "EDIT_RECIPE_VERSION": "={{ $json.EDIT_RECIPE_VERSION }}",
+            "PIPELINE_STATE": "={{ $json.PIPELINE_STATE }}",
+            "STATE_UPDATED_AT": "={{ $json.STATE_UPDATED_AT }}",
+            "STATE_VERSION": "={{ $json.STATE_VERSION }}"
+          },
+          "matchingColumns": ["ID_CONTEÚDO"],
+          "schema": [
+            {"id":"ID_CONTEÚDO","displayName":"ID_CONTEÚDO","required":false,"defaultMatch":true,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"VARIANT_REVIEW_STATUS","displayName":"VARIANT_REVIEW_STATUS","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"SELECTED_VARIANT_ID","displayName":"SELECTED_VARIANT_ID","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"REVISION_MODE","displayName":"REVISION_MODE","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"EDIT_SESSION_ID","displayName":"EDIT_SESSION_ID","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"EDIT_SESSION_STATUS","displayName":"EDIT_SESSION_STATUS","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"EDIT_RECIPE_VERSION","displayName":"EDIT_RECIPE_VERSION","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"PIPELINE_STATE","displayName":"PIPELINE_STATE","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"STATE_UPDATED_AT","displayName":"STATE_UPDATED_AT","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"STATE_VERSION","displayName":"STATE_VERSION","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [710, -160],
+      "id": "183c23a8-0fc6-4d2b-86d7-9f81b03c5071",
+      "name": "UPDATE — EDIT SESSION STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [940, -160],
+      "id": "0d054e89-cf71-47ce-9911-c96ad58c384e",
+      "name": "VERIFY READ — EDIT SESSION STATE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst expected = $('ASSERT — SESSION PERSISTED').all().map(i => i.json);\nconst byId = new Map(rows.map(r => [String(r.ID_CONTEÚDO || ''), r]));\nconst rowCounts = new Map();\nfor (const row of rows) { const id = String(row.ID_CONTEÚDO || ''); if (id) rowCounts.set(id, (rowCounts.get(id) || 0) + 1); }\nconst verified = [];\nfor (const e of expected) {\n  const id = String(e.ID_CONTEÚDO || '');\n  const r = byId.get(id);\n  if (!r) throw new Error(`EDIT_SESSION_COMMIT_ROW_NOT_FOUND:${id}`);\n  if (rowCounts.get(id) !== 1) throw new Error(`EDIT_SESSION_COMMIT_ROW_NOT_UNIQUE:${id}`);\n  const checks = {\n    VARIANT_REVIEW_STATUS:String(r.VARIANT_REVIEW_STATUS || ''),\n    SELECTED_VARIANT_ID:String(r.SELECTED_VARIANT_ID || ''),\n    REVISION_MODE:String(r.REVISION_MODE || ''),\n    EDIT_SESSION_ID:String(r.EDIT_SESSION_ID || ''),\n    EDIT_SESSION_STATUS:String(r.EDIT_SESSION_STATUS || ''),\n    EDIT_RECIPE_VERSION:String(r.EDIT_RECIPE_VERSION || ''),\n    PIPELINE_STATE:String(r.PIPELINE_STATE || ''),\n    STATE_VERSION:String(r.STATE_VERSION || ''),\n    PRODUCTION_CONTRACT_VERSION:String(r.PRODUCTION_CONTRACT_VERSION || '')\n  };\n  const wanted = {\n    VARIANT_REVIEW_STATUS:'OPEN_EDITOR',\n    SELECTED_VARIANT_ID:e.SELECTED_VARIANT_ID,\n    REVISION_MODE:'VARIANT_SELECTION',\n    EDIT_SESSION_ID:e.EDIT_SESSION_ID,\n    EDIT_SESSION_STATUS:e.EDIT_SESSION_STATUS,\n    EDIT_RECIPE_VERSION:'SM3_EDIT_RECIPE_V1',\n    PIPELINE_STATE:'EDIT_SESSION_READY',\n    STATE_VERSION:'SM3_STATE_V5',\n    PRODUCTION_CONTRACT_VERSION:'SM3_PRODUCTION_EDIT_V1'\n  };\n  for (const [field, value] of Object.entries(wanted)) {\n    if (checks[field] !== String(value)) throw new Error(`EDIT_SESSION_COMMIT_MISMATCH:${id}:${field}=${checks[field]} expected=${value}`);\n  }\n  if (!String(r.STATE_UPDATED_AT || '').trim()) throw new Error(`EDIT_SESSION_COMMIT_MISSING_TIMESTAMP:${id}`);\n  verified.push({ID_CONTEÚDO:id, SELECTED_VARIANT_ID:checks.SELECTED_VARIANT_ID, EDIT_SESSION_ID:checks.EDIT_SESSION_ID, EDIT_SESSION_STATUS:checks.EDIT_SESSION_STATUS, STATE_VERSION:checks.STATE_VERSION});\n}\nreturn [{json:{status:'EDIT_SESSION_COMMIT_VERIFIED', verified_count:verified.length, verified}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1170, -160],
+      "id": "434a1394-56f7-4545-a871-a4ff3e5df7cb",
+      "name": "ASSERT — EDIT SESSION COMMITTED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const verification = $input.first().json;\nconst sessions = $('ASSERT — SESSION PERSISTED').all().map(i => i.json);\nreturn [{json:{\n  status:'EDIT_SESSIONS_READY',\n  commit_verified:verification.status === 'EDIT_SESSION_COMMIT_VERIFIED',\n  contents_updated:verification.verified_count,\n  sessions:verification.verified,\n  worker_state_paths:Object.fromEntries(sessions.map(x => [x.ID_CONTEÚDO,x.state_path])),\n  preview_hashes:Object.fromEntries(sessions.map(x => [x.ID_CONTEÚDO,x.preview_sha256])),\n  reused_existing_count:sessions.filter(x => x.reused_existing === true).length,\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, -160],
+      "id": "422fc659-2fc8-4521-81ba-265e3ca4180c",
+      "name": "AUDIT — EDIT SESSIONS READY"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'VARIANT_SELECTION_BLOCKED', fail_closed:true, details:$input.first().json, checked_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-210, 40],
+      "id": "a4255421-6a74-47cc-81a7-3dcd5f9425b3",
+      "name": "AUDIT — SELECTION BLOCKED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x = $input.first().json; return [{json:{status:'NO_EXPLICIT_VARIANT_SELECTION', existing_sessions:Number(x.existing_sessions || 0), checked_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-210, 220],
+      "id": "46948e62-5d67-4f9c-ac92-32f3b5f25382",
+      "name": "NO WORK — AWAITING SELECTION"
+    }
+  ],
+  "connections": {
+    "MANUAL — VARIANT SELECTION": {"main":[[{"node":"WORKER — HEALTH CONTRACT","type":"main","index":0}]]},
+    "WORKER — HEALTH CONTRACT": {"main":[[{"node":"ASSERT — WORKER 2.3.0","type":"main","index":0}]]},
+    "ASSERT — WORKER 2.3.0": {"main":[[{"node":"READ — VARIANT SELECTION STATE","type":"main","index":0}]]},
+    "READ — VARIANT SELECTION STATE": {"main":[[{"node":"BUILD — SELECTION COMMIT QUEUE","type":"main","index":0}]]},
+    "BUILD — SELECTION COMMIT QUEUE": {"main":[[{"node":"ROUTE — SELECTION STATE","type":"main","index":0}]]},
+    "ROUTE — SELECTION STATE": {"main":[[{"node":"WORKER — START EDIT SESSION","type":"main","index":0}],[{"node":"AUDIT — SELECTION BLOCKED","type":"main","index":0}],[{"node":"NO WORK — AWAITING SELECTION","type":"main","index":0}]]},
+    "WORKER — START EDIT SESSION": {"main":[[{"node":"ASSERT — SESSION START CONTRACT","type":"main","index":0}]]},
+    "ASSERT — SESSION START CONTRACT": {"main":[[{"node":"VERIFY GET — EDIT SESSION","type":"main","index":0}]]},
+    "VERIFY GET — EDIT SESSION": {"main":[[{"node":"ASSERT — SESSION PERSISTED","type":"main","index":0}]]},
+    "ASSERT — SESSION PERSISTED": {"main":[[{"node":"UPDATE — EDIT SESSION STATE","type":"main","index":0}]]},
+    "UPDATE — EDIT SESSION STATE": {"main":[[{"node":"VERIFY READ — EDIT SESSION STATE","type":"main","index":0}]]},
+    "VERIFY READ — EDIT SESSION STATE": {"main":[[{"node":"ASSERT — EDIT SESSION COMMITTED","type":"main","index":0}]]},
+    "ASSERT — EDIT SESSION COMMITTED": {"main":[[{"node":"AUDIT — EDIT SESSIONS READY","type":"main","index":0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder":"v1"},
+  "active": false,
+  "versionId": "72cbe0b0-e70a-4b82-9957-8f83b1ae3d91",
+  "meta": {"templateCredsSetupCompleted":true},
+  "tags": []
+}

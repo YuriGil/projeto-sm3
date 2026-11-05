@@ -1,0 +1,10 @@
+{
+  "contract_version": "SM3_LEARNING_ROUTER_V1",
+  "single_shared_feedback_corpus": true,
+  "foundation_applies_to_all_profiles": true,
+  "profile_learning_inherits_parent_chain": true,
+  "content_learning_requires_same_content_and_profile_chain": true,
+  "cross_profile_style_contamination_forbidden": true,
+  "legacy_visual_feedback_v1_policy": "ROUTE_AS_FOUNDATION",
+  "notes": "Perfis compartilham uma fonte principal de aprendizado; apenas o roteamento por escopo/perfil separa preferências estilísticas."
+}

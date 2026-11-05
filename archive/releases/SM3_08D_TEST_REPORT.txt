@@ -1,0 +1,63 @@
+PROJETO SM3 — 08D GEOMETRY-AWARE COMPOSITION — TEST REPORT
+================================================================
+
+Worker source: SM3_worker_service_2_12_0.py
+Worker version: 2.12.0
+Canonical edit renderer preserved: 2.8.0
+Experimental renderer: 2.12.0
+Composition plan: SM3_COMPOSITION_PLAN_V1
+Planner: SM3_GEOMETRY_AWARE_COMPOSITOR_V1
+Preview contract: SM3_GEOMETRY_PREVIEW_V1
+
+STATIC / CONTRACT TESTS
+- Python py_compile: PASS
+- Worker import with isolated MEDIA_ROOT: PASS
+- Health constants present: PASS
+- Canonical renderer version remains 2.8.0: PASS
+- Semantic geometry contract remains V1: PASS
+- Semantic provider retry added (3 attempts for network/408/409/429/5xx): PASS
+
+CURRENT-FIXTURE DETERMINISTIC PLANNER TEST
+Input geometry mirrors verified 21_SEMANTIC_GEOMETRY records.
+- M0083: SMART_CROP + protected coverage >= 88 -> SEMANTIC_CROP: PASS
+- M0085: dynamic_required + unsafe 4:5 fixed crop -> CONTAIN_SOLID: PASS
+- M0086: SMART_CROP + protected coverage >= 88 -> SEMANTIC_CROP: PASS
+- FRAME_OBSCURES_SUBJECT learning suppresses frame: PASS
+- IDENTITY_APPLICATION_CONTEXTLESS/TATTOO_NOT_PROTAGONIST suppress texture: PASS
+- stamp retained as sparse footer signature: PASS
+- logo suppressed when stamp already signs the piece: PASS
+- profile remains DP_BASE_MOLOTOV; no profile binding/revision mutation: PASS
+
+RENDER TEST (SYNTHETIC MEDIA + REAL IDENTITY ASSETS)
+- 3 segments: PASS
+- image semantic crop path: PASS
+- video safe-contain path: PASS
+- no blurred fill background: PASS
+- semantic crop is never enlarged into an additional destructive crop: PASS
+- footer stays outside media stage: PASS
+- real carimbo PNG used as signature: PASS
+- output dimensions 1080x1350: PASS
+- libx264/yuv420p output: PASS
+- preview SHA-256 generated: PASS
+- cover SHA-256 generated: PASS
+
+N8N WORKFLOW
+File: PROJETO_SM3_08D_GEOMETRY_AWARE_COMPOSITION_v1.json
+- JSON parse: PASS
+- all connection sources/targets resolve: PASS
+- 12 Code nodes checked with node --check: PASS
+- reads 21_SEMANTIC_GEOMETRY before render: PASS
+- requires VERIFIED semantic geometry and valid record hash: PASS
+- uses existing source + identity download provenance: PASS
+- writes/upserts 22_COMPOSITION_PLANS: PASS
+- canonical 04_CONTEUDOS render state is not rewritten by 08D: PASS
+
+ARCHITECTURAL SAFETY
+- REV4 is not changed by 08D: by contract
+- state_etag is required and rechecked under session save lock
+- semantic geometry records are loaded by source content hash
+- all requested identity bytes are still hash-verified even when planner suppresses their visual use
+- geometry may suppress visual requests when protected-subject constraints would be violated
+- learning corpus is routed through SM3_LEARNING_ROUTER_V1
+- experimental output lives under production_state/geometry_previews, separate from canonical edit_previews
+- composition plan is immutable/hash-verified and stored separately

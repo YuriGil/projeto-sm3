@@ -1,0 +1,753 @@
+{
+  "name": "PROJETO SM3 — 09A.2 — REFERENCE ITEM INTAKE — v1.2 CONTRACT COMPAT",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        0
+      ],
+      "id": "f98016de-7347-49f9-bcf8-cf883c0f8b7d",
+      "name": "MANUAL — SYNC REFERENCE ITEMS"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "7b9756a2-4c36-4843-80e5-5509e161257d",
+      "name": "WORKER — HEALTH 2.15.1"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst h=$json;\nif(h.reference_item_contract!=='SM3_REFERENCE_ITEM_V1'||h.reference_corpus_policy!=='SM3_REFERENCE_CORPUS_POLICY_V1')throw new Error('SM3_09A2_WORKER_CONTRACT_INVALID');\nif(h.reference_item_contract!=='SM3_REFERENCE_ITEM_V1')throw new Error('SM3_09A2_REFERENCE_ITEM_CONTRACT_INVALID');\nif(h.reference_corpus_policy!=='SM3_REFERENCE_CORPUS_POLICY_V1')throw new Error('SM3_09A2_REFERENCE_POLICY_INVALID');\nif(h.reference_foundation_override_allowed!==false||h.reference_copying_allowed!==false)\n  throw new Error('SM3_09A2_REFERENCE_GUARDRAILS_INVALID');\nreturn [{json:{ok:true,worker_version:h.version,contract:h.reference_item_contract}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "7bc06df0-6870-4c7c-8f4c-69e4a7c4bbe6",
+      "name": "ASSERT — REFERENCE ITEM INTAKE CONTRACT"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        270,
+        -120
+      ],
+      "id": "c4df7032-2af0-448f-ae22-98b4d8daa551",
+      "name": "READ — 31_REFERENCE_PROFILES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -420,
+        0
+      ],
+      "id": "0e95b1e1-abe5-4cba-a3bc-4a9f8e88e1d2",
+      "name": "READ — 32_REFERENCE_ITEMS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst profiles=$input.all().map(i=>i.json);\nconst candidates=$('BUILD — REFERENCE ITEM CANDIDATES').first().json.candidates||[];\n\nconst norm=x=>String(x??'').trim();\nconst handle=x=>norm(x).replace(/^@/,'').toLowerCase();\n\nconst profileById=new Map();\nconst profileByHandle=new Map();\nfor(const p of profiles){\n  const id=norm(p.REFERENCE_PROFILE_ID);\n  const h=handle(p.HANDLE);\n  const network=norm(p.NETWORK).toLowerCase();\n  if(id&&/^RP_[a-f0-9]{32}$/.test(id))profileById.set(id,p);\n  if(h&&network)profileByHandle.set(network+'|'+h,p);\n}\n\nconst parseItemUrl=(raw)=>{\n  let s=norm(raw);\n  if(!s)return null;\n  s=s.replace(/\\s+/g,'');\n  if(!/^https?:\\/\\//i.test(s))s='https://'+s;\n  const noFrag=s.split('#')[0];\n  const noQuery=noFrag.split('?')[0];\n\n  let m=noQuery.match(/^https?:\\/\\/(?:www\\.)?instagram\\.com\\/(reel|p|tv|stories)\\/([^\\/?#]+)(?:\\/.*)?$/i);\n  if(m){\n    const kind=m[1].toLowerCase();\n    const platformItemId=m[2];\n    const inferred=(kind==='reel'||kind==='tv')?'REEL':kind==='stories'?'STORY':'POST';\n    return {\n      network:'instagram',\n      platform_item_id:platformItemId,\n      item_type:inferred,\n      canonical_url:`https://www.instagram.com/${kind}/${platformItemId}/`\n    };\n  }\n\n  m=noQuery.match(/^https?:\\/\\/(?:www\\.)?tiktok\\.com\\/@([^\\/?#]+)\\/video\\/([0-9]+)\\/?$/i);\n  if(m){\n    return {\n      network:'tiktok',\n      platform_item_id:m[2],\n      item_type:'VIDEO',\n      canonical_url:`https://www.tiktok.com/@${m[1].toLowerCase()}/video/${m[2]}`\n    };\n  }\n\n  throw new Error('SM3_09A2_REFERENCE_ITEM_URL_INVALID:'+raw);\n};\n\nconst allowedTypes=new Set(['REEL','POST','CAROUSEL','STORY','VIDEO']);\nconst allowedSources=new Set(['METRICOOL','MANUAL_URL','DRIVE_UPLOAD','CHATGPT']);\nconst seen=new Set();\nconst out=[];\n\nfor(const r of candidates){\n  const rawUrl=norm(r.URL);\n  const ph=handle(r.PROFILE_HANDLE);\n  const requestedProfileId=norm(r.REFERENCE_PROFILE_ID);\n  const parsed=parseItemUrl(rawUrl);\n\n  let profile=null;\n  if(requestedProfileId){\n    profile=profileById.get(requestedProfileId);\n    if(!profile)throw new Error('SM3_09A2_REFERENCE_PROFILE_ID_NOT_FOUND:'+requestedProfileId);\n  }else if(ph){\n    profile=profileByHandle.get(parsed.network+'|'+ph);\n    if(!profile)throw new Error('SM3_09A2_REFERENCE_PROFILE_HANDLE_NOT_FOUND:'+parsed.network+'|'+ph);\n  }else{\n    throw new Error('SM3_09A2_PROFILE_HANDLE_OR_ID_REQUIRED:'+rawUrl);\n  }\n\n  const pid=norm(profile.REFERENCE_PROFILE_ID);\n  const pnetwork=norm(profile.NETWORK).toLowerCase();\n  const canonicalHandle=handle(profile.HANDLE);\n  if(pnetwork!==parsed.network)\n    throw new Error('SM3_09A2_ITEM_PROFILE_NETWORK_MISMATCH:'+pnetwork+':'+parsed.network+':'+rawUrl);\n\n  const rowType=norm(r.ITEM_TYPE).toUpperCase();\n  const itemType=rowType||parsed.item_type;\n  if(!allowedTypes.has(itemType))throw new Error('SM3_09A2_ITEM_TYPE_INVALID:'+itemType);\n  if(parsed.item_type==='REEL'&&itemType!=='REEL')\n    throw new Error('SM3_09A2_URL_TYPE_MISMATCH:'+itemType+':REEL');\n  if(parsed.item_type==='STORY'&&itemType!=='STORY')\n    throw new Error('SM3_09A2_URL_TYPE_MISMATCH:'+itemType+':STORY');\n  if(parsed.network==='tiktok'&&itemType!=='VIDEO')\n    throw new Error('SM3_09A2_URL_TYPE_MISMATCH:'+itemType+':VIDEO');\n\n  const source=(norm(r.SOURCE)||'MANUAL_URL').toUpperCase();\n  if(!allowedSources.has(source))throw new Error('SM3_09A2_ITEM_SOURCE_INVALID:'+source);\n\n  const dedupe=pid+'|'+parsed.canonical_url;\n  if(seen.has(dedupe))throw new Error('SM3_09A2_DUPLICATE_REFERENCE_ITEM_IN_SHEET:'+dedupe);\n  seen.add(dedupe);\n\n  out.push({json:{\n    route:'SYNC',\n    reference_profile_id:pid,\n    network:pnetwork,\n    item_type:itemType,\n    platform_item_id:norm(r.PLATFORM_ITEM_ID)||parsed.platform_item_id||null,\n    url:parsed.canonical_url,\n    caption:norm(r.CAPTION),\n    published_at:norm(r.PUBLISHED_AT)||null,\n    source,\n    local_media_ref:norm(r.LOCAL_MEDIA_REF)||null,\n    notes:norm(r.NOTES),\n    client_context:{\n      sheet_url:rawUrl,\n      profile_handle:canonicalHandle,\n      canonical_url:parsed.canonical_url\n    }\n  }});\n}\n\nif(!out.length)return [{json:{route:'NO_WORK'}}];\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        490,
+        -120
+      ],
+      "id": "03fafe15-2ee1-438c-9e5a-f93603d23432",
+      "name": "BUILD — REFERENCE ITEM INTAKE QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "SYNC",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5ba3ab4c-9015-41cc-843a-30e6e2d6cedc"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SYNC"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "972b949a-d7f4-4fee-9ee2-9fcc0e5c9661"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        710,
+        -120
+      ],
+      "id": "d5004a74-d6fe-46c4-a59a-ea5aa4c4c2a2",
+      "name": "ROUTE — REFERENCE ITEM QUEUE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/item",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {reference_profile_id:$json.reference_profile_id,network:$json.network,item_type:$json.item_type,platform_item_id:$json.platform_item_id,url:$json.url,caption:$json.caption,published_at:$json.published_at,source:$json.source,local_media_ref:$json.local_media_ref,notes:$json.notes} }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        930,
+        -180
+      ],
+      "id": "f3d7ff78-2dfc-41e0-98c8-809b80bed1be",
+      "name": "WORKER — REGISTER REFERENCE ITEM",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst now=new Date().toISOString();\nconst out=[];\nconst requestItems=$('BUILD — REFERENCE ITEM INTAKE QUEUE').all().filter(i=>i.json.route==='SYNC');\nfor(let idx=0; idx<$input.all().length; idx++){\n  const r=$input.all()[idx].json;\n  const q=requestItems[idx]?.json;\n  if(!q)throw new Error('SM3_09A2_QUEUE_RESPONSE_PAIRING_FAILED:'+idx);\n  if(r.ok!==true||r.contract_version!=='SM3_REFERENCE_ITEM_V1'||\n     !/^RI_[a-f0-9]{32}$/.test(String(r.reference_item_id||''))||\n     !/^[a-f0-9]{64}$/.test(String(r.item_sha256||'')))\n    throw new Error('SM3_09A2_REFERENCE_ITEM_RESULT_INVALID');\n\n  out.push({json:{currentRow:{\n    REFERENCE_ITEM_ID:r.reference_item_id,\n    REFERENCE_PROFILE_ID:r.reference_profile_id,\n    NETWORK:r.network,\n    ITEM_TYPE:r.item_type,\n    PLATFORM_ITEM_ID:r.platform_item_id||'',\n    URL:q.client_context.sheet_url,\n    CAPTION:r.caption||'',\n    PUBLISHED_AT:r.published_at||'',\n    SOURCE:r.source,\n    LOCAL_MEDIA_REF:r.local_media_ref||'',\n    VISUAL_ANALYSIS_STATUS:r.visual_analysis_status,\n    TEMPORAL_ANALYSIS_STATUS:r.temporal_analysis_status,\n    ITEM_SHA256:r.item_sha256,\n    CREATED_AT:r.created_at,\n    UPDATED_AT:r.updated_at||r.created_at,\n    NOTES:r.notes||'',\n    PROFILE_HANDLE:q.client_context.profile_handle,\n    SYNC_STATUS:'SYNCED',\n    SYNC_MESSAGE:(r.reused_existing?'REUSED_EXISTING':'CREATED')+'|CANONICAL_URL='+q.client_context.canonical_url,\n    LAST_SYNC_AT:now\n  }}});\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        -180
+      ],
+      "id": "915eab6b-087e-4127-b6fb-329f0a1f85b3",
+      "name": "BUILD — REFERENCE ITEM SHEET WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000014,
+          "mode": "list",
+          "cachedResultName": "32_REFERENCE_ITEMS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_ITEM_ID": "={{ $json.currentRow.REFERENCE_ITEM_ID }}",
+            "REFERENCE_PROFILE_ID": "={{ $json.currentRow.REFERENCE_PROFILE_ID }}",
+            "NETWORK": "={{ $json.currentRow.NETWORK }}",
+            "ITEM_TYPE": "={{ $json.currentRow.ITEM_TYPE }}",
+            "PLATFORM_ITEM_ID": "={{ $json.currentRow.PLATFORM_ITEM_ID }}",
+            "URL": "={{ $json.currentRow.URL }}",
+            "CAPTION": "={{ $json.currentRow.CAPTION }}",
+            "PUBLISHED_AT": "={{ $json.currentRow.PUBLISHED_AT }}",
+            "SOURCE": "={{ $json.currentRow.SOURCE }}",
+            "LOCAL_MEDIA_REF": "={{ $json.currentRow.LOCAL_MEDIA_REF }}",
+            "VISUAL_ANALYSIS_STATUS": "={{ $json.currentRow.VISUAL_ANALYSIS_STATUS }}",
+            "TEMPORAL_ANALYSIS_STATUS": "={{ $json.currentRow.TEMPORAL_ANALYSIS_STATUS }}",
+            "ITEM_SHA256": "={{ $json.currentRow.ITEM_SHA256 }}",
+            "CREATED_AT": "={{ $json.currentRow.CREATED_AT }}",
+            "UPDATED_AT": "={{ $json.currentRow.UPDATED_AT }}",
+            "NOTES": "={{ $json.currentRow.NOTES }}",
+            "PROFILE_HANDLE": "={{ $json.currentRow.PROFILE_HANDLE }}",
+            "SYNC_STATUS": "={{ $json.currentRow.SYNC_STATUS }}",
+            "SYNC_MESSAGE": "={{ $json.currentRow.SYNC_MESSAGE }}",
+            "LAST_SYNC_AT": "={{ $json.currentRow.LAST_SYNC_AT }}"
+          },
+          "matchingColumns": [
+            "URL"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_ITEM_ID",
+              "displayName": "REFERENCE_ITEM_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ITEM_TYPE",
+              "displayName": "ITEM_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLATFORM_ITEM_ID",
+              "displayName": "PLATFORM_ITEM_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTION",
+              "displayName": "CAPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PUBLISHED_AT",
+              "displayName": "PUBLISHED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SOURCE",
+              "displayName": "SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LOCAL_MEDIA_REF",
+              "displayName": "LOCAL_MEDIA_REF",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISUAL_ANALYSIS_STATUS",
+              "displayName": "VISUAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TEMPORAL_ANALYSIS_STATUS",
+              "displayName": "TEMPORAL_ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ITEM_SHA256",
+              "displayName": "ITEM_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UPDATED_AT",
+              "displayName": "UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROFILE_HANDLE",
+              "displayName": "PROFILE_HANDLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_STATUS",
+              "displayName": "SYNC_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNC_MESSAGE",
+              "displayName": "SYNC_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SYNC_AT",
+              "displayName": "LAST_SYNC_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1370,
+        -180
+      ],
+      "id": "804acf9d-1566-47f9-80dd-060b9afa95a5",
+      "name": "UPDATE — 32 REFERENCE ITEM BY URL",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,sm3_result:'SM3_09A2_REFERENCE_ITEM_INTAKE_COMMITTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1590,
+        -180
+      ],
+      "id": "f55195ea-5a5b-45ae-aea1-1386c80fe48d",
+      "name": "DONE — REFERENCE ITEM SYNCED"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{sm3_result:'SM3_09A2_NO_NEW_REFERENCE_ITEMS',ok:true}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        270,
+        130
+      ],
+      "id": "37074404-79f9-488d-824e-54f532d359ea",
+      "name": "DONE — NO NEW REFERENCE ITEMS"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rows=$input.all().map(i=>i.json);\nconst norm=x=>String(x??'').trim();\nconst pending=[];\n\nfor(const r of rows){\n  const existingId=norm(r.REFERENCE_ITEM_ID);\n  const rawUrl=norm(r.URL);\n  const ph=norm(r.PROFILE_HANDLE);\n  const pid=norm(r.REFERENCE_PROFILE_ID);\n\n  // Empty/preformatted rows are ignored.\n  if(!existingId&&!rawUrl&&!ph&&!pid)continue;\n\n  // Canonical item rows are immutable in 09A.2 and are skipped.\n  if(existingId){\n    if(!/^RI_[a-f0-9]{32}$/.test(existingId))\n      throw new Error('SM3_09A2_REFERENCE_ITEM_ID_INVALID:'+existingId);\n    continue;\n  }\n\n  if(!rawUrl)throw new Error('SM3_09A2_ITEM_URL_REQUIRED');\n  pending.push(r);\n}\n\nreturn [{json:{\n  route:pending.length?'NEED_PROFILE_LOOKUP':'NO_WORK',\n  pending_count:pending.length,\n  candidates:pending\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -190,
+        0
+      ],
+      "id": "f9020a7f-aabf-4c7e-aeee-09c2d43d0d30",
+      "name": "BUILD — REFERENCE ITEM CANDIDATES"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NEED_PROFILE_LOOKUP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a163aa09-ebc7-41cd-ae21-7c7d8593a33c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NEED_PROFILE_LOOKUP"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d42b2440-af55-4206-981b-4057b8a10a7c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        40,
+        0
+      ],
+      "id": "0ebee97c-1fd6-4a9f-98b4-e521a473f854",
+      "name": "ROUTE — REFERENCE ITEM CANDIDATES"
+    }
+  ],
+  "connections": {
+    "MANUAL — SYNC REFERENCE ITEMS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.15.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.15.1": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — REFERENCE ITEM INTAKE CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — REFERENCE ITEM INTAKE CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 32_REFERENCE_ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 32_REFERENCE_ITEMS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — REFERENCE ITEM CANDIDATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — REFERENCE ITEM CANDIDATES": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — REFERENCE ITEM CANDIDATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — REFERENCE ITEM CANDIDATES": {
+      "main": [
+        [
+          {
+            "node": "READ — 31_REFERENCE_PROFILES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DONE — NO NEW REFERENCE ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 31_REFERENCE_PROFILES": {
+      "main": [
+        [
+          {
+            "node": "BUILD — REFERENCE ITEM INTAKE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — REFERENCE ITEM INTAKE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — REFERENCE ITEM QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — REFERENCE ITEM QUEUE": {
+      "main": [
+        [
+          {
+            "node": "WORKER — REGISTER REFERENCE ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DONE — NO NEW REFERENCE ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — REGISTER REFERENCE ITEM": {
+      "main": [
+        [
+          {
+            "node": "BUILD — REFERENCE ITEM SHEET WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — REFERENCE ITEM SHEET WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 32 REFERENCE ITEM BY URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 32 REFERENCE ITEM BY URL": {
+      "main": [
+        [
+          {
+            "node": "DONE — REFERENCE ITEM SYNCED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "7d7d7d98-8e5f-4ff2-aff1-bb0758434037",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

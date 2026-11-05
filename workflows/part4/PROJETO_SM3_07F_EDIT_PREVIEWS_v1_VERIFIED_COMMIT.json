@@ -1,0 +1,796 @@
+{
+  "name": "PROJETO SM3 — 07F — EDIT PREVIEWS — v1 VERIFIED COMMIT",
+  "nodes": [
+    {
+      "name": "MANUAL — RENDER EDIT PREVIEWS",
+      "id": "a914101b-fca3-4329-b129-25a80ab52132",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        -1600,
+        0
+      ],
+      "parameters": {},
+      "typeVersion": 1
+    },
+    {
+      "name": "WORKER — HEALTH 2.6.0",
+      "id": "ef640820-21b6-4d3b-b5f9-ebcbd0d2c6dc",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1400,
+        0
+      ],
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — EDIT PREVIEW CONTRACT",
+      "id": "c284eec6-7026-4fc7-bf5c-af6bc88c553a",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst h=$json;\nif(h.ok!==true||h.version!=='2.6.0'||h.edit_preview_renderer!==true||\n   h.edit_preview_contract!=='SM3_EDIT_PREVIEW_V1'||h.edit_session_save_contract!=='SM3_EDIT_SAVE_V1')\n  throw new Error('SM3_07F_WORKER_CONTRACT_INVALID');\nreturn {json:{status:'WORKER_2_6_0_VERIFIED'}};\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "276ecfa8-5452-4dbc-a9e8-29f7c95fd367",
+      "name": "READ — 04_CONTEUDOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "22c88bd9-9651-4766-ad94-c5102b046752",
+      "name": "READ — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "name": "BUILD — EDIT SOURCE QUEUE",
+      "id": "9c07b501-4856-4a00-a9b9-c8c4bf2ea7c5",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -600,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst contents=$('READ — 04_CONTEUDOS').all().map(i=>i.json), media=$input.all().map(i=>i.json);\nconst norm=x=>String(x??'').trim(), up=x=>norm(x).toUpperCase();\nconst counts=new Map(), mediaCounts=new Map();\nfor(const c of contents){const k=norm(c.ID_CONTEÚDO);if(k)counts.set(k,(counts.get(k)||0)+1)}\nfor(const m of media){const k=norm(m.ID_MIDIA);if(k)mediaCounts.set(k,(mediaCounts.get(k)||0)+1)}\nconst chosen=contents.filter(c=>up(c.EDIT_SESSION_STATUS)==='SAVED'&&up(c.REVISION_MODE)==='MANUAL_EDIT'\n    &&up(c.PIPELINE_STATE)==='EDIT_SESSION_READY');\nif(!chosen.length)return [{json:{route:'NO_WORK',status:'NO_SAVED_MANUAL_EDITS'}}];\nconst queue=new Map();\nfor(const c of chosen){\n  const content=norm(c.ID_CONTEÚDO),project=norm(c.ID_PROJETO),session=norm(c.EDIT_SESSION_ID);\n  if(counts.get(content)!==1||!/^TATTOO_[A-Za-z0-9_-]+$/.test(project)||\n     !/^ES_[A-Za-z0-9_-]+$/.test(session)||up(c.STATE_VERSION)!=='SM3_STATE_V5'||\n     norm(c.EDIT_RECIPE_VERSION)!=='SM3_EDIT_RECIPE_V1'||\n     norm(c.PRODUCTION_CONTRACT_VERSION)!=='SM3_PRODUCTION_EDIT_V1')\n     throw new Error('SM3_07F_SHEET_CONTROL_INVALID:'+content);\n  const ids=[...new Set(norm(c.BRUTOS_USADOS).match(/M\\d{4,}/g)||[])];\n  if(!ids.length)throw new Error('SM3_07F_MEDIA_IDS_MISSING:'+content);\n  for(const id of ids){\n    if(mediaCounts.get(id)!==1)throw new Error('SM3_07F_MEDIA_REGISTRY_NOT_UNIQUE:'+id);\n    const m=media.find(x=>norm(x.ID_MIDIA)===id);\n    if(!norm(m.DRIVE_FILE_ID))throw new Error('SM3_07F_DRIVE_ID_MISSING:'+id);\n    const safe=norm(m.ARQUIVO||id+'.bin').replace(/[^A-Za-z0-9._-]+/g,'_').slice(-100);\n    const tipo=norm(m.TIPO).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();\n    const mime=norm(m.MIME_TYPE).toLowerCase(),ext=(safe.toLowerCase().match(/\\.([a-z0-9]+)$/)||[])[1];\n    const video=['mp4','mov','m4v','avi','mkv','webm','3gp','mts','mpeg','mpg','wmv','flv','ts'].includes(ext);\n    const image=['jpg','jpeg','png','webp','bmp','tif','tiff','heic','heif','avif','gif'].includes(ext);\n    if(!(video||image||mime.startsWith('video/')||mime.startsWith('image/')))\n       throw new Error('SM3_07F_MEDIA_TYPE_UNSUPPORTED:'+id);\n    const kind=(video||mime.startsWith('video/')||tipo==='VIDEO')?'video':'image';\n    const path='/data/media/inbox/edit_'+id+'_'+safe;\n    if(!queue.has(id))queue.set(id,{route:'DOWNLOAD',ID_MIDIA:id,DRIVE_FILE_ID:norm(m.DRIVE_FILE_ID),\n                                      ARQUIVO:norm(m.ARQUIVO||safe),kind,worker_source_path:path});\n  }\n}\nreturn [...queue.values()].map(json=>({json}));\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "ROUTE — SOURCE QUEUE",
+      "id": "4511b027-9150-45d2-9304-f6ea54bee4e5",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -400,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DOWNLOAD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "be942650-773a-4a0c-b230-594b60370f22"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DOWNLOAD"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a1181d11-d124-4baa-b52b-868311b54e5f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "name": "DOWNLOAD — ORIGINAL MEDIA",
+      "id": "0ef9bb53-afe5-4de6-81ae-b2d848969a6d",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        -200,
+        -160
+      ],
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "WRITE — ORIGINAL MEDIA TEMP",
+      "id": "5e33d3bb-2c3c-43f1-8a19-a7aab8896838",
+      "type": "n8n-nodes-base.readWriteFile",
+      "position": [
+        0,
+        -160
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "typeVersion": 1.1,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "BUILD — EDIT PREVIEW JOBS",
+      "id": "566b83dd-d978-4622-b128-163bce5527af",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        200,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst written=$input.all().map(i=>i.json),contents=$('READ — 04_CONTEUDOS').all().map(i=>i.json),\n  map=new Map(written.map(x=>[String(x.ID_MIDIA),x]));\nconst chosen=contents.filter(c=>String(c.EDIT_SESSION_STATUS||'').trim().toUpperCase()==='SAVED'\n  &&String(c.REVISION_MODE||'').trim().toUpperCase()==='MANUAL_EDIT'\n  &&String(c.PIPELINE_STATE||'').trim().toUpperCase()==='EDIT_SESSION_READY');\nreturn chosen.map(c=>{\n  const ids=[...new Set(String(c.BRUTOS_USADOS||'').match(/M\\d{4,}/g)||[])];\n  const sources=ids.map(id=>map.get(id));\n  if(!ids.length||sources.some(x=>!x))throw new Error('SM3_07F_SOURCE_WRITE_INCOMPLETE:'+c.ID_CONTEÚDO);\n  return {json:{project_id:String(c.ID_PROJETO),content_id:String(c.ID_CONTEÚDO),\n    edit_session_id:String(c.EDIT_SESSION_ID),sheet_render_status:String(c.RENDER_STATUS||'').trim(),\n    source_media:sources.map(x=>({media_id:x.ID_MIDIA,kind:x.kind,source_path:x.worker_source_path,file_name:x.ARQUIVO}))}};\n});\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "WORKER — GET SAVED WORKSPACE",
+      "id": "a99f2b3e-d6e1-47e8-be67-d5165d53f0d0",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        400,
+        -160
+      ],
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/editor-workspace/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — REVISION AND SOURCES",
+      "id": "85094dc0-e40a-4858-afe2-ea7cdc36e4ac",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        600,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst w=$json, job=$('BUILD — EDIT PREVIEW JOBS').all().map(i=>i.json).find(x=>x.edit_session_id===w.edit_session_id);\nif(!job||w.ok!==true||w.status!=='SAVED'||w.current_revision<2||w.read_only!==false||\n   w.workspace_contract_version!=='SM3_EDITOR_WORKSPACE_V1'||\n   !/^[a-f0-9]{64}$/.test(String(w.state_etag||''))||w.project_id!==job.project_id||\n   w.content_id!==job.content_id||w.preview?.verified!==true)\n   throw new Error('SM3_07F_WORKSPACE_REVISION_INVALID:'+String(w.edit_session_id));\nconst required=new Set([...(w.recipe?.media_order||[]),...(w.recipe?.timeline||[]).map(x=>x.media_id)]);\nconst sources=job.source_media.filter(x=>required.has(x.media_id));\nif(!required.size||required.size!==sources.length||new Set(sources.map(x=>x.media_id)).size!==required.size)\n   throw new Error('SM3_07F_RECIPE_SOURCE_MISMATCH:'+w.content_id);\nreturn {json:{...job,source_media:sources,expected_revision:w.current_revision,expected_state_etag:w.state_etag,fps:24,max_seconds:12}};\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "WORKER — RENDER SAVED REVISION",
+      "id": "50d73251-db44-4ace-b5a4-0bccf64a7f1f",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        800,
+        -160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/edit-session/render-preview",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,content_id:$json.content_id,edit_session_id:$json.edit_session_id,expected_revision:$json.expected_revision,expected_state_etag:$json.expected_state_etag,source_media:$json.source_media,fps:$json.fps,max_seconds:$json.max_seconds} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "name": "ASSERT — RENDER RESULT",
+      "id": "e91737f5-f58b-487f-8083-64146000e230",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1000,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst m=$json, job=$('ASSERT — REVISION AND SOURCES').all().map(i=>i.json).find(x=>x.edit_session_id===m.edit_session_id);\nif(!job||m.ok!==true||m.contract_version!=='SM3_EDIT_PREVIEW_V1'||m.project_id!==job.project_id||\n  m.content_id!==job.content_id||m.revision!==job.expected_revision||\n  m.state_etag!==job.expected_state_etag||m.preview_bytes<100||\n  !/^[a-f0-9]{64}$/.test(String(m.preview_sha256||''))||m.final_render!==false)\n  throw new Error('SM3_07F_RENDER_RESULT_INVALID:'+String(m.edit_session_id));\nreturn {json:{project_id:m.project_id,content_id:m.content_id,edit_session_id:m.edit_session_id,\n  revision:m.revision,etag:m.state_etag,preview_sha256:m.preview_sha256,\n  sheet_render_status:job.sheet_render_status,reused_existing:m.reused_existing===true}};\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "WORKER — VERIFY PERSISTED PREVIEW",
+      "id": "b9c87129-b82a-49ff-bec5-b1676e6e2d4c",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1200,
+        -160
+      ],
+      "parameters": {
+        "url": "={{ 'http://media-worker:8090/production/edit-session/preview/' + encodeURIComponent($json.project_id) + '/' + encodeURIComponent($json.content_id) + '/' + encodeURIComponent($json.edit_session_id) + '/' + $json.revision }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "name": "ASSERT — PREVIEW COMMITTED",
+      "id": "cc04730c-8252-4a8f-aa74-e5034b562fc7",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1400,
+        -160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst v=$json, original=$('ASSERT — RENDER RESULT').all().map(i=>i.json).find(x=>x.edit_session_id===v.edit_session_id);\nif(!original||v.ok!==true||v.contract_version!=='SM3_EDIT_PREVIEW_V1'||\n   v.preview_sha256!==original.preview_sha256||v.state_etag!==original.etag||\n   v.revision!==original.revision||v.content_id!==original.content_id||\n   !String(v.asset_url||'').endsWith('/asset'))\n   throw new Error('SM3_07F_PERSISTENCE_MISMATCH:'+String(v.edit_session_id));\nreturn {json:{route:original.sheet_render_status==='EDIT_PREVIEW_READY'?'NO_WRITE':'WRITE',\n  ID_CONTEÚDO:v.content_id,edit_session_id:v.edit_session_id,revision:v.revision,\n  preview_sha256:v.preview_sha256,RENDER_STATUS:'EDIT_PREVIEW_READY',\n  STATE_UPDATED_AT:new Date().toISOString(),asset_url:'http://localhost:8090'+v.asset_url,\n  reused_existing:original.reused_existing}};\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "ROUTE — SHEET COMMIT",
+      "id": "8d65d625-1b01-46ee-baa1-96e0f70e6143",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1600,
+        -160
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "WRITE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bee1d3a1-a424-4e07-ad1b-74e05fefe5ea"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WRITE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_WRITE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "34cfd193-7a50-46ff-a5d8-a7e18b0c81ac"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WRITE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "RENDER_STATUS": "={{ $json.RENDER_STATUS }}",
+            "STATE_UPDATED_AT": "={{ $json.STATE_UPDATED_AT }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_UPDATED_AT",
+              "displayName": "STATE_UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1800,
+        -300
+      ],
+      "id": "588a39b3-a84f-467c-a15c-ee8679d86ef2",
+      "name": "UPDATE — EDIT PREVIEW READY",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2000,
+        -300
+      ],
+      "id": "c80e3ea7-7978-4030-88e9-6c1f2a231c1e",
+      "name": "VERIFY READ — 04_CONTEUDOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "name": "ASSERT — SHEET COMMITTED",
+      "id": "f2f7985d-2578-423e-9c6a-2d32be5aa9b0",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2200,
+        -300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst rows=$input.all().map(i=>i.json),items=$('ASSERT — PREVIEW COMMITTED').all().map(i=>i.json).filter(x=>x.route==='WRITE');\nfor(const item of items){const matches=rows.filter(r=>String(r.ID_CONTEÚDO||'')===item.ID_CONTEÚDO);\n if(matches.length!==1||matches[0].RENDER_STATUS!=='EDIT_PREVIEW_READY'||\n    matches[0].EDIT_SESSION_STATUS!=='SAVED'||matches[0].REVISION_MODE!=='MANUAL_EDIT'||\n    !String(matches[0].STATE_UPDATED_AT||''))\n    throw new Error('SM3_07F_SHEET_PERSISTENCE_FAILED:'+item.ID_CONTEÚDO);\n}\nreturn [{json:{status:'SM3_07F_EDIT_PREVIEW_VERIFIED_COMMIT',committed_count:items.length,\n  previews:items.map(x=>({content_id:x.ID_CONTEÚDO,revision:x.revision,preview_sha256:x.preview_sha256,asset_url:x.asset_url}))}}];\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "AUDIT — PREVIEW ALREADY COMMITTED",
+      "id": "d683b6b0-7105-4432-9265-e6f43559b328",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1800,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nreturn $input.all().map(i=>({json:{status:'SM3_07F_ALREADY_COMMITTED',content_id:i.json.ID_CONTEÚDO,\n revision:i.json.revision,preview_sha256:i.json.preview_sha256,asset_url:i.json.asset_url}}));\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "name": "AUDIT — NO SAVED REVISIONS",
+      "id": "207f37e0-fc1a-429f-953f-e2e7bb5f5682",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -200,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nreturn [{json:{status:'NO_SAVED_MANUAL_EDITS'}}];\n"
+      },
+      "typeVersion": 2
+    }
+  ],
+  "connections": {
+    "MANUAL — RENDER EDIT PREVIEWS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH 2.6.0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH 2.6.0": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — EDIT PREVIEW CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — EDIT PREVIEW CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 04_CONTEUDOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 04_CONTEUDOS": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — EDIT SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — EDIT SOURCE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SOURCE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — ORIGINAL MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO SAVED REVISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — ORIGINAL MEDIA": {
+      "main": [
+        [
+          {
+            "node": "WRITE — ORIGINAL MEDIA TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — ORIGINAL MEDIA TEMP": {
+      "main": [
+        [
+          {
+            "node": "BUILD — EDIT PREVIEW JOBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — EDIT PREVIEW JOBS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — GET SAVED WORKSPACE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — GET SAVED WORKSPACE": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — REVISION AND SOURCES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — REVISION AND SOURCES": {
+      "main": [
+        [
+          {
+            "node": "WORKER — RENDER SAVED REVISION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — RENDER SAVED REVISION": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — RENDER RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — RENDER RESULT": {
+      "main": [
+        [
+          {
+            "node": "WORKER — VERIFY PERSISTED PREVIEW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — VERIFY PERSISTED PREVIEW": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — PREVIEW COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — PREVIEW COMMITTED": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SHEET COMMIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SHEET COMMIT": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — EDIT PREVIEW READY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — PREVIEW ALREADY COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — EDIT PREVIEW READY": {
+      "main": [
+        [
+          {
+            "node": "VERIFY READ — 04_CONTEUDOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VERIFY READ — 04_CONTEUDOS": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — SHEET COMMITTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "7b5be722-81d7-4db5-a71c-46cff075363a",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,681 @@
+{
+  "name": "PROJETO SM3 — 09C.1 — META REFERENCE COLLECTOR — v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1320,
+        0
+      ],
+      "id": "7457301b-9a5a-4b9d-a862-3923b807a2a1",
+      "name": "MANUAL — META COLLECT REFERENCES"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "25 8 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1320,
+        140
+      ],
+      "id": "7a552232-1925-40a6-835d-eb73bddab31e",
+      "name": "DAILY — META COLLECT 08:25"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1120,
+        70
+      ],
+      "id": "93123317-ce54-459f-accf-aa19e1634317",
+      "name": "WORKER — HEALTH PROVIDER ROUTER"
+    },
+    {
+      "parameters": {
+        "jsCode": "const h=$json;if(h.reference_provider_router!==true||h.reference_observation_contract!=='SM3_REFERENCE_OBSERVATION_V1')throw new Error('SM3_09C1_WORKER_CONTRACT_INVALID');return [{json:{ok:true}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        70
+      ],
+      "id": "d341bc4d-d0ff-4601-af24-1125d15f0c11",
+      "name": "ASSERT — PROVIDER ROUTER CONTRACT"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -720,
+        70
+      ],
+      "id": "0616d9fb-b288-4fa2-bcbb-63b6327ab792",
+      "name": "READ — 31 META PROFILES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{api_version:'v26.0',ig_user_id:'PASTE_IG_USER_ID_HERE',lookback_days:30,note:'Set ig_user_id once. Configure Header Auth credential on META GRAPH node with Authorization: Bearer <PAGE_ACCESS_TOKEN>. Do not put tokens in Sheets.'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        70
+      ],
+      "id": "03333f32-5ff4-469c-b8d4-0710ae59308a",
+      "name": "CONFIG — META GRAPH (EDIT ONCE)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$('READ — 31 META PROFILES').all().map(i=>i.json);const cfg=$json;const norm=x=>String(x??'').trim();const b=x=>typeof x==='boolean'?x:['TRUE','1','YES','SIM'].includes(norm(x).toUpperCase());const out=[];for(const r of rows){const id=norm(r.REFERENCE_PROFILE_ID),h=norm(r.HANDLE).replace(/^@/,'').toLowerCase();if(!id||!h||norm(r.NETWORK).toLowerCase()!=='instagram')continue;if(!b(r.AUTO_HARVEST))continue;const mode=norm(r.PROVIDER_MODE)||'AUTO';if(mode==='FORCE_SCRAPER'||mode==='MANUAL')continue;out.push({json:{reference_profile_id:id,handle:h,api_version:cfg.api_version,ig_user_id:cfg.ig_user_id,promote_percentile:Number(r.HARVEST_PROMOTE_PERCENTILE||85),max_items_per_run:Number(r.HARVEST_MAX_ITEMS_PER_RUN||5),active:b(r.ACTIVE),human_priority:Number(r.HUMAN_PRIORITY||50)}});}if(!out.length)return [{json:{route:'NO_WORK'}}];return out.map(x=>({json:{route:'META',...x.json}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        70
+      ],
+      "id": "f1add7d1-6388-4951-a51d-3cbd79e0c71a",
+      "name": "BUILD — META BUSINESS DISCOVERY QUEUE"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://graph.facebook.com/' + $json.api_version + '/' + $json.ig_user_id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "={{ 'business_discovery.username(' + $json.handle + '){id,username,name,followers_count,media_count,media.limit(50){id,caption,comments_count,like_count,media_type,media_product_type,permalink,timestamp}}' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -60,
+        0
+      ],
+      "id": "d0462218-36dc-4ef2-9461-471b48f1bd81",
+      "name": "META GRAPH — BUSINESS DISCOVERY",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const src=$json.business_discovery;if(!src)throw new Error('SM3_09C1_META_BUSINESS_DISCOVERY_EMPTY');const q=$('BUILD — META BUSINESS DISCOVERY QUEUE').item.json;const fetched=new Date().toISOString();const obs=[{reference_profile_id:q.reference_profile_id,network:'instagram',handle:q.handle,content_type:'PROFILE',platform_item_id:null,url:'https://www.instagram.com/'+q.handle+'/',provider:'META_GRAPH',fetched_at:fetched,followers:src.followers_count??null,media_count:src.media_count??null,raw:{id:src.id,username:src.username,name:src.name},notes:'META_BUSINESS_DISCOVERY_PROFILE'}];for(const m of (src.media?.data||[])){const isReel=String(m.media_product_type||'').toUpperCase()==='REELS'||String(m.media_type||'').toUpperCase()==='VIDEO';if(!isReel)continue;obs.push({reference_profile_id:q.reference_profile_id,network:'instagram',handle:q.handle,content_type:'REEL',platform_item_id:String(m.id||''),url:String(m.permalink||''),provider:'META_GRAPH',fetched_at:fetched,published_at:m.timestamp||null,likes:m.like_count??null,comments:m.comments_count??null,interactions:(m.like_count??0)+(m.comments_count??0),raw:{caption:m.caption||'',media_type:m.media_type,media_product_type:m.media_product_type},notes:'META_BUSINESS_DISCOVERY_REEL'});}return [{json:{observations:obs,harvest_after_ingest:true,promotion_enabled:true,source_window_from:new Date(Date.now()-30*86400000).toISOString().slice(0,10),source_window_to:new Date().toISOString().slice(0,10),profile_policies:[{reference_profile_id:q.reference_profile_id,network:'instagram',handle:q.handle,auto_harvest:true,promote_percentile:q.promote_percentile,max_items_per_run:q.max_items_per_run,active:q.active,human_priority:q.human_priority}],notes:'09C1_META_PRIMARY'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        0
+      ],
+      "id": "a1ef0fd0-4811-4160-80d9-f35d3653df94",
+      "name": "NORMALIZE — META TO OBSERVATIONS"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/observations",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        420,
+        0
+      ],
+      "id": "99327687-0de9-4cee-9920-02bf1825f5d6",
+      "name": "WORKER — INGEST META OBSERVATIONS",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst r=$json;\nconst out=[];\nfor(const o of (r.observations||[])){\n  out.push({json:{target:'OBS',row:{\n    OBSERVATION_ID:o.observation_id,REFERENCE_PROFILE_ID:o.reference_profile_id,NETWORK:o.network,HANDLE:o.handle,\n    CONTENT_TYPE:o.content_type,PLATFORM_ITEM_ID:o.platform_item_id||'',URL:o.url,PROVIDER:o.provider,FETCHED_AT:o.fetched_at,\n    PUBLISHED_AT:o.published_at||'',LIKES:o.likes,COMMENTS:o.comments,VIEWS:o.views,INTERACTIONS:o.interactions,ENGAGEMENT:o.engagement,\n    FOLLOWERS:o.followers,MEDIA_COUNT:o.media_count,RAW_SHA256:o.raw_sha256,OBSERVATION_SHA256:o.observation_sha256,\n    CONFIDENCE:'',STATUS:'RAW',CORROBORATING_PROVIDERS:'',CONFLICT_FIELDS:'',HARVEST_RUN_ID:r.harvest?.run?.harvest_run_id||'',NOTES:o.notes||''\n  }}});\n}\nfor(const c of (r.consensus||[])){\n  out.push({json:{target:'OBS',row:{\n    OBSERVATION_ID:c.observation_id,REFERENCE_PROFILE_ID:c.reference_profile_id,NETWORK:c.network,HANDLE:c.handle,\n    CONTENT_TYPE:c.content_type,PLATFORM_ITEM_ID:c.platform_item_id||'',URL:c.url,PROVIDER:c.selected_provider||c.provider,FETCHED_AT:c.fetched_at,\n    PUBLISHED_AT:c.published_at||'',LIKES:c.likes,COMMENTS:c.comments,VIEWS:c.views,INTERACTIONS:c.interactions,ENGAGEMENT:c.engagement,\n    FOLLOWERS:c.followers,MEDIA_COUNT:c.media_count,RAW_SHA256:c.raw_sha256,OBSERVATION_SHA256:c.observation_sha256,\n    CONFIDENCE:c.confidence,STATUS:c.status,CORROBORATING_PROVIDERS:(c.corroborating_providers||[]).join(','),\n    CONFLICT_FIELDS:(c.conflict_fields||[]).join(','),HARVEST_RUN_ID:r.harvest?.run?.harvest_run_id||'',NOTES:'CONSENSUS_VIEW'\n  }}});\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "99c1ab3c-4960-4668-8f5d-7c2d1435489a",
+      "name": "BUILD — META OBSERVATION MIRROR"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000022,
+          "mode": "list",
+          "cachedResultName": "40_REFERENCE_OBSERVATIONS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "OBSERVATION_ID": "={ $json.row.OBSERVATION_ID }",
+            "REFERENCE_PROFILE_ID": "={ $json.row.REFERENCE_PROFILE_ID }",
+            "NETWORK": "={ $json.row.NETWORK }",
+            "HANDLE": "={ $json.row.HANDLE }",
+            "CONTENT_TYPE": "={ $json.row.CONTENT_TYPE }",
+            "PLATFORM_ITEM_ID": "={ $json.row.PLATFORM_ITEM_ID }",
+            "URL": "={ $json.row.URL }",
+            "PROVIDER": "={ $json.row.PROVIDER }",
+            "FETCHED_AT": "={ $json.row.FETCHED_AT }",
+            "PUBLISHED_AT": "={ $json.row.PUBLISHED_AT }",
+            "LIKES": "={ $json.row.LIKES }",
+            "COMMENTS": "={ $json.row.COMMENTS }",
+            "VIEWS": "={ $json.row.VIEWS }",
+            "INTERACTIONS": "={ $json.row.INTERACTIONS }",
+            "ENGAGEMENT": "={ $json.row.ENGAGEMENT }",
+            "FOLLOWERS": "={ $json.row.FOLLOWERS }",
+            "MEDIA_COUNT": "={ $json.row.MEDIA_COUNT }",
+            "RAW_SHA256": "={ $json.row.RAW_SHA256 }",
+            "OBSERVATION_SHA256": "={ $json.row.OBSERVATION_SHA256 }",
+            "CONFIDENCE": "={ $json.row.CONFIDENCE }",
+            "STATUS": "={ $json.row.STATUS }",
+            "CORROBORATING_PROVIDERS": "={ $json.row.CORROBORATING_PROVIDERS }",
+            "CONFLICT_FIELDS": "={ $json.row.CONFLICT_FIELDS }",
+            "HARVEST_RUN_ID": "={ $json.row.HARVEST_RUN_ID }",
+            "NOTES": "={ $json.row.NOTES }"
+          },
+          "matchingColumns": [
+            "OBSERVATION_ID"
+          ],
+          "schema": [
+            {
+              "id": "OBSERVATION_ID",
+              "displayName": "OBSERVATION_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HANDLE",
+              "displayName": "HANDLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_TYPE",
+              "displayName": "CONTENT_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLATFORM_ITEM_ID",
+              "displayName": "PLATFORM_ITEM_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER",
+              "displayName": "PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FETCHED_AT",
+              "displayName": "FETCHED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PUBLISHED_AT",
+              "displayName": "PUBLISHED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LIKES",
+              "displayName": "LIKES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMMENTS",
+              "displayName": "COMMENTS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEWS",
+              "displayName": "VIEWS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INTERACTIONS",
+              "displayName": "INTERACTIONS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENGAGEMENT",
+              "displayName": "ENGAGEMENT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOLLOWERS",
+              "displayName": "FOLLOWERS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MEDIA_COUNT",
+              "displayName": "MEDIA_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RAW_SHA256",
+              "displayName": "RAW_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVATION_SHA256",
+              "displayName": "OBSERVATION_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONFIDENCE",
+              "displayName": "CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CORROBORATING_PROVIDERS",
+              "displayName": "CORROBORATING_PROVIDERS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONFLICT_FIELDS",
+              "displayName": "CONFLICT_FIELDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HARVEST_RUN_ID",
+              "displayName": "HARVEST_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        900,
+        0
+      ],
+      "id": "883fc3ab-a61f-4e6f-874e-62f1fe2d3f0e",
+      "name": "UPSERT — 40 META OBSERVATIONS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,sm3_result:'SM3_09C1_META_COLLECTION_COMMITTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        0
+      ],
+      "id": "991072d1-b36d-4951-8cd3-8aebea307411",
+      "name": "DONE — META COLLECTION"
+    },
+    {
+      "parameters": {
+        "content": "## Configuração única — Meta Graph\n1. Crie/obtenha um **Page Access Token** para a Página ligada ao Instagram profissional.\n2. No node **META GRAPH — BUSINESS DISCOVERY**, configure credencial Header Auth: `Authorization: Bearer <PAGE_ACCESS_TOKEN>`.\n3. No node **CONFIG — META GRAPH**, preencha apenas `ig_user_id`.\n4. API version fixada em `v26.0` (atual em 2026-09).\n\nNão salve tokens na planilha.",
+        "height": 300,
+        "width": 500
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        -420
+      ],
+      "id": "2d304752-4a10-4b0f-8804-1e9ef2394045",
+      "name": "SETUP — META GRAPH"
+    }
+  ],
+  "connections": {
+    "MANUAL — META COLLECT REFERENCES": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH PROVIDER ROUTER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DAILY — META COLLECT 08:25": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HEALTH PROVIDER ROUTER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HEALTH PROVIDER ROUTER": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — PROVIDER ROUTER CONTRACT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASSERT — PROVIDER ROUTER CONTRACT": {
+      "main": [
+        [
+          {
+            "node": "READ — 31 META PROFILES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 31 META PROFILES": {
+      "main": [
+        [
+          {
+            "node": "CONFIG — META GRAPH (EDIT ONCE)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG — META GRAPH (EDIT ONCE)": {
+      "main": [
+        [
+          {
+            "node": "BUILD — META BUSINESS DISCOVERY QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — META BUSINESS DISCOVERY QUEUE": {
+      "main": [
+        [
+          {
+            "node": "META GRAPH — BUSINESS DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "META GRAPH — BUSINESS DISCOVERY": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE — META TO OBSERVATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — META TO OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — INGEST META OBSERVATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — INGEST META OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — META OBSERVATION MIRROR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — META OBSERVATION MIRROR": {
+      "main": [
+        [
+          {
+            "node": "UPSERT — 40 META OBSERVATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 40 META OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "DONE — META COLLECTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "active": false,
+  "versionId": "f2126911-33a1-4bca-b1b8-44dbc127a229",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

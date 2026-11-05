@@ -1,0 +1,868 @@
+{
+  "name": "PROJETO SM3 — 02C — METADATA BACKFILL — v1 PRODUCTION READY",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d189b8b-be52-444b-9bd5-a674d5318d24",
+      "name": "MANUAL — METADATA BACKFILL"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        -160
+      ],
+      "id": "3d011ece-40a8-4cfb-abe3-71045d954d5a",
+      "name": "READ — 03_MIDIAS QUEUE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Projeto SM3 — metadata backfill for CURRENT production-ready media.\n// No AI call. Uses media-worker deterministic process-path only.\n\nconst mediaRows = $input.all().map(i => i.json);\nconst contentRows = $('READ — PRODUCTION READY CONTENT').all().map(i => i.json);\n\nconst targetIds = new Set();\n\nfor (const c of contentRows) {\n  const productionReady =\n    String(c.ROUTING_TARGET || '').trim().toUpperCase() === 'PRODUCTION' &&\n    String(c.PRODUCTION_STATUS || '').trim().toUpperCase() === 'READY' &&\n    (\n      String(c.EDITORIAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO' ||\n      String(c.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase() === 'APROVADO'\n    );\n\n  if (!productionReady) continue;\n\n  const ids = String(c.BRUTOS_USADOS || '').match(/M\\d{4}/g) || [];\n  for (const id of ids) targetIds.add(id);\n}\n\nconst eligible = mediaRows.filter(r => {\n  const id = String(r.ID_MIDIA || '').trim();\n  if (!targetIds.has(id)) return false;\n  if (String(r.STORAGE_STATUS || '').trim().toUpperCase() !== 'ONLINE') return false;\n\n  const missing =\n    !String(r.CONTENT_HASH || '').trim() ||\n    !String(r.MIME_TYPE || '').trim() ||\n    !String(r.TECHNICAL_METADATA_JSON || '').trim();\n\n  return missing;\n});\n\nif (eligible.length === 0) {\n  return [{\n    json:{\n      queue_empty:true,\n      analysis_route:'NO_WORK',\n      target_media_ids:[...targetIds],\n      queued_at:new Date().toISOString()\n    }\n  }];\n}\n\nreturn eligible.map(r => {\n  const type = String(r.TIPO || '').trim().toUpperCase();\n  const route =\n    type === 'FOTO' ? 'IMAGE_ORIGINAL' :\n    type === 'VÍDEO' || type === 'VIDEO' ? 'VIDEO_PROXY' :\n    'UNSUPPORTED';\n\n  return {\n    json:{\n      ...r,\n      queue_empty:false,\n      analysis_route:route,\n      metadata_backfill:true,\n      queued_at:new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "4136e57a-f5ba-4084-bcb9-f12d11ad934e",
+      "name": "BUILD — METADATA BACKFILL QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "IMAGE_ORIGINAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a89483cb-610c-48fc-a91e-2021f0755ca2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE_ORIGINAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "VIDEO_PROXY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b7f6f5d-e9a5-4984-bdad-100ac5001a67"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VIDEO_PROXY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "UNSUPPORTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e031c51f-3c4b-4cf3-9be2-bbddf13c8096"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNSUPPORTED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5ae2ecb7-4db7-4746-9f34-a26d80bff1c7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        80
+      ],
+      "id": "85fcb316-40cc-4eb5-b204-5a03fe6a0960",
+      "name": "ROUTE — ANALYSIS INPUT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json, next_action:'SKIP_UNSUPPORTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "aac306f4-122e-4450-9fb8-6854efc67568",
+      "name": "UNSUPPORTED — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'jpg').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'image',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "b13d63c6-cfcc-4372-b1c6-bb9792e49c3f",
+      "name": "PREPARE — IMAGE WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        -40
+      ],
+      "id": "211b4648-5c50-41cb-be38-388484c6b566",
+      "name": "DOWNLOAD — IMAGE ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ],
+      "id": "89ded77d-2f7a-45d9-b67c-bfe6041431c3",
+      "name": "WRITE — IMAGE TEMP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'image',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -40
+      ],
+      "id": "8f4b55c3-2902-4a6e-939a-17ebaf87d635",
+      "name": "WORKER — PROCESS IMAGE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'mp4').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'video',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        120
+      ],
+      "id": "5a1eb337-e763-4850-92c9-33df4f0a778e",
+      "name": "PREPARE — VIDEO WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "aa33612a-3920-4667-889f-c8e10eb3ccfb",
+      "name": "DOWNLOAD — VIDEO ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        120
+      ],
+      "id": "790c2d01-4863-4fab-b7ed-bf880b50e3ef",
+      "name": "WRITE — VIDEO TEMP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'video',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        120
+      ],
+      "id": "4abc5dbb-c381-4c18-8b97-fa830c858fd9",
+      "name": "WORKER — PROCESS VIDEO"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_WORK',message:'Nenhuma mídia QUEUED + ONLINE pendente de análise.',completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        320
+      ],
+      "id": "d8e803d6-8353-4b05-9e81-2c3bbcdf388c",
+      "name": "NO WORK — COMPLETE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        -160
+      ],
+      "id": "9d6aa728-f8e6-4320-a2b9-576df0d1955f",
+      "name": "READ — PRODUCTION READY CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(w => {\n  const m = w.metadata || {};\n  if (!w.media_id) throw new Error('METADATA_BACKFILL_BLOCK: missing media_id');\n  if (!w.content_hash && !m.sha256) throw new Error(`METADATA_BACKFILL_BLOCK: missing hash for ${w.media_id}`);\n\n  return {json:{\n    ID_MIDIA:w.media_id,\n    DATA_CAPTURA:String(m.captured_at || ''),\n    MIME_TYPE:String(m.mime_type || ''),\n    FILE_SIZE_BYTES:Number(m.bytes || 0) || '',\n    CONTENT_HASH:String(w.content_hash || m.sha256 || ''),\n    CAPTURED_AT_SOURCE:String(m.captured_at_source || ''),\n    TECHNICAL_METADATA_JSON:JSON.stringify(m || {}),\n    PROXY_STATUS:'LOCAL_READY'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2570,
+        -40
+      ],
+      "id": "bd36e7e3-0666-4052-a69f-6db7967b460d",
+      "name": "BUILD — IMAGE METADATA WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2830,
+        -40
+      ],
+      "id": "dc802470-55ef-4bdf-8d76-03627d977853",
+      "name": "UPDATE — IMAGE METADATA",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nreturn items.map(w => {\n  const m = w.metadata || {};\n  if (!w.media_id) throw new Error('METADATA_BACKFILL_BLOCK: missing media_id');\n  if (!w.content_hash && !m.sha256) throw new Error(`METADATA_BACKFILL_BLOCK: missing hash for ${w.media_id}`);\n\n  return {json:{\n    ID_MIDIA:w.media_id,\n    DATA_CAPTURA:String(m.captured_at || ''),\n    MIME_TYPE:String(m.mime_type || ''),\n    FILE_SIZE_BYTES:Number(m.bytes || 0) || '',\n    CONTENT_HASH:String(w.content_hash || m.sha256 || ''),\n    CAPTURED_AT_SOURCE:String(m.captured_at_source || ''),\n    TECHNICAL_METADATA_JSON:JSON.stringify(m || {}),\n    PROXY_STATUS:'LOCAL_READY'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2570,
+        120
+      ],
+      "id": "070b2b48-b44d-4501-ac50-c39a99a46b7a",
+      "name": "BUILD — VIDEO METADATA WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2830,
+        120
+      ],
+      "id": "40480b4b-61a8-43be-a84e-4d9b60627fea",
+      "name": "UPDATE — VIDEO METADATA",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "MANUAL — METADATA BACKFILL": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION READY CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION READY CONTENT": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS QUEUE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — METADATA BACKFILL QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — METADATA BACKFILL QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — ANALYSIS INPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ANALYSIS INPUT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — IMAGE WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — VIDEO WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UNSUPPORTED — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — IMAGE WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IMAGE ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IMAGE ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IMAGE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IMAGE TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS IMAGE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — IMAGE METADATA WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — IMAGE METADATA WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — IMAGE METADATA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — VIDEO WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — VIDEO ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — VIDEO ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — VIDEO TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — VIDEO TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS VIDEO": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VIDEO METADATA WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VIDEO METADATA WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — VIDEO METADATA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,152 @@
+{
+  "name": "PROJETO SM3 — 03 — CURATION — v2 VISUAL DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "782143cf-decb-4e0e-8bf0-ca1e37424524",
+      "name": "MANUAL — CURATION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "fab45ff9-003d-496c-a089-03c079bd19bc",
+      "name": "READ — ANALYZED MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — deterministic pre-curation for visual project pass.\nconst rows = $input.all().map(i => i.json);\n\nfunction n(v) {\n  const x = Number(v);\n  return Number.isFinite(x) ? x : 0;\n}\n\nconst eligible = rows.filter(r =>\n  String(r.ANALYSIS_STATUS || '').toUpperCase() === 'ANALYZED' &&\n  String(r.STORAGE_STATUS || '').toUpperCase() === 'ONLINE' &&\n  String(r.ID_PROJETO || '').trim()\n);\n\nconst projects = {};\n\nfor (const r of eligible) {\n  const pid = r.ID_PROJETO;\n  if (!projects[pid]) projects[pid] = [];\n\n  const editorial = n(r.EDITORIAL_SCORE);\n  const technical = n(r.TECHNICAL_SCORE);\n  const composition = n(r.COMPOSITION_SCORE);\n  const visibility = n(r.TATTOO_VISIBILITY);\n\n  const weighted =\n    editorial * 0.45 +\n    technical * 0.20 +\n    composition * 0.20 +\n    visibility * 0.15;\n\n  const triage = String(r.TRIAGEM || '').toUpperCase();\n  const triageAdjust =\n    triage === 'SELECIONADO' ? 5 :\n    triage === 'DESCARTAR' ? -30 : 0;\n\n  const kind = String(r.TIPO || '').toUpperCase().includes('VÍDEO') ||\n               String(r.TIPO || '').toUpperCase().includes('VIDEO')\n    ? 'video'\n    : 'image';\n\n  const analysisPath = kind === 'video'\n    ? `/data/media/contact_sheets/${pid}/${r.ID_MIDIA}.jpg`\n    : `/data/media/proxies/${pid}/${r.ID_MIDIA}.jpg`;\n\n  projects[pid].push({\n    media_id: r.ID_MIDIA,\n    kind,\n    analysis_path: analysisPath,\n    stage: r.ANALYSIS_STAGE || '',\n    shot_type: r.SHOT_TYPE || '',\n    editorial_score: editorial,\n    technical_score: technical,\n    composition_score: composition,\n    tattoo_visibility: visibility,\n    analysis_confidence: n(r.ANALYSIS_CONFIDENCE),\n    recommended_use: r.USAR_EM || '',\n    best_moment: r.MELHOR_TRECHO || '',\n    visual_summary: r['CONTEÚDO_VISUAL'] || '',\n    redundancy_hint: r.REDUNDANCY_HINT || '',\n    precuation_score: Math.round(weighted + triageAdjust)\n  });\n}\n\nconst output = [];\n\nfor (const [pid, media] of Object.entries(projects)) {\n  media.sort((a, b) =>\n    b.precuation_score - a.precuation_score ||\n    b.analysis_confidence - a.analysis_confidence ||\n    String(a.media_id).localeCompare(String(b.media_id))\n  );\n\n  const shortlist = media.slice(0, Math.min(12, media.length));\n\n  output.push({\n    json: {\n      project_id: pid,\n      candidate_count: shortlist.length,\n      candidates: shortlist,\n      context:\n        'Curadoria editorial de projeto de tatuagem. Evitar quase-duplicatas. Preservar progressão narrativa e variedade visual.',\n      dry_run: true\n    }\n  });\n}\n\nreturn output.length\n  ? output\n  : [{json:{dry_run:true,no_work:true,message:'Nenhum projeto possui mídia ANALYZED + ONLINE.'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "bc002366-a352-4333-9148-1d5c1e53ad14",
+      "name": "BUILD — PROJECT SHORTLIST"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/curate-project",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,candidates:$json.candidates,context:$json.context} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        0
+      ],
+      "id": "982fe530-ad1e-4a5f-a5bc-51f78d09f00c",
+      "name": "VISION — CURATE PROJECT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => {\n  const x = i.json;\n  const c = x.curation || {};\n\n  return {\n    json: {\n      dry_run: true,\n      project_id: x.project_id,\n      candidate_count: x.candidate_count,\n      provider: x.provider,\n      model: x.model,\n      panel_path: x.panel_path,\n      hero_id: c.hero_id,\n      selected_ids: c.selected_ids || [],\n      reserve_ids: c.reserve_ids || [],\n      discard_ids: c.discard_ids || [],\n      carousel_order: c.carousel_order || [],\n      reel_candidate_ids: c.reel_candidate_ids || [],\n      redundancy_groups: c.redundancy_groups || [],\n      narrative: c.narrative || '',\n      confidence: c.confidence,\n      validated: true\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "1cd24c9a-5d9e-4832-8501-be24ffc263e2",
+      "name": "AUDIT — VISUAL CURATION"
+    }
+  ],
+  "connections": {
+    "MANUAL — CURATION": {
+      "main": [
+        [
+          {
+            "node": "READ — ANALYZED MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — ANALYZED MEDIA": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PROJECT SHORTLIST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PROJECT SHORTLIST": {
+      "main": [
+        [
+          {
+            "node": "VISION — CURATE PROJECT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — CURATE PROJECT": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VISUAL CURATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

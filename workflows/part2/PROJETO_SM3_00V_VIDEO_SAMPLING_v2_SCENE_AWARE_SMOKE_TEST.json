@@ -1,0 +1,83 @@
+{
+  "name": "PROJETO SM3 — 00V — VIDEO SAMPLING — v2 SCENE AWARE SMOKE TEST",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        0
+      ],
+      "id": "b1bdbf27-6cc9-48ea-b842-a496ec88ba98",
+      "name": "MANUAL — SCENE TEST"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/ops/scene-sampling-selftest",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -140,
+        0
+      ],
+      "id": "282041ea-6733-4a3d-91f8-c82e21d8d938",
+      "name": "WORKER — SCENE SAMPLING SELFTEST",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nconst s=x.sampling||{};\nconst ok=x.ok===true && x.status==='SM3_SCENE_AWARE_PASS' && x.version==='2.0.0' && s.sampling_mode==='ADAPTIVE_SCENE_V2' && Number(s.scene_detected_count||0)>=2 && Number(s.selected_frame_count||0)>=4;\nif(!ok) throw new Error('SM3_SCENE_AWARE_ASSERT_FAILED: '+JSON.stringify(x));\nreturn [{json:{status:'SM3_SCENE_AWARE_PASS',worker_version:x.version,sampling_mode:s.sampling_mode,scene_detected_count:s.scene_detected_count,candidate_count:s.candidate_count,selected_frame_count:s.selected_frame_count,frame_times_seconds:s.frame_times_seconds,fallback_used:s.fallback_used,contact_sheet_path:x.contact_sheet_path,contact_sheet_bytes:x.contact_sheet_bytes}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        0
+      ],
+      "id": "2b8fa074-be0c-420b-90fa-140775366f1c",
+      "name": "ASSERT — SCENE AWARE SAMPLING"
+    }
+  ],
+  "connections": {
+    "MANUAL — SCENE TEST": {
+      "main": [
+        [
+          {
+            "node": "WORKER — SCENE SAMPLING SELFTEST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — SCENE SAMPLING SELFTEST": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — SCENE AWARE SAMPLING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

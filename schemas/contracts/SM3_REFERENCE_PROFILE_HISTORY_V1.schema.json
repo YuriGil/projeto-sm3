@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_PROFILE_HISTORY_V1",
+  "type": "object",
+  "required": [
+    "preference_snapshot_id",
+    "reference_profile_id",
+    "network",
+    "handle",
+    "preference_version",
+    "snapshot_sha256"
+  ],
+  "properties": {
+    "preference_snapshot_id": {
+      "type": "string",
+      "pattern": "^RPH_[a-f0-9]{32}$"
+    },
+    "reference_profile_id": {
+      "type": "string",
+      "pattern": "^RP_[a-f0-9]{32}$"
+    },
+    "network": {
+      "enum": [
+        "instagram",
+        "tiktok"
+      ]
+    },
+    "handle": {
+      "type": "string"
+    },
+    "profile_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_interest": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "style_notes": {
+      "type": "string"
+    },
+    "dislike_notes": {
+      "type": "string"
+    },
+    "human_priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "preference_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "valid_from": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "valid_to": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "change_reason": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "captured_at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

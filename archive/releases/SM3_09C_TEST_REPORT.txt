@@ -1,0 +1,18 @@
+SM3 09C TEST REPORT
+===================
+PASS worker Python syntax compile
+PASS synthetic 2-profile / 5-Reel harvest
+PASS within-creator percentile scoring
+PASS bounded auto-promotion
+PASS 2 synthetic promoted items
+PASS Metricool snapshot creation
+PASS exact-payload idempotency
+PASS FOUNDATION override forbidden
+PASS remote Instagram scraping not required
+PASS n8n Code-node JavaScript syntax
+PASS n8n graph integrity
+PASS Google Sheets mirrors configured
+PASS MCP credentials not embedded in artifact
+PASS 09A.2/09A.4/09B compatibility workflows generated
+
+Synthetic: SM3_09C_SYNTHETIC_WORKER_TEST_PASS; candidates=5; promoted=2

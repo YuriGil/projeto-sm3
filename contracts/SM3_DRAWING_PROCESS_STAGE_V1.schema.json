@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_DRAWING_PROCESS_STAGE_V1",
+  "title": "SM3 Drawing Process Stage V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "stage",
+    "confidence",
+    "evidence"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_DRAWING_PROCESS_STAGE_V1"
+    },
+    "stage": {
+      "enum": [
+        "IDEATION_REFERENCE",
+        "ROUGH_SKETCH",
+        "STRUCTURE_CONSTRUCTION",
+        "LINE_REFINEMENT",
+        "INKING",
+        "BLACK_FILL_SHADING",
+        "DRAWING_FINAL",
+        "UNKNOWN"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

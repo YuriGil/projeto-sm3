@@ -1,0 +1,25 @@
+SM3 09A — TEST REPORT
+======================
+
+Worker: 2.15.0
+Reference corpus policy: SM3_REFERENCE_CORPUS_POLICY_V1
+
+PASS  python py_compile worker
+PASS  profile registration
+PASS  profile idempotency
+PASS  item registration
+PASS  metric snapshot registration
+PASS  feature observation registration
+PASS  immutable hash verification
+PASS  reference corpus summary
+PASS  external style is evidence only
+PASS  FOUNDATION override forbidden
+PASS  direct copying forbidden
+PASS  video learning priority true
+
+Preserved renderer versions:
+- canonical edit renderer: 2.8.0
+- native publication renderer: 2.13.1
+- art-direction renderer: 2.14.0
+
+No REV5 is created by 09A.

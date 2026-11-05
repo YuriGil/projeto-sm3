@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_STRATEGY_OUTCOME_FEEDBACK_V1",
+  "title": "SM3 Strategy Outcome Feedback V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "feedback_id",
+    "strategy_id",
+    "direction_id",
+    "observed_at",
+    "source_type"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_STRATEGY_OUTCOME_FEEDBACK_V1"
+    },
+    "feedback_id": {
+      "type": "string"
+    },
+    "strategy_id": {
+      "type": "string"
+    },
+    "direction_id": {
+      "type": "string"
+    },
+    "publication_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "platform_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "source_type": {
+      "enum": [
+        "HUMAN_REVIEW",
+        "OWN_ACCOUNT_METRICS",
+        "CONTROLLED_EXPERIMENT",
+        "PLATFORM_CHANGE",
+        "REFERENCE_UPDATE"
+      ]
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

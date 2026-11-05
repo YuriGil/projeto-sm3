@@ -1,0 +1,586 @@
+{
+  "name": "PROJETO SM3 — 07B — VARIANT PREVIEWS — v1.1 SOURCE KIND HARDENED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1500,
+        0
+      ],
+      "id": "15966a0b-b720-47be-b5b0-0736fa37fb8e",
+      "name": "MANUAL — VARIANT PREVIEWS"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1280,
+        0
+      ],
+      "id": "c4c0e23e-95ad-4fdf-b6ac-34dc217a5cb9",
+      "name": "READ — CONTENT VARIANT STATE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1060,
+        0
+      ],
+      "id": "6e767b70-90a5-4bdc-8df9-e26a69a9b38c",
+      "name": "READ — MEDIA REGISTRY",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const contents = $('READ — CONTENT VARIANT STATE').all().map(i => i.json);\nconst mediaRows = $('READ — MEDIA REGISTRY').all().map(i => i.json);\n\nconst eligible = contents.filter(c => {\n  const review = String(c.VARIANT_REVIEW_STATUS || '').trim().toUpperCase();\n  const setId = String(c.VARIANT_SET_ID || '').trim();\n  const contract = String(c.PRODUCTION_CONTRACT_VERSION || '').trim();\n  const render = String(c.RENDER_STATUS || '').trim().toUpperCase();\n  const prod = String(c.PRODUCTION_STATUS || '').trim().toUpperCase();\n  return review === 'PENDING' && setId && contract === 'SM3_PRODUCTION_EDIT_V1' &&\n         render === 'VARIANTS_PLANNED' && ['READY','READY_FOR_VARIANTS'].includes(prod);\n});\n\nif (!eligible.length) {\n  return [{json:{route_key:'NO_WORK', status:'NO_VARIANT_PREVIEWS_PENDING'}}];\n}\n\nconst mediaById = new Map(mediaRows.map(m => [String(m.ID_MIDIA || '').trim(), m]));\nconst needed = new Map();\nconst blocked = [];\n\nfor (const c of eligible) {\n  const ids = [...new Set(String(c.BRUTOS_USADOS || '').match(/M\\d{4,}/g) || [])];\n  if (!ids.length) {\n    blocked.push({content_id:c.ID_CONTEÚDO, reason:'NO_MEDIA_IDS'});\n    continue;\n  }\n  for (const mid of ids) {\n    const m = mediaById.get(mid);\n    if (!m || !String(m.DRIVE_FILE_ID || '').trim()) {\n      blocked.push({content_id:c.ID_CONTEÚDO, media_id:mid, reason:'MEDIA_REGISTRY_OR_DRIVE_ID_MISSING'});\n      continue;\n    }\n    const safeName = String(m.ARQUIVO || `${mid}.bin`).replace(/[^A-Za-z0-9._-]+/g,'_').slice(-120);\n    const key = mid;\n    if (!needed.has(key)) {\n      needed.set(key, {\n        route_key:'DOWNLOAD',\n        ID_MIDIA:mid,\n        DRIVE_FILE_ID:String(m.DRIVE_FILE_ID),\n        ARQUIVO:String(m.ARQUIVO || safeName),\n        kind:(() => {\n          const tipo = String(m.TIPO || '')\n            .normalize('NFD')\n            .replace(/[\\u0300-\\u036f]/g, '')\n            .trim()\n            .toUpperCase();\n          const mime = String(m.MIME_TYPE || '').trim().toLowerCase();\n          const name = String(m.ARQUIVO || '').trim().toLowerCase();\n          const ext = (name.match(/\\.([a-z0-9]+)$/) || [,''])[1];\n          const videoExt = new Set(['mp4','mov','m4v','avi','mkv','webm','3gp','3g2','mts','m2ts','mpeg','mpg','wmv','flv','ts']);\n          const imageExt = new Set(['jpg','jpeg','png','webp','bmp','tif','tiff','heic','heif','avif','gif']);\n          if (mime.startsWith('video/') || tipo === 'VIDEO' || videoExt.has(ext)) return 'video';\n          if (mime.startsWith('image/') || ['FOTO','IMAGEM','IMAGE'].includes(tipo) || imageExt.has(ext)) return 'image';\n          // Fail-safe fallback: the worker independently auto-detects the file again.\n          return videoExt.has(ext) ? 'video' : 'image';\n        })(),\n        worker_source_path:`/data/media/inbox/n8n_temp/variant_${mid}_${safeName}`,\n        content_ids:[]\n      });\n    }\n    needed.get(key).content_ids.push(String(c.ID_CONTEÚDO));\n  }\n}\n\nif (blocked.length) {\n  // Fail closed: do not render a partial content set silently.\n  return [{json:{route_key:'BLOCKED', status:'VARIANT_PREVIEW_BLOCKED', blocked}}];\n}\n\nreturn [...needed.values()].map(x => ({json:x}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        0
+      ],
+      "id": "7070427c-4042-42dd-9609-8e48f834872c",
+      "name": "BUILD — PREVIEW SOURCE QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "DOWNLOAD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "912827f5-6f03-4210-a434-5cbdb9efe018"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DOWNLOAD"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "BLOCKED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "03a2688a-ba80-4a0e-9cd5-309f3073eb2c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BLOCKED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a2f7e49b-6241-4b55-b244-09b4fe34c79a"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -620,
+        0
+      ],
+      "id": "7fca77c2-47a4-4c79-a876-83614b384631",
+      "name": "ROUTE — PREVIEW SOURCE QUEUE"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -380,
+        -120
+      ],
+      "id": "6571d7d9-9267-4792-b1f4-093f36e227f0",
+      "name": "DOWNLOAD — PREVIEW SOURCE",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        -120
+      ],
+      "id": "90bbf836-2381-4c2c-8ae3-7349a64f3f13",
+      "name": "WRITE — PREVIEW SOURCE TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const written = $input.all().map(i => i.json);\nconst contents = $('READ — CONTENT VARIANT STATE').all().map(i => i.json);\nconst sourceMap = new Map(written.map(x => [String(x.ID_MIDIA), x]));\n\nconst eligible = contents.filter(c => {\n  const review = String(c.VARIANT_REVIEW_STATUS || '').trim().toUpperCase();\n  const setId = String(c.VARIANT_SET_ID || '').trim();\n  const render = String(c.RENDER_STATUS || '').trim().toUpperCase();\n  const prod = String(c.PRODUCTION_STATUS || '').trim().toUpperCase();\n  return review === 'PENDING' && setId && render === 'VARIANTS_PLANNED' && ['READY','READY_FOR_VARIANTS'].includes(prod);\n});\n\nreturn eligible.map(c => {\n  const ids = [...new Set(String(c.BRUTOS_USADOS || '').match(/M\\d{4,}/g) || [])];\n  const sources = ids.map(mid => sourceMap.get(mid)).filter(Boolean).map(s => ({\n    media_id:String(s.ID_MIDIA),\n    kind:s.kind,\n    source_path:s.worker_source_path,\n    file_name:s.ARQUIVO\n  }));\n  if (sources.length !== ids.length) throw new Error(`PREVIEW_JOB_SOURCE_MISMATCH:${c.ID_CONTEÚDO}`);\n  return {json:{\n    project_id:String(c.ID_PROJETO),\n    content_id:String(c.ID_CONTEÚDO),\n    variant_set_id:String(c.VARIANT_SET_ID),\n    format:String(c.FORMATO || ''),\n    source_media:sources,\n    fps:24,\n    max_seconds:12,\n    delete_sources_after:false,\n    force:false\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        -120
+      ],
+      "id": "e89996da-0041-4cdd-8fa9-36f53a56c90c",
+      "name": "BUILD — PREVIEW RENDER JOBS"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/render-variant-previews",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,content_id:$json.content_id,variant_set_id:$json.variant_set_id,source_media:$json.source_media,fps:$json.fps,max_seconds:$json.max_seconds,delete_sources_after:$json.delete_sources_after,force:$json.force} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        300,
+        -120
+      ],
+      "id": "6c6b85af-52f9-44f7-9265-9ca214451dd8",
+      "name": "WORKER — RENDER VARIANT PREVIEWS",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const x = $json;\nif (!x.ok) throw new Error('VARIANT_PREVIEW_RENDER_FAILED');\nif (!Array.isArray(x.previews) || x.previews.length < 1) throw new Error('VARIANT_PREVIEW_EMPTY');\nreturn {json:{\n  ID_CONTEÚDO:x.content_id,\n  VARIANT_REVIEW_STATUS:'PREVIEW_READY',\n  RENDER_STATUS:'VARIANT_PREVIEWS_READY',\n  PIPELINE_STATE:'VARIANT_REVIEW_READY',\n  STATE_UPDATED_AT:new Date().toISOString(),\n  STATE_VERSION:'SM3_STATE_V4',\n  preview_contract_version:x.preview_contract_version,\n  variant_set_id:x.variant_set_id,\n  preview_count:x.previews.length,\n  preview_manifest_path:x.manifest_path,\n  previews:x.previews,\n  reused_existing:Boolean(x.reused_existing)\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        -120
+      ],
+      "id": "429bb119-997f-4983-8e2f-f9c929641ccd",
+      "name": "BUILD — PREVIEW STATE WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={ $json.ID_CONTEÚDO }",
+            "VARIANT_REVIEW_STATUS": "={ $json.VARIANT_REVIEW_STATUS }",
+            "RENDER_STATUS": "={ $json.RENDER_STATUS }",
+            "PIPELINE_STATE": "={ $json.PIPELINE_STATE }",
+            "STATE_UPDATED_AT": "={ $json.STATE_UPDATED_AT }",
+            "STATE_VERSION": "={ $json.STATE_VERSION }"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VARIANT_REVIEW_STATUS",
+              "displayName": "VARIANT_REVIEW_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_STATUS",
+              "displayName": "RENDER_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PIPELINE_STATE",
+              "displayName": "PIPELINE_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_UPDATED_AT",
+              "displayName": "STATE_UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_VERSION",
+              "displayName": "STATE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        780,
+        -120
+      ],
+      "id": "9e41e627-dbb3-4b09-95df-46a48dab67b0",
+      "name": "UPDATE — PREVIEW STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const updated = $input.all().map(i => i.json);\nconst rendered = $('BUILD — PREVIEW STATE WRITE').all().map(i => i.json);\nreturn [{json:{\n  status:'VARIANT_PREVIEWS_READY',\n  contents_updated:updated.length,\n  content_ids:updated.map(x=>x.ID_CONTEÚDO),\n  preview_counts:Object.fromEntries(rendered.map(x=>[x.ID_CONTEÚDO,x.preview_count])),\n  manifests:Object.fromEntries(rendered.map(x=>[x.ID_CONTEÚDO,x.preview_manifest_path])),\n  reused_existing_count:rendered.filter(x=>x.reused_existing===true).length,\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        -120
+      ],
+      "id": "6337ef4f-ae0a-4077-ad96-14b1bbfeb9dd",
+      "name": "AUDIT — VARIANT PREVIEWS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'VARIANT_PREVIEW_BLOCKED', details:$input.first().json, checked_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        80
+      ],
+      "id": "5d86cafc-6ab2-4ec4-93bc-1135b3371743",
+      "name": "AUDIT — PREVIEW BLOCKED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_VARIANT_PREVIEWS_PENDING', checked_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        220
+      ],
+      "id": "2a728a55-e637-4add-a181-1c1c3dc2408f",
+      "name": "NO WORK — PREVIEWS CURRENT"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "MANUAL — VARIANT PREVIEWS": {
+      "main": [
+        [
+          {
+            "node": "READ — CONTENT VARIANT STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CONTENT VARIANT STATE": {
+      "main": [
+        [
+          {
+            "node": "READ — MEDIA REGISTRY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — MEDIA REGISTRY": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PREVIEW SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PREVIEW SOURCE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — PREVIEW SOURCE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — PREVIEW SOURCE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — PREVIEW SOURCE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — PREVIEW BLOCKED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — PREVIEWS CURRENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — PREVIEW SOURCE": {
+      "main": [
+        [
+          {
+            "node": "WRITE — PREVIEW SOURCE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — PREVIEW SOURCE TEMP": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PREVIEW RENDER JOBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PREVIEW RENDER JOBS": {
+      "main": [
+        [
+          {
+            "node": "WORKER — RENDER VARIANT PREVIEWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — RENDER VARIANT PREVIEWS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PREVIEW STATE WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PREVIEW STATE WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — PREVIEW STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — PREVIEW STATE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VARIANT PREVIEWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7c9358ce-96dd-474b-893e-f305e962c736",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

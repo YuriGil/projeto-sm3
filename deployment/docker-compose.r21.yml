@@ -1,0 +1,22 @@
+services:
+  sm3-r21-orchestrator:
+    build:
+      context: ../r21_orchestrator
+      dockerfile: Dockerfile
+    container_name: sm3-r21-orchestrator
+    restart: unless-stopped
+    environment:
+      - SM3_PROJECT_ROOT=/project
+      - SM3_R21_PORT=8091
+    volumes:
+      - ../:/project
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,json; x=json.load(urllib.request.urlopen('http://127.0.0.1:8091/health',timeout=3)); assert x['ok']"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

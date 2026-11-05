@@ -1,0 +1,26 @@
+services:
+  sm3-r29-observer:
+    build:
+      context: ../r29_observer
+      dockerfile: Dockerfile
+    container_name: sm3-r29-observer
+    restart: unless-stopped
+    environment:
+      - SM3_PROJECT_ROOT=/project
+      - SM3_WORKER_BASE_URL=http://media-worker:8090
+      - SM3_R29_INTERVAL_SECONDS=900
+    volumes:
+      - ../:/project
+    depends_on:
+      media-worker:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,os; p='/project/state/social_observer/SM3_SOCIAL_OBSERVER_HEALTH.json'; assert os.path.isfile(p); x=json.load(open(p,'r',encoding='utf-8-sig')); assert x.get('ok') is True"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

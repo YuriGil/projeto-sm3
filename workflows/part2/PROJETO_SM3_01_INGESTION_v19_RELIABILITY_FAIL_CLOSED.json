@@ -1,0 +1,2335 @@
+{
+  "name": "PROJETO SM3 — 01 — INGESTION — v19 RELIABILITY FAIL-CLOSED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eb258ff8-94eb-445f-b42a-73a52d0ab33a",
+      "name": "MANUAL — INGESTION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "ea60c88b-968b-4cd8-ae38-72f317f74cd3",
+      "name": "READ — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const discovered = $('NORMALIZE — MEDIA').all().map(i => i.json);\nconst existing = $input.all().map(i => i.json);\n\nfunction extractDriveId(url) {\n  if (!url) return null;\n  for (const r of [/\\/file\\/d\\/([^/]+)/, /[?&]id=([^&]+)/, /\\/d\\/([^/]+)/]) {\n    const m = String(url).match(r);\n    if (m?.[1]) return m[1];\n  }\n  return null;\n}\n\nconst driveIds = new Set();\nconst projectNames = new Set();\n\nfor (const row of existing) {\n  const d = extractDriveId(row.LINK_DRIVE);\n  if (d) driveIds.add(d);\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  const fn = String(row.ARQUIVO || '').trim().toLowerCase();\n  if (pid && fn) projectNames.add(`${pid}::${fn}`);\n}\n\nreturn discovered.map(a => {\n  const scoped = `${String(a.project_id || '').toUpperCase()}::${String(a.file_name || '').trim().toLowerCase()}`;\n  const byDrive = Boolean(a.drive_file_id && driveIds.has(a.drive_file_id));\n  const byScopedName = Boolean(a.project_id && a.file_name && projectNames.has(scoped));\n  const exists = byDrive || byScopedName;\n  return { json: {\n    ...a,\n    already_exists: exists,\n    match_method: byDrive ? 'DRIVE_ID' : byScopedName ? 'PROJECT_FILE_NAME' : 'NONE',\n    ingestion_action: exists ? 'SKIP' : 'INSERT'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "73a5258c-d130-42e7-abb9-458f86d294ee",
+      "name": "IDEMPOTENCY — PROJECT SCOPED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst stats = {};\nfor (const x of items) {\n  const p = x.project_id || 'NO_PROJECT';\n  stats[p] ??= {total:0, INSERT:0, SKIP:0};\n  stats[p].total++;\n  stats[p][x.ingestion_action] = (stats[p][x.ingestion_action] || 0) + 1;\n}\nreturn items.map(x => ({json:{...x, isolation_audit: stats}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "id": "082f55de-3678-4a20-a174-2953d182988b",
+      "name": "AUDIT — PROJECT ISOLATION"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "INSERT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6203e57a-3a09-48c6-8805-d44e8fe049a1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INSERT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "SKIP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0bc104b0-8139-4ec4-8594-10b0024e9ce9"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SKIP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        0
+      ],
+      "id": "f44d6fea-bf3a-45ee-b230-c5919e29ba4a",
+      "name": "ROUTE — INGESTION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2640,
+        160
+      ],
+      "id": "857ddedb-1e87-4602-927d-19e3381d7bba",
+      "name": "READ — 01_PROJETOS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PROJETO SM3 — WRITE PLAN\n// Still only calculates rows. Actual writing is armed by the next safety node.\n\nconst projectRows = $input.all().map(i => i.json);\nconst projectContexts = $('CANONICALIZE — PROJECT IDENTITY').all().map(i => i.json);\nconst media = $('AUDIT — PROJECT ISOLATION').all().map(i => i.json);\nconst existingMediaRows = $('READ — 03_MIDIAS').all().map(i => i.json);\n\nconst now = new Date().toISOString();\nconst today = now.slice(0, 10);\n\nconst existingProjects = new Set(\n  projectRows\n    .map(r => String(r.ID_PROJETO || '').trim().toUpperCase())\n    .filter(Boolean)\n);\n\nconst uniqueProjects = new Map();\nfor (const p of projectContexts) {\n  const id = String(p.project_id || '').trim().toUpperCase();\n  if (!id) continue;\n  uniqueProjects.set(id, p);\n}\n\nconst newProjects = [];\nfor (const [id, p] of uniqueProjects.entries()) {\n  if (existingProjects.has(id)) continue;\n\n  newProjects.push({\n    ID_PROJETO: id,\n    NOME: id,\n    TIPO: 'Tattoo',\n    STATUS: 'EM TRIAGEM',\n    'SESSÕES': '',\n    DATA_INICIAL: '',\n    DATA_FINAL: '',\n    PASTA_BRUTOS: `https://drive.google.com/drive/folders/${p.project_folder_id}`,\n    'ANÁLISE_VISUAL': 'PENDENTE',\n    PRIORIDADE: '',\n    'OBSERVAÇÕES': 'Cadastro automático de projeto descoberto em 00_BRUTOS.',\n    ATUALIZADO_EM: today,\n\n    DRIVE_FOLDER_ID: p.project_folder_id,\n    STORAGE_STATUS: 'ONLINE',\n    FIRST_SEEN_AT: now,\n    LAST_SEEN_AT: now,\n    OFFLINE_AT: ''\n  });\n}\n\nlet maxMediaNumber = 0;\nfor (const r of existingMediaRows) {\n  const m = String(r.ID_MIDIA || '').trim().match(/^M(\\d+)$/i);\n  if (m) maxMediaNumber = Math.max(maxMediaNumber, Number(m[1]));\n}\n\nconst inserts = media.filter(m => m.ingestion_action === 'INSERT');\n\nconst mediaRows = inserts.map((m, index) => {\n  const id = `M${String(maxMediaNumber + index + 1).padStart(4, '0')}`;\n\n  return {\n    ID_MIDIA: id,\n    ID_PROJETO: m.project_id,\n    ARQUIVO: m.file_name,\n    LINK_DRIVE: `https://drive.google.com/file/d/${m.drive_file_id}/view`,\n    TIPO: m.media_type === 'IMAGE' ? 'FOTO' : m.media_type === 'VIDEO' ? 'VÍDEO' : m.media_type,\n    DATA_CAPTURA: '',\n    'SESSÃO': '',\n    TAMANHO: m.file_size_bytes || '',\n    TRIAGEM: 'PENDENTE',\n    QUALIDADE: '',\n    'CONTEÚDO_VISUAL': '',\n    MELHOR_TRECHO: '',\n    USAR_EM: '',\n    'OBSERVAÇÕES': 'Ingestão automática pelo PROJETO SM3.',\n\n    DRIVE_FILE_ID: m.drive_file_id,\n    PROJECT_FOLDER_ID: m.project_folder_id,\n    PARENT_FOLDER_ID: m.parent_folder_id || m.project_folder_id,\n    RELATIVE_PATH: m.relative_path || m.file_name,\n    MIME_TYPE: m.mime_type || '',\n    FILE_SIZE_BYTES: m.file_size_bytes || '',\n    DRIVE_MODIFIED_AT: m.drive_modified_at || '',\n    TREE_DEPTH: Number(m.tree_depth ?? m.depth ?? 0),\n    DISCOVERY_VERSION: m.discovery_version || 'SM3_RECURSIVE_DISCOVERY_V1',\n    INGESTION_KEY: m.ingestion_key,\n    CONTENT_HASH: '',\n    STORAGE_STATUS: 'ONLINE',\n    FIRST_SEEN_AT: now,\n    LAST_SEEN_AT: now,\n    OFFLINE_AT: '',\n\n    // Workflow 02 contract: only newly ingested rows enter the analysis queue.\n    ANALYSIS_STATUS: 'QUEUED',\n    ANALYSIS_VERSION: '',\n    ANALYSIS_SOURCE: '',\n    VISION_PROVIDER: '',\n    VISION_MODEL: '',\n    ANALYZED_AT: '',\n    ANALYSIS_ERROR: '',\n    DUPLICATE_GROUP: '',\n    EDITORIAL_SCORE: '',\n    PROXY_STATUS: '',\n    PROXY_LINK: '',\n    PROXY_DRIVE_FILE_ID: ''\n  };\n});\n\nreturn [{\n  json: {\n    dry_run: true,\n    generated_at: now,\n    summary: {\n      discovered_projects: uniqueProjects.size,\n      existing_projects: existingProjects.size,\n      new_projects_to_insert: newProjects.length,\n      media_total_discovered: media.length,\n      media_existing_skip: media.filter(m => m.ingestion_action === 'SKIP').length,\n      media_new_to_insert: mediaRows.length,\n      next_media_id_start: mediaRows.length ? mediaRows[0].ID_MIDIA : null,\n      next_media_id_end: mediaRows.length ? mediaRows[mediaRows.length - 1].ID_MIDIA : null\n    },\n    project_rows_to_insert: newProjects,\n    media_rows_to_insert: mediaRows\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        160
+      ],
+      "id": "35a3841b-6224-4a65-ac0b-1ce2c8a4e42e",
+      "name": "PLAN — REAL WRITES"
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $input.first().json;\n\nconst projects = Array.isArray(plan.project_rows_to_insert)\n  ? plan.project_rows_to_insert : [];\nconst media = Array.isArray(plan.media_rows_to_insert)\n  ? plan.media_rows_to_insert : [];\n\nfunction fail(msg) {\n  throw new Error(`WRITE_SAFETY_BLOCK: ${msg}`);\n}\n\nif (!plan.dry_run) fail('planner contract invalid');\n\nconst mediaIds = media.map(r => String(r.ID_MIDIA || '').trim());\nif (new Set(mediaIds).size !== mediaIds.length) fail('duplicate ID_MIDIA in write batch');\n\nconst driveIds = media.map(r => String(r.DRIVE_FILE_ID || '').trim()).filter(Boolean);\nif (new Set(driveIds).size !== driveIds.length) fail('duplicate DRIVE_FILE_ID in write batch');\n\nfor (const p of projects) {\n  if (!p.ID_PROJETO || !p.DRIVE_FOLDER_ID || p.STORAGE_STATUS !== 'ONLINE') {\n    fail(`invalid project row ${JSON.stringify(p)}`);\n  }\n}\n\nfor (const m of media) {\n  if (!m.ID_MIDIA || !m.ID_PROJETO || !m.DRIVE_FILE_ID || !m.INGESTION_KEY) {\n    fail(`invalid media row ${JSON.stringify(m)}`);\n  }\n  if (m.STORAGE_STATUS !== 'ONLINE') fail(`media ${m.ID_MIDIA} is not ONLINE`);\n}\n\nreturn [{\n  json: {\n    ...plan,\n    write_authorized: true,\n    write_authorized_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        160
+      ],
+      "id": "3ccaf68b-2c4d-4c29-9558-5d8a1441ca1f",
+      "name": "ARM — WRITE SAFETY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.write_authorized)throw new Error('WRITE_NOT_AUTHORIZED');return (p.project_rows_to_insert||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        60
+      ],
+      "id": "58e288ac-ef5a-40c8-a3ad-f8352138f5e8",
+      "name": "EXPAND — PROJECT ROWS"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.write_authorized)throw new Error('WRITE_NOT_AUTHORIZED');return (p.media_rows_to_insert||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        260
+      ],
+      "id": "dc5f639c-9b28-4724-8677-db68f60f55cb",
+      "name": "EXPAND — MEDIA ROWS"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOME",
+              "displayName": "NOME",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TIPO",
+              "displayName": "TIPO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÕES",
+              "displayName": "SESSÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_INICIAL",
+              "displayName": "DATA_INICIAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_FINAL",
+              "displayName": "DATA_FINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PASTA_BRUTOS",
+              "displayName": "PASTA_BRUTOS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANÁLISE_VISUAL",
+              "displayName": "ANÁLISE_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRIORIDADE",
+              "displayName": "PRIORIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATUALIZADO_EM",
+              "displayName": "ATUALIZADO_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FOLDER_ID",
+              "displayName": "DRIVE_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        60
+      ],
+      "id": "d9937d5a-35bc-40c9-aeca-edc5fb6addab",
+      "name": "APPEND — 01_PROJETOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ARQUIVO",
+              "displayName": "ARQUIVO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LINK_DRIVE",
+              "displayName": "LINK_DRIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TIPO",
+              "displayName": "TIPO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÃO",
+              "displayName": "SESSÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TAMANHO",
+              "displayName": "TAMANHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FILE_ID",
+              "displayName": "DRIVE_FILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_FOLDER_ID",
+              "displayName": "PROJECT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PARENT_FOLDER_ID",
+              "displayName": "PARENT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELATIVE_PATH",
+              "displayName": "RELATIVE_PATH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_MODIFIED_AT",
+              "displayName": "DRIVE_MODIFIED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INGESTION_KEY",
+              "displayName": "INGESTION_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STATUS",
+              "displayName": "ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_VERSION",
+              "displayName": "ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_SOURCE",
+              "displayName": "ANALYSIS_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_PROVIDER",
+              "displayName": "VISION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_MODEL",
+              "displayName": "VISION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYZED_AT",
+              "displayName": "ANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_ERROR",
+              "displayName": "ANALYSIS_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DUPLICATE_GROUP",
+              "displayName": "DUPLICATE_GROUP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_SCORE",
+              "displayName": "EDITORIAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_LINK",
+              "displayName": "PROXY_LINK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_DRIVE_FILE_ID",
+              "displayName": "PROXY_DRIVE_FILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TREE_DEPTH",
+              "displayName": "TREE_DEPTH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DISCOVERY_VERSION",
+              "displayName": "DISCOVERY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        260
+      ],
+      "id": "83290439-a40f-4cca-a353-7cd8cd237f99",
+      "name": "APPEND — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PROJETO SM3 — STORAGE ROTATION PLAN\n// Produces exact row updates. The next safety node decides whether writes are allowed.\n\nconst now = new Date().toISOString();\n\nconst rootItems = $('NORMALIZE — PROJECT DISCOVERY').all().map(i => i.json).filter(x => x.project_discovery_result === 'PROJECT');\nconst projectContexts = $('CANONICALIZE — PROJECT IDENTITY').all().map(i => i.json);\nconst discoveredMedia = $('NORMALIZE — MEDIA').all().map(i => i.json);\nconst projectRows = $('READ — 01_PROJETOS').all().map(i => i.json);\nconst mediaRows = $('READ — 03_MIDIAS').all().map(i => i.json);\n\nfunction extractDriveId(url) {\n  if (!url) return null;\n  const s = String(url);\n  for (const p of [\n    /\\/file\\/d\\/([^/]+)/,\n    /\\/folders\\/([^/?]+)/,\n    /[?&]id=([^&]+)/\n  ]) {\n    const m = s.match(p);\n    if (m?.[1]) return m[1];\n  }\n  return null;\n}\n\nconst currentProjects = new Map();\nfor (const p of projectContexts) {\n  const id = String(p.project_id || '').trim().toUpperCase();\n  if (!id) continue;\n  currentProjects.set(id, p);\n}\n\nconst currentMediaByDriveId = new Map();\nfor (const m of discoveredMedia) {\n  const d = String(m.drive_file_id || '').trim();\n  if (d) currentMediaByDriveId.set(d, m);\n}\n\nconst projectUpdates = [];\nconst mediaUpdates = [];\nconst offlineProjectIds = new Set();\n\nfor (const row of projectRows) {\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  if (!pid || !row.row_number) continue;\n\n  const current = currentProjects.get(pid);\n  const status = String(row.STORAGE_STATUS || '').trim().toUpperCase();\n\n  if (current) {\n    const storedFolderId =\n      String(row.DRIVE_FOLDER_ID || '').trim() ||\n      extractDriveId(row.PASTA_BRUTOS) ||\n      '';\n\n    const needsIdentityBackfill =\n      !row.DRIVE_FOLDER_ID ||\n      storedFolderId !== String(current.project_folder_id);\n\n    const needsOnlineTransition = status !== 'ONLINE';\n\n    projectUpdates.push({\n      row_number: row.row_number,\n      ID_PROJETO: pid,\n      action:\n        needsOnlineTransition\n          ? 'SET_ONLINE'\n          : needsIdentityBackfill\n            ? 'BACKFILL_IDENTITY'\n            : 'TOUCH_ONLINE',\n      DRIVE_FOLDER_ID: current.project_folder_id,\n      STORAGE_STATUS: 'ONLINE',\n      FIRST_SEEN_AT: row.FIRST_SEEN_AT || now,\n      LAST_SEEN_AT: now,\n      OFFLINE_AT: ''\n    });\n    continue;\n  }\n\n  // Only projects previously managed as ONLINE are eligible for automatic OFFLINE.\n  if (status === 'ONLINE') {\n    offlineProjectIds.add(pid);\n\n    projectUpdates.push({\n      row_number: row.row_number,\n      ID_PROJETO: pid,\n      action: 'SET_OFFLINE',\n      DRIVE_FOLDER_ID:\n        row.DRIVE_FOLDER_ID ||\n        extractDriveId(row.PASTA_BRUTOS) ||\n        '',\n      STORAGE_STATUS: 'OFFLINE',\n      FIRST_SEEN_AT: row.FIRST_SEEN_AT || '',\n      LAST_SEEN_AT: row.LAST_SEEN_AT || '',\n      OFFLINE_AT: now\n    });\n  }\n}\n\nfor (const row of mediaRows) {\n  const mid = String(row.ID_MIDIA || '').trim();\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  if (!mid || !pid || !row.row_number) continue;\n\n  const driveId =\n    String(row.DRIVE_FILE_ID || '').trim() ||\n    extractDriveId(row.LINK_DRIVE) ||\n    '';\n\n  const status = String(row.STORAGE_STATUS || '').trim().toUpperCase();\n\n  if (offlineProjectIds.has(pid)) {\n    if (status === 'ONLINE') {\n      mediaUpdates.push({\n        row_number: row.row_number,\n        ID_MIDIA: mid,\n        ID_PROJETO: pid,\n        action: 'SET_OFFLINE',\n        DRIVE_FILE_ID: driveId,\n        PROJECT_FOLDER_ID: row.PROJECT_FOLDER_ID || '',\n        PARENT_FOLDER_ID: row.PARENT_FOLDER_ID || '',\n        RELATIVE_PATH: row.RELATIVE_PATH || row.ARQUIVO || '',\n        INGESTION_KEY: row.INGESTION_KEY || (driveId ? `gdrive:${driveId}` : ''),\n        STORAGE_STATUS: 'OFFLINE',\n        FIRST_SEEN_AT: row.FIRST_SEEN_AT || '',\n        LAST_SEEN_AT: row.LAST_SEEN_AT || '',\n        OFFLINE_AT: now\n      });\n    }\n    continue;\n  }\n\n  const current = driveId ? currentMediaByDriveId.get(driveId) : null;\n\n  // Only files physically observed in the active source are refreshed ONLINE.\n  if (current) {\n    mediaUpdates.push({\n      row_number: row.row_number,\n      ID_MIDIA: mid,\n      ID_PROJETO: pid,\n      action: status === 'ONLINE' ? 'TOUCH_ONLINE' : 'SET_ONLINE',\n      DRIVE_FILE_ID: driveId,\n      PROJECT_FOLDER_ID:\n        current.project_folder_id ||\n        row.PROJECT_FOLDER_ID ||\n        '',\n      PARENT_FOLDER_ID:\n        current.parent_folder_id ||\n        current.project_folder_id ||\n        row.PARENT_FOLDER_ID ||\n        '',\n      RELATIVE_PATH:\n        current.relative_path ||\n        current.file_name ||\n        row.RELATIVE_PATH ||\n        row.ARQUIVO ||\n        '',\n      TREE_DEPTH: Number(current.tree_depth ?? current.depth ?? row.TREE_DEPTH ?? 0),\n      DISCOVERY_VERSION: current.discovery_version || row.DISCOVERY_VERSION || 'SM3_RECURSIVE_DISCOVERY_V1',\n      INGESTION_KEY:\n        current.ingestion_key ||\n        row.INGESTION_KEY ||\n        (driveId ? `gdrive:${driveId}` : ''),\n      STORAGE_STATUS: 'ONLINE',\n      FIRST_SEEN_AT: row.FIRST_SEEN_AT || now,\n      LAST_SEEN_AT: now,\n      OFFLINE_AT: ''\n    });\n  }\n}\n\nconst summary = {\n  root_items_seen: rootItems.length,\n  current_projects_seen: currentProjects.size,\n  current_media_seen: currentMediaByDriveId.size,\n  known_projects: projectRows.filter(r => r.ID_PROJETO).length,\n  known_media: mediaRows.filter(r => r.ID_MIDIA).length,\n\n  projects_set_online:\n    projectUpdates.filter(x => x.action === 'SET_ONLINE').length,\n  projects_set_offline:\n    projectUpdates.filter(x => x.action === 'SET_OFFLINE').length,\n  projects_identity_backfill:\n    projectUpdates.filter(x => x.action === 'BACKFILL_IDENTITY').length,\n  projects_touch_online:\n    projectUpdates.filter(x => x.action === 'TOUCH_ONLINE').length,\n\n  media_set_online:\n    mediaUpdates.filter(x => x.action === 'SET_ONLINE').length,\n  media_set_offline:\n    mediaUpdates.filter(x => x.action === 'SET_OFFLINE').length,\n  media_touch_online:\n    mediaUpdates.filter(x => x.action === 'TOUCH_ONLINE').length\n};\n\nreturn [{\n  json: {\n    generated_at: now,\n    summary,\n    project_updates: projectUpdates,\n    media_updates: mediaUpdates\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        420
+      ],
+      "id": "039770d0-fbe8-4d2f-84c6-52400ceee0a1",
+      "name": "PLAN — STORAGE ROTATION"
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $input.first().json;\nconst summary = plan.summary || {};\nconst projects = Array.isArray(plan.project_updates) ? plan.project_updates : [];\nconst media = Array.isArray(plan.media_updates) ? plan.media_updates : [];\n\nfunction block(msg) {\n  throw new Error(`ROTATION_SAFETY_BLOCK: ${msg}`);\n}\n\nconst validStatus = new Set(['ONLINE', 'OFFLINE']);\n\nfor (const p of projects) {\n  if (!p.row_number || !p.ID_PROJETO || !validStatus.has(p.STORAGE_STATUS)) {\n    block(`invalid project update: ${JSON.stringify(p)}`);\n  }\n}\n\nfor (const m of media) {\n  if (!m.row_number || !m.ID_MIDIA || !m.ID_PROJETO || !validStatus.has(m.STORAGE_STATUS)) {\n    block(`invalid media update: ${JSON.stringify(m)}`);\n  }\n}\n\nconst projectRows = projects.map(x => Number(x.row_number));\nconst mediaRows = media.map(x => Number(x.row_number));\n\nif (new Set(projectRows).size !== projectRows.length) {\n  block('duplicate project row_number in update batch');\n}\nif (new Set(mediaRows).size !== mediaRows.length) {\n  block('duplicate media row_number in update batch');\n}\n\n// Fail closed on a suspicious empty discovery.\n// If managed ONLINE projects exist but the source scan sees no project at all,\n// we require a manual investigation instead of mass-marking everything OFFLINE.\nconst knownOnline = $('READ — 01_PROJETOS').all()\n  .map(i => i.json)\n  .filter(r => String(r.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE');\n\nif (knownOnline.length > 0 &&\n    Number(summary.current_projects_seen || 0) === 0 &&\n    Number(summary.projects_set_offline || 0) > 0) {\n  block('zero active projects discovered while ONLINE projects exist');\n}\n\nreturn [{\n  json: {\n    ...plan,\n    rotation_write_authorized: true,\n    rotation_write_authorized_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        420
+      ],
+      "id": "67ce581f-1d0e-4c17-a519-1f80fd6eb0bd",
+      "name": "ARM — ROTATION SAFETY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.rotation_write_authorized)throw new Error('ROTATION_WRITE_NOT_AUTHORIZED');return (p.project_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        360
+      ],
+      "id": "37456aec-ba45-408b-a0a8-810d1ea79828",
+      "name": "EXPAND — PROJECT STATUS UPDATES"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.rotation_write_authorized)throw new Error('ROTATION_WRITE_NOT_AUTHORIZED');return (p.media_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        500
+      ],
+      "id": "3fef939e-0766-48ed-95de-7a34cd9c58c6",
+      "name": "EXPAND — MEDIA STATUS UPDATES"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "DRIVE_FOLDER_ID": "={{ $json.DRIVE_FOLDER_ID }}",
+            "STORAGE_STATUS": "={{ $json.STORAGE_STATUS }}",
+            "FIRST_SEEN_AT": "={{ $json.FIRST_SEEN_AT }}",
+            "LAST_SEEN_AT": "={{ $json.LAST_SEEN_AT }}",
+            "OFFLINE_AT": "={{ $json.OFFLINE_AT }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FOLDER_ID",
+              "displayName": "DRIVE_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        360
+      ],
+      "id": "3f45301f-b574-4ea0-ac21-7f375f5af909",
+      "name": "UPDATE — 01_PROJETOS STORAGE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "DRIVE_FILE_ID": "={{ $json.DRIVE_FILE_ID }}",
+            "PROJECT_FOLDER_ID": "={{ $json.PROJECT_FOLDER_ID }}",
+            "PARENT_FOLDER_ID": "={{ $json.PARENT_FOLDER_ID }}",
+            "RELATIVE_PATH": "={{ $json.RELATIVE_PATH }}",
+            "INGESTION_KEY": "={{ $json.INGESTION_KEY }}",
+            "STORAGE_STATUS": "={{ $json.STORAGE_STATUS }}",
+            "FIRST_SEEN_AT": "={{ $json.FIRST_SEEN_AT }}",
+            "LAST_SEEN_AT": "={{ $json.LAST_SEEN_AT }}",
+            "OFFLINE_AT": "={{ $json.OFFLINE_AT }}",
+            "TREE_DEPTH": "={{ $json.TREE_DEPTH }}",
+            "DISCOVERY_VERSION": "={{ $json.DISCOVERY_VERSION }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FILE_ID",
+              "displayName": "DRIVE_FILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_FOLDER_ID",
+              "displayName": "PROJECT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PARENT_FOLDER_ID",
+              "displayName": "PARENT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELATIVE_PATH",
+              "displayName": "RELATIVE_PATH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INGESTION_KEY",
+              "displayName": "INGESTION_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TREE_DEPTH",
+              "displayName": "TREE_DEPTH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DISCOVERY_VERSION",
+              "displayName": "DISCOVERY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        500
+      ],
+      "id": "2516c896-70cb-49af-a083-a97f11a4151c",
+      "name": "UPDATE — 03_MIDIAS STORAGE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "f6084b57-5df7-40bb-8598-16acd6dab8a4",
+      "name": "READ — PROJECT REGISTRY EARLY",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — CANONICAL PROJECT IDENTITY\n// Physical Drive folder ID is authoritative.\n// Folder name is only the suggested logical ID for brand-new projects.\n\nconst discovered = $('NORMALIZE — PROJECT DISCOVERY').all().map(i => i.json).filter(x => x.project_discovery_result === 'PROJECT');\nconst existingRows = $input.all().map(i => i.json);\n\nfunction extractFolderId(url) {\n  if (!url) return '';\n  const m = String(url).match(/\\/folders\\/([^/?]+)/);\n  return m?.[1] || '';\n}\n\nconst existingByFolder = new Map();\n\nfor (const row of existingRows) {\n  const folderId =\n    String(row.DRIVE_FOLDER_ID || '').trim() ||\n    extractFolderId(row.PASTA_BRUTOS);\n\n  const canonicalId = String(row.ID_PROJETO || '').trim().toUpperCase();\n\n  if (folderId && canonicalId) {\n    existingByFolder.set(folderId, {\n      canonical_project_id: canonicalId,\n      row_number: row.row_number,\n      stored_name: row.NOME || '',\n      stored_folder_id: folderId\n    });\n  }\n}\n\nreturn discovered.map(p => {\n  const folderId = String(p.project_folder_id || p.id || '').trim();\n  const suggestedId = String(p.project_id || p.name || '').trim().toUpperCase();\n  const existing = existingByFolder.get(folderId);\n\n  return {\n    json: {\n      ...p,\n\n      // Preserve the original folder-derived ID for diagnostics only.\n      discovered_project_id: suggestedId,\n\n      // Canonical logical identity:\n      // existing registry wins when the same physical Drive folder returns.\n      project_id: existing?.canonical_project_id || suggestedId,\n      project_folder_id: folderId,\n\n      registry_match: existing ? 'DRIVE_FOLDER_ID' : 'NEW_FOLDER',\n      project_rename_detected:\n        Boolean(existing && existing.canonical_project_id !== suggestedId),\n\n      registry_row_number: existing?.row_number || null,\n      canonicalized_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "b06e0615-ee44-437d-baa4-c9f7f6578ff2",
+      "name": "CANONICALIZE — PROJECT IDENTITY"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const projects = $input.all().map(i => i.json);\n\nreturn [{\n  json: {\n    projects_seen: projects.length,\n    existing_registry_matches:\n      projects.filter(p => p.registry_match === 'DRIVE_FOLDER_ID').length,\n    brand_new_folders:\n      projects.filter(p => p.registry_match === 'NEW_FOLDER').length,\n    renames_detected:\n      projects.filter(p => p.project_rename_detected).length,\n    projects: projects.map(p => ({\n      project_id: p.project_id,\n      discovered_project_id: p.discovered_project_id,\n      project_folder_id: p.project_folder_id,\n      registry_match: p.registry_match,\n      project_rename_detected: p.project_rename_detected\n    }))\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        160
+      ],
+      "id": "894f0a67-7abb-4eb6-b607-6d78bde7f95a",
+      "name": "AUDIT — PROJECT IDENTITY"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 928443007,
+          "mode": "list",
+          "cachedResultName": "11_OS_CONFIG"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "f758033d-6070-435d-ab93-c4f344e3d546",
+      "name": "READ — OS CONFIG INGESTION",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PROJETO SM3 — RECURSIVE PROJECT DISCOVERY INIT\nconst rows=$input.all().map(i=>i.json);\nfunction up(v){return String(v??'').trim().toUpperCase();}\nfunction val(r){const t=up(r.TIPO),v=r.VALOR;if(t==='BOOLEAN')return v===true||up(v)==='TRUE';if(t==='NUMBER'){const n=Number(v);return Number.isFinite(n)?n:null;}return v;}\nconst cfg=Object.fromEntries(rows.filter(r=>String(r.CHAVE||'').trim()).map(r=>[String(r.CHAVE).trim(),val(r)]));\nfunction num(k,d){const n=Number(cfg[k]);return Number.isFinite(n)&&n>0?Math.floor(n):d;}\nconst root=String(cfg['ingestion.root_folder_id']||'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk').trim();\nconst pattern=String(cfg['ingestion.project_folder_regex']||'^TATTOO_[0-9]{4}$');\nif(!root) throw new Error('PROJECT_DISCOVERY_BLOCK: ROOT_FOLDER_ID_MISSING');\ntry{new RegExp(pattern,'i');}catch(e){throw new Error(`PROJECT_DISCOVERY_BLOCK: INVALID_PROJECT_REGEX:${pattern}`);}\nconst limits={batch_folders:num('ingestion.recursive.batch_folders',20),max_folders:num('ingestion.recursive.max_folders_per_run',2000),max_queue:num('ingestion.recursive.max_queue_size',5000),max_depth_guard:num('ingestion.recursive.max_depth_guard',64),shortcut_policy:String(cfg['ingestion.recursive.shortcut_policy']||'SKIP_AUDIT').toUpperCase(),partial_write_policy:String(cfg['ingestion.recursive.partial_write_policy']||'BLOCK').toUpperCase()};\nif(limits.partial_write_policy!=='BLOCK')throw new Error('PROJECT_DISCOVERY_BLOCK: partial_write_policy must be BLOCK');\nreturn [{json:{project_discovery_version:'SM3_RECURSIVE_PROJECT_DISCOVERY_V1',project_scan_state:'READY',project_pattern:pattern,root_folder_id:root,scan_started_at:new Date().toISOString(),queue:[{folder_id:root,container_path:'',depth:0}],known_folder_ids:[root],visited_folder_ids:[],projects_by_folder_id:{},limits,counters:{batches_scanned:0,folders_scanned:0,containers_discovered:1,projects_discovered:0,root_files_ignored:0,shortcuts_skipped:0,duplicate_folders_ignored:0,queue_peak:1,max_depth_seen:0},anomalies:[],truncated:false,truncation_reason:''}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "c37ebb19-c915-409a-a0e2-2ab103d29992",
+      "name": "INIT — PROJECT DISCOVERY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$input.first().json, q=[...(s.queue||[])], known=new Set(s.known_folder_ids||[]), visited=new Set(s.visited_folder_ids||[]), c={...(s.counters||{})}, lim=s.limits||{};\nfunction out(extra){return [{json:{...s,...extra,queue:q,known_folder_ids:[...known],visited_folder_ids:[...visited],counters:c}}];}\nif(s.truncated)return out({project_scan_state:'TRUNCATED'});if(q.length===0)return out({project_scan_state:'COMPLETE',scan_completed_at:new Date().toISOString()});\nif(Number(c.folders_scanned||0)>=Number(lim.max_folders||2000))return out({project_scan_state:'TRUNCATED',truncated:true,truncation_reason:'MAX_FOLDERS_PER_RUN'});\nconst batch=[];while(q.length&&batch.length<Number(lim.batch_folders||20)){const f=q.shift();if(!f?.folder_id)continue;const d=Number(f.depth||0);if(d>Number(lim.max_depth_guard||64))return out({project_scan_state:'TRUNCATED',truncated:true,truncation_reason:`MAX_DEPTH_GUARD:${d}`});if(visited.has(String(f.folder_id))){c.duplicate_folders_ignored=(c.duplicate_folders_ignored||0)+1;continue;}batch.push(f);}\nif(!batch.length)return q.length?out({project_scan_state:'TRUNCATED',truncated:true,truncation_reason:'FOLDER_GUARD_REACHED'}):out({project_scan_state:'COMPLETE',scan_completed_at:new Date().toISOString()});\nconst ctx={},clauses=[];for(const f of batch){visited.add(String(f.folder_id));ctx[String(f.folder_id)]={container_path:f.container_path||'',depth:Number(f.depth||0)};clauses.push(`'${f.folder_id}' in parents`);c.max_depth_seen=Math.max(Number(c.max_depth_seen||0),Number(f.depth||0));}\nc.folders_scanned=Number(c.folders_scanned||0)+batch.length;c.batches_scanned=Number(c.batches_scanned||0)+1;\nreturn [{json:{...s,project_scan_state:'SCAN',queue:q,known_folder_ids:[...known],visited_folder_ids:[...visited],counters:c,current_parent_context:ctx,current_query:`(${clauses.join(' or ')}) and trashed = false`,current_batch_size:batch.length}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "2b3ee786-6dd8-411b-b624-e2490f4e65ed",
+      "name": "NEXT — PROJECT FOLDER BATCH"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.project_scan_state }}",
+                    "rightValue": "SCAN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "68d00d54-a601-4b8e-993d-3a16a55056c8"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SCAN"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.project_scan_state }}",
+                    "rightValue": "COMPLETE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0839e6af-979f-484d-aa10-afad6e05bd31"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "COMPLETE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.project_scan_state }}",
+                    "rightValue": "TRUNCATED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "222ada19-6731-4af3-95e4-f6ee3cee94b7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "TRUNCATED"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        0
+      ],
+      "id": "aedeec6d-afd5-421c-8f78-537f6df3fbb2",
+      "name": "ROUTE — PROJECT SCAN STATE"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.current_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        -120
+      ],
+      "id": "15a4c0a3-014e-46f6-86df-e904027cf4ed",
+      "name": "LIST — PROJECT DISCOVERY BATCH",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const children=$input.all().map(i=>i.json||{}), s=$('NEXT — PROJECT FOLDER BATCH').first().json, ctx=s.current_parent_context||{}, lim=s.limits||{}, q=[...(s.queue||[])], known=new Set(s.known_folder_ids||[]), visited=new Set(s.visited_folder_ids||[]), projects={...(s.projects_by_folder_id||{})}, c={...(s.counters||{})}, anomalies=[...(s.anomalies||[])];let trunc=Boolean(s.truncated),reason=String(s.truncation_reason||'');const re=new RegExp(String(s.project_pattern||'^TATTOO_[0-9]{4}$'),'i');\nfunction stop(r){trunc=true;reason=reason||r;}\nfor(const f of children){if(trunc)break;if(!f.id)continue;const parents=Array.isArray(f.parents)?f.parents:[];const pid=String(parents.find(x=>ctx[x])||parents[0]||''),p=ctx[pid];if(!p){anomalies.push({type:'PARENT_CONTEXT_MISSING',id:f.id,name:f.name||''});stop('PARENT_CONTEXT_MISSING');break;}const name=String(f.name||''),rel=p.container_path?`${p.container_path}/${name}`:name,depth=Number(p.depth||0)+1;c.max_depth_seen=Math.max(Number(c.max_depth_seen||0),depth);const mime=String(f.mimeType||'');if(mime==='application/vnd.google-apps.shortcut'){c.shortcuts_skipped=Number(c.shortcuts_skipped||0)+1;if(anomalies.length<100)anomalies.push({type:'SHORTCUT_SKIPPED',id:f.id,name,relative_path:rel});if(String(lim.shortcut_policy||'SKIP_AUDIT')==='BLOCK')stop('SHORTCUT_ENCOUNTERED');continue;}if(mime!=='application/vnd.google-apps.folder'){c.root_files_ignored=Number(c.root_files_ignored||0)+1;continue;}const id=String(f.id);if(re.test(name)){if(!projects[id]){projects[id]={id,name,project_id:name.toUpperCase(),project_folder_id:id,discovered_container_path:p.container_path||'',tree_depth:depth,molotov_type:'PROJECT',should_ingest:true,discovered_at:new Date().toISOString()};c.projects_discovered=Number(c.projects_discovered||0)+1;}continue;}c.containers_discovered=Number(c.containers_discovered||0)+1;if(depth>Number(lim.max_depth_guard||64)){stop(`MAX_DEPTH_GUARD:${depth}`);break;}if(known.has(id)||visited.has(id)){c.duplicate_folders_ignored=Number(c.duplicate_folders_ignored||0)+1;continue;}if(q.length>=Number(lim.max_queue||5000)){stop('MAX_QUEUE_SIZE');break;}known.add(id);q.push({folder_id:id,container_path:rel,depth});c.queue_peak=Math.max(Number(c.queue_peak||0),q.length);}\nreturn [{json:{...s,project_scan_state:trunc?'TRUNCATED':'READY',queue:q,known_folder_ids:[...known],visited_folder_ids:[...visited],projects_by_folder_id:projects,counters:c,anomalies,truncated:trunc,truncation_reason:reason,current_parent_context:{},current_query:''}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -120
+      ],
+      "id": "d7ad76b5-eb5a-4b33-b31d-9999f96e274d",
+      "name": "ACCUMULATE — PROJECT DISCOVERY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$input.first().json;if(s.project_scan_state!=='COMPLETE'||s.truncated)throw new Error(`PROJECT_DISCOVERY_FINALIZE_BLOCK:${s.project_scan_state}:${s.truncation_reason||''}`);const ps=Object.values(s.projects_by_folder_id||{}).sort((a,b)=>String(a.project_id).localeCompare(String(b.project_id)));const summary={version:s.project_discovery_version,root_folder_id:s.root_folder_id,project_pattern:s.project_pattern,...(s.counters||{}),truncated:false,anomaly_count:(s.anomalies||[]).length,anomaly_sample:(s.anomalies||[]).slice(0,20)};if(!ps.length)return [{json:{project_discovery_result:'NO_PROJECTS',project_discovery_summary:summary}}];return ps.map((p,i)=>({json:{...p,project_discovery_result:'PROJECT',discovery_index:i+1,project_discovery_summary:summary}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        120
+      ],
+      "id": "8935fa63-2700-45b2-bd49-d626d4795b39",
+      "name": "NORMALIZE — PROJECT DISCOVERY"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.project_discovery_result }}",
+                    "rightValue": "PROJECT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "918cb7c3-edf4-4f0b-897a-a126bc1d79d1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PROJECT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.project_discovery_result }}",
+                    "rightValue": "NO_PROJECTS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "db3e0be8-3d7e-4f8a-a0cd-05176139c2fe"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_PROJECTS"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        120
+      ],
+      "id": "12c76646-5c60-41c2-9ffe-92d1b5ec0fee",
+      "name": "ROUTE — PROJECT DISCOVERY RESULT"
+    },
+    {
+      "parameters": {
+        "jsCode": "const xs=$input.all().map(i=>i.json),ps=xs.filter(x=>x.project_discovery_result==='PROJECT'),s=xs[0]?.project_discovery_summary||{};return [{json:{status:ps.length?'PROJECT_DISCOVERY_COMPLETE':'PROJECT_DISCOVERY_NO_PROJECTS',project_count:ps.length,projects:ps.map(p=>({project_id:p.project_id,project_folder_id:p.project_folder_id,container_path:p.discovered_container_path,tree_depth:p.tree_depth})),max_depth_seen:s.max_depth_seen||0,folders_scanned:s.folders_scanned||0,containers_discovered:s.containers_discovered||0,shortcuts_skipped:s.shortcuts_skipped||0,truncated:false,anomalies:s.anomaly_sample||[]}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        240
+      ],
+      "id": "4d5a1700-59b7-4f6d-a759-4cbc648a07db",
+      "name": "AUDIT — PROJECT DISCOVERY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$input.first().json;return [{json:{status:'PROJECT_DISCOVERY_TRUNCATED',writes_allowed:false,truncation_reason:s.truncation_reason||'UNKNOWN',counters:s.counters||{},limits:s.limits||{},queue_remaining:(s.queue||[]).length,anomalies:(s.anomalies||[]).slice(0,50)}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -320
+      ],
+      "id": "c5876949-ba8b-449e-a314-f0f7bfab4942",
+      "name": "AUDIT — PROJECT DISCOVERY TRUNCATED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;throw new Error(`PROJECT_DISCOVERY_BLOCKED_NO_PARTIAL_WRITES:${x.truncation_reason||'UNKNOWN'}`);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -320
+      ],
+      "id": "25535f7e-2bf6-4329-abe9-dc8bad80d8fb",
+      "name": "BLOCK — PARTIAL PROJECT DISCOVERY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;return [{json:{status:'NO_PROJECTS_CURRENTLY_DISCOVERED',writes_allowed:false,reason:'Conservative stop: zero projects never triggers mass OFFLINE automatically.',summary:x.project_discovery_summary||{}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        120
+      ],
+      "id": "68082ce3-4a82-478e-ab03-e9c6b58f7cc6",
+      "name": "NO WORK — NO PROJECTS"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PROJETO SM3 — TRUE RECURSIVE MEDIA DISCOVERY INIT\nconst projects=$input.all().map(i=>i.json).filter(p=>p.project_id&&p.project_folder_id);const cfgRows=$('READ — OS CONFIG INGESTION').all().map(i=>i.json);\nfunction up(v){return String(v??'').trim().toUpperCase();}function parse(r){const t=up(r.TIPO),v=r.VALOR;if(t==='BOOLEAN')return v===true||up(v)==='TRUE';if(t==='NUMBER'){const n=Number(v);return Number.isFinite(n)?n:null;}return v;}const cfg=Object.fromEntries(cfgRows.filter(r=>String(r.CHAVE||'').trim()).map(r=>[String(r.CHAVE).trim(),parse(r)]));function num(k,d){const n=Number(cfg[k]);return Number.isFinite(n)&&n>0?Math.floor(n):d;}\nif(!projects.length)throw new Error('MEDIA_DISCOVERY_BLOCK:NO_CANONICAL_PROJECTS');const lim={batch_folders:num('ingestion.recursive.batch_folders',20),max_folders:num('ingestion.recursive.max_folders_per_run',2000),max_files:num('ingestion.recursive.max_files_per_run',10000),max_queue:num('ingestion.recursive.max_queue_size',5000),max_depth_guard:num('ingestion.recursive.max_depth_guard',64),shortcut_policy:String(cfg['ingestion.recursive.shortcut_policy']||'SKIP_AUDIT').toUpperCase(),partial_write_policy:String(cfg['ingestion.recursive.partial_write_policy']||'BLOCK').toUpperCase()};if(lim.partial_write_policy!=='BLOCK')throw new Error('MEDIA_DISCOVERY_BLOCK:partial_write_policy must be BLOCK');const q=[],known=[];for(const p of projects){const id=String(p.project_folder_id);q.push({folder_id:id,project_id:String(p.project_id),project_folder_id:id,relative_path:'',depth:0});known.push(id);}return [{json:{discovery_version:'SM3_RECURSIVE_DISCOVERY_V1',scan_state:'READY',scan_started_at:new Date().toISOString(),projects:projects.map(p=>({project_id:p.project_id,project_folder_id:p.project_folder_id})),queue:q,known_folder_ids:known,visited_folder_ids:[],media_by_drive_id:{},limits:lim,counters:{batches_scanned:0,folders_scanned:0,folders_discovered:projects.length,files_seen:0,supported_media_seen:0,other_files_seen:0,shortcuts_skipped:0,duplicate_folders_ignored:0,duplicate_media_ignored:0,parent_context_errors:0,queue_peak:q.length,max_depth_seen:0},anomalies:[],truncated:false,truncation_reason:''}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "id": "958f995f-dbc2-408d-8076-324c7945a3c7",
+      "name": "INIT — RECURSIVE DISCOVERY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$input.first().json,q=[...(s.queue||[])],known=new Set(s.known_folder_ids||[]),visited=new Set(s.visited_folder_ids||[]),c={...(s.counters||{})},lim=s.limits||{};function out(e){return [{json:{...s,...e,queue:q,known_folder_ids:[...known],visited_folder_ids:[...visited],counters:c}}];}if(s.truncated)return out({scan_state:'TRUNCATED'});if(!q.length)return out({scan_state:'COMPLETE',scan_completed_at:new Date().toISOString()});if(Number(c.folders_scanned||0)>=Number(lim.max_folders||2000))return out({scan_state:'TRUNCATED',truncated:true,truncation_reason:'MAX_FOLDERS_PER_RUN'});const batch=[];while(q.length&&batch.length<Number(lim.batch_folders||20)){const f=q.shift();if(!f?.folder_id)continue;const d=Number(f.depth||0);if(d>Number(lim.max_depth_guard||64))return out({scan_state:'TRUNCATED',truncated:true,truncation_reason:`MAX_DEPTH_GUARD:${d}`});if(visited.has(String(f.folder_id))){c.duplicate_folders_ignored=(c.duplicate_folders_ignored||0)+1;continue;}batch.push(f);}if(!batch.length)return q.length?out({scan_state:'TRUNCATED',truncated:true,truncation_reason:'FOLDER_GUARD_REACHED'}):out({scan_state:'COMPLETE',scan_completed_at:new Date().toISOString()});const ctx={},clauses=[];for(const f of batch){visited.add(String(f.folder_id));ctx[String(f.folder_id)]={project_id:f.project_id,project_folder_id:f.project_folder_id,relative_path:f.relative_path||'',depth:Number(f.depth||0)};clauses.push(`'${f.folder_id}' in parents`);c.max_depth_seen=Math.max(Number(c.max_depth_seen||0),Number(f.depth||0));}c.folders_scanned=Number(c.folders_scanned||0)+batch.length;c.batches_scanned=Number(c.batches_scanned||0)+1;return [{json:{...s,scan_state:'SCAN',queue:q,known_folder_ids:[...known],visited_folder_ids:[...visited],counters:c,current_parent_context:ctx,current_query:`(${clauses.join(' or ')}) and trashed = false`,current_batch_size:batch.length}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "id": "38e14ed7-4337-440c-b4a4-48fda8a2b621",
+      "name": "NEXT — FOLDER BATCH"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.scan_state }}",
+                    "rightValue": "SCAN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6113ebd7-8437-461c-901c-495fc8b89b22"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SCAN"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.scan_state }}",
+                    "rightValue": "COMPLETE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "56a9154c-20b6-4cae-a18d-6b5003192a96"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "COMPLETE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.scan_state }}",
+                    "rightValue": "TRUNCATED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1265813d-2bb5-47bd-bb84-3ed938c35a7b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "TRUNCATED"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        0
+      ],
+      "id": "dc8d16bc-12b6-45f1-9754-a811cee2afbc",
+      "name": "ROUTE — SCAN STATE"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.current_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3080,
+        -140
+      ],
+      "id": "271e27a7-7606-4cee-bfd7-c04be46396d9",
+      "name": "LIST — RECURSIVE BATCH",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const children=$input.all().map(i=>i.json||{}),s=$('NEXT — FOLDER BATCH').first().json,ctx=s.current_parent_context||{},lim=s.limits||{},q=[...(s.queue||[])],known=new Set(s.known_folder_ids||[]),visited=new Set(s.visited_folder_ids||[]),media={...(s.media_by_drive_id||{})},c={...(s.counters||{})},anomalies=[...(s.anomalies||[])];let trunc=Boolean(s.truncated),reason=String(s.truncation_reason||'');function ext(n){const p=String(n||'').split('.');return p.length>1?p.pop().toLowerCase():'';}function mt(f){const m=String(f.mimeType||'').toLowerCase(),e=ext(f.name);if(m.startsWith('image/')||['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(e))return'IMAGE';if(m.startsWith('video/')||['mp4','mov','m4v','avi','mkv','webm'].includes(e))return'VIDEO';return'OTHER';}function stop(r){trunc=true;reason=reason||r;}\nfor(const f of children){if(trunc)break;if(!f.id)continue;const parents=Array.isArray(f.parents)?f.parents:[],parentId=String(parents.find(p=>ctx[p])||parents[0]||''),p=ctx[parentId];if(!p){c.parent_context_errors=Number(c.parent_context_errors||0)+1;anomalies.push({type:'PARENT_CONTEXT_MISSING',id:f.id,name:f.name||'',parents});stop('PARENT_CONTEXT_MISSING');break;}const name=String(f.name||''),base=String(p.relative_path||'').trim(),rel=base?`${base}/${name}`:name,depth=Number(p.depth||0)+1;c.max_depth_seen=Math.max(Number(c.max_depth_seen||0),depth);const mime=String(f.mimeType||'');if(mime==='application/vnd.google-apps.shortcut'){c.shortcuts_skipped=Number(c.shortcuts_skipped||0)+1;if(anomalies.length<100)anomalies.push({type:'SHORTCUT_SKIPPED',id:f.id,name,relative_path:rel});if(String(lim.shortcut_policy||'SKIP_AUDIT')==='BLOCK')stop('SHORTCUT_ENCOUNTERED');continue;}if(mime==='application/vnd.google-apps.folder'){c.folders_discovered=Number(c.folders_discovered||0)+1;if(depth>Number(lim.max_depth_guard||64)){stop(`MAX_DEPTH_GUARD:${depth}`);break;}const id=String(f.id);if(known.has(id)||visited.has(id)){c.duplicate_folders_ignored=Number(c.duplicate_folders_ignored||0)+1;continue;}if(q.length>=Number(lim.max_queue||5000)){stop('MAX_QUEUE_SIZE');break;}known.add(id);q.push({folder_id:id,project_id:p.project_id,project_folder_id:p.project_folder_id,relative_path:rel,depth});c.queue_peak=Math.max(Number(c.queue_peak||0),q.length);continue;}c.files_seen=Number(c.files_seen||0)+1;if(Number(c.files_seen)>Number(lim.max_files||10000)){stop('MAX_FILES_PER_RUN');break;}const type=mt(f),supported=type==='IMAGE'||type==='VIDEO';if(!supported){c.other_files_seen=Number(c.other_files_seen||0)+1;continue;}if(media[f.id]){c.duplicate_media_ignored=Number(c.duplicate_media_ignored||0)+1;continue;}c.supported_media_seen=Number(c.supported_media_seen||0)+1;media[f.id]={tree_type:'MEDIA',depth,tree_depth:depth,project_id:p.project_id,project_folder_id:p.project_folder_id,parent_folder_id:parentId,drive_file_id:String(f.id),file_name:name,extension:ext(name),media_type:type,is_supported_media:true,relative_path:rel,mime_type:f.mimeType||'',file_size_bytes:f.size||'',drive_modified_at:f.modifiedTime||'',source:'GOOGLE_DRIVE',storage_status:'ONLINE',ingestion_status:'DISCOVERED',ingestion_key:`gdrive:${f.id}`,discovery_version:'SM3_RECURSIVE_DISCOVERY_V1',discovered_at:new Date().toISOString()};}\nreturn [{json:{...s,scan_state:trunc?'TRUNCATED':'READY',queue:q,known_folder_ids:[...known],visited_folder_ids:[...visited],media_by_drive_id:media,counters:c,anomalies,truncated:trunc,truncation_reason:reason,current_parent_context:{},current_query:''}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        -140
+      ],
+      "id": "165bf11c-7473-48ea-98ff-1f75ce50f965",
+      "name": "ACCUMULATE — RECURSIVE BATCH"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$input.first().json;if(s.scan_state!=='COMPLETE'||s.truncated)throw new Error(`DISCOVERY_FINALIZE_BLOCK:${s.scan_state}:${s.truncation_reason||''}`);const media=Object.values(s.media_by_drive_id||{}).sort((a,b)=>String(a.project_id).localeCompare(String(b.project_id))||String(a.relative_path).localeCompare(String(b.relative_path)));const summary={discovery_version:s.discovery_version,scan_started_at:s.scan_started_at,scan_completed_at:s.scan_completed_at||new Date().toISOString(),project_count:(s.projects||[]).length,...(s.counters||{}),truncated:false,limits:s.limits||{},anomaly_count:(s.anomalies||[]).length,anomaly_sample:(s.anomalies||[]).slice(0,20)};if(!media.length)return [{json:{discovery_result:'NO_MEDIA',scan_summary:summary,projects:s.projects||[]}}];return media.map((x,i)=>({json:{...x,discovery_result:'MEDIA',discovery_index:i+1,scan_summary:summary}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        140
+      ],
+      "id": "6b23e10f-ebed-486c-a30b-37a46fa0b143",
+      "name": "NORMALIZE — MEDIA"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.discovery_result }}",
+                    "rightValue": "MEDIA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "efbecad7-864a-46db-9ebf-5b9cb8df4da8"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "MEDIA"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.discovery_result }}",
+                    "rightValue": "NO_MEDIA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f3714853-c298-469c-a010-d94b78cb2faf"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_MEDIA"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        140
+      ],
+      "id": "a8ea3060-3dbb-4b42-b354-e79c188cc374",
+      "name": "ROUTE — DISCOVERY RESULT"
+    },
+    {
+      "parameters": {
+        "jsCode": "const xs=$input.all().map(i=>i.json),media=xs.filter(x=>x.discovery_result==='MEDIA'),s=media[0]?.scan_summary||xs[0]?.scan_summary||{},bp={},bd={};for(const m of media){bp[m.project_id||'NO_PROJECT']=(bp[m.project_id||'NO_PROJECT']||0)+1;const d=String(m.tree_depth??m.depth??'UNKNOWN');bd[d]=(bd[d]||0)+1;}const deep=media.filter(m=>Number(m.tree_depth??m.depth??0)>4),ids=media.map(m=>m.drive_file_id).filter(Boolean);return [{json:{status:'RECURSIVE_DISCOVERY_COMPLETE',discovery_version:s.discovery_version||'SM3_RECURSIVE_DISCOVERY_V1',total_supported_media:media.length,by_project:bp,by_depth:bd,folders_scanned:s.folders_scanned||0,folders_discovered:s.folders_discovered||0,files_seen:s.files_seen||0,shortcuts_skipped:s.shortcuts_skipped||0,duplicate_folders_ignored:s.duplicate_folders_ignored||0,duplicate_media_ignored:s.duplicate_media_ignored||0,duplicate_drive_ids:ids.length-new Set(ids).size,max_depth_seen:s.max_depth_seen||0,media_deeper_than_4:deep.length,queue_peak:s.queue_peak||0,batches_scanned:s.batches_scanned||0,truncated:Boolean(s.truncated),anomaly_count:s.anomaly_count||0,anomalies:s.anomaly_sample||[],deep_path_samples:deep.slice(0,20).map(m=>({project_id:m.project_id,depth:m.tree_depth,relative_path:m.relative_path})),sample_paths:media.slice(0,30).map(m=>({project_id:m.project_id,depth:m.tree_depth,relative_path:m.relative_path}))}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        280
+      ],
+      "id": "b621ba59-c056-420f-ac41-6e154659466d",
+      "name": "AUDIT — TREE DISCOVERY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;return [{json:{status:'RECURSIVE_DISCOVERY_NO_MEDIA',writes_allowed:false,reason:'Conservative stop: empty media scan does not perform storage rotation automatically.',scan_summary:x.scan_summary||{},projects:x.projects||[]}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        120
+      ],
+      "id": "8e6f3d62-cf0f-4f81-8c85-aee10182c8d7",
+      "name": "AUDIT — NO MEDIA DISCOVERED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$input.first().json;return [{json:{status:'RECURSIVE_DISCOVERY_TRUNCATED',writes_allowed:false,truncation_reason:s.truncation_reason||'UNKNOWN',counters:s.counters||{},limits:s.limits||{},queue_remaining:(s.queue||[]).length,anomalies:(s.anomalies||[]).slice(0,50)}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -340
+      ],
+      "id": "ac450e56-840d-4479-bcc9-b9b99603f7b1",
+      "name": "AUDIT — DISCOVERY TRUNCATED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;throw new Error(`RECURSIVE_DISCOVERY_BLOCKED_NO_PARTIAL_WRITES:${x.truncation_reason||'UNKNOWN'}|queue=${x.queue_remaining||0}`);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        -340
+      ],
+      "id": "176f92be-1d97-48c5-a9f4-19f351924550",
+      "name": "BLOCK — PARTIAL DISCOVERY"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  contract:'SM3_RELIABILITY_V1',\n  policy:'INGESTION_FAIL_CLOSED',\n  network_max_tries:3,\n  wait_between_tries_ms:5000,\n  rationale:'Discovery/registry/storage writes are transaction-like. After retries, stop the run so partial scans never become authoritative.'\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1220,
+        620
+      ],
+      "id": "d0425d6f-ac37-4b03-baa7-f3899193dfbf",
+      "name": "DOC — RELIABILITY POLICY",
+      "disabled": true,
+      "notesInFlow": true,
+      "notes": "SM3_RELIABILITY_V1: Google Drive/Sheets nodes retry 3x/5s. Ingestion remains fail-closed after terminal failure; per-media dead-letter is introduced in Workflow 02, not by allowing partial ingestion."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "READ — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "IDEMPOTENCY — PROJECT SCOPED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IDEMPOTENCY — PROJECT SCOPED": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PROJECT ISOLATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — PROJECT ISOLATION": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — INGESTION",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "READ — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 01_PROJETOS": {
+      "main": [
+        [
+          {
+            "node": "PLAN — REAL WRITES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PLAN — STORAGE ROTATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLAN — REAL WRITES": {
+      "main": [
+        [
+          {
+            "node": "ARM — WRITE SAFETY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARM — WRITE SAFETY": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT ROWS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — MEDIA ROWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLAN — STORAGE ROTATION": {
+      "main": [
+        [
+          {
+            "node": "ARM — ROTATION SAFETY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARM — ROTATION SAFETY": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT STATUS UPDATES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — MEDIA STATUS UPDATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT STATUS UPDATES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 01_PROJETOS STORAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA STATUS UPDATES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 03_MIDIAS STORAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PROJECT REGISTRY EARLY": {
+      "main": [
+        [
+          {
+            "node": "CANONICALIZE — PROJECT IDENTITY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CANONICALIZE — PROJECT IDENTITY": {
+      "main": [
+        [
+          {
+            "node": "INIT — RECURSIVE DISCOVERY",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AUDIT — PROJECT IDENTITY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MANUAL — INGESTION": {
+      "main": [
+        [
+          {
+            "node": "READ — OS CONFIG INGESTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — OS CONFIG INGESTION": {
+      "main": [
+        [
+          {
+            "node": "INIT — PROJECT DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INIT — PROJECT DISCOVERY": {
+      "main": [
+        [
+          {
+            "node": "NEXT — PROJECT FOLDER BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NEXT — PROJECT FOLDER BATCH": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — PROJECT SCAN STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — PROJECT SCAN STATE": {
+      "main": [
+        [
+          {
+            "node": "LIST — PROJECT DISCOVERY BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NORMALIZE — PROJECT DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — PROJECT DISCOVERY TRUNCATED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — PROJECT DISCOVERY BATCH": {
+      "main": [
+        [
+          {
+            "node": "ACCUMULATE — PROJECT DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ACCUMULATE — PROJECT DISCOVERY": {
+      "main": [
+        [
+          {
+            "node": "NEXT — PROJECT FOLDER BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — PROJECT DISCOVERY TRUNCATED": {
+      "main": [
+        [
+          {
+            "node": "BLOCK — PARTIAL PROJECT DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — PROJECT DISCOVERY": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — PROJECT DISCOVERY RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — PROJECT DISCOVERY RESULT": {
+      "main": [
+        [
+          {
+            "node": "READ — PROJECT REGISTRY EARLY",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AUDIT — PROJECT DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — NO PROJECTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INIT — RECURSIVE DISCOVERY": {
+      "main": [
+        [
+          {
+            "node": "NEXT — FOLDER BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NEXT — FOLDER BATCH": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — SCAN STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — SCAN STATE": {
+      "main": [
+        [
+          {
+            "node": "LIST — RECURSIVE BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NORMALIZE — MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — DISCOVERY TRUNCATED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — RECURSIVE BATCH": {
+      "main": [
+        [
+          {
+            "node": "ACCUMULATE — RECURSIVE BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ACCUMULATE — RECURSIVE BATCH": {
+      "main": [
+        [
+          {
+            "node": "NEXT — FOLDER BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — DISCOVERY TRUNCATED": {
+      "main": [
+        [
+          {
+            "node": "BLOCK — PARTIAL DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — MEDIA": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — DISCOVERY RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — DISCOVERY RESULT": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AUDIT — TREE DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — NO MEDIA DISCOVERED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

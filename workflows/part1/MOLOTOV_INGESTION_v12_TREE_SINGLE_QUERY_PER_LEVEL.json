@@ -1,0 +1,1919 @@
+{
+  "name": "MOLOTOV — 01 — INGESTION — v12 TREE SINGLE QUERY PER LEVEL",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eb258ff8-94eb-445f-b42a-73a52d0ab33a",
+      "name": "MANUAL — TEST"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        220,
+        0
+      ],
+      "id": "3c61ac18-fd5a-4701-bddd-502a9a7ac7a1",
+      "name": "DISCOVER — 00_BRUTOS",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i => {\n  const name = String(i.json.name || '').trim();\n  const isProject = /^TATTOO_\\d{4}$/i.test(name);\n  const isContainer = !isProject && /^\\d{4}$/.test(name);\n  return { json: {\n    ...i.json,\n    molotov_type: isProject ? 'PROJECT' : isContainer ? 'CONTAINER' : 'IGNORE',\n    project_id: isProject ? name.toUpperCase() : null,\n    project_folder_id: isProject ? i.json.id : null,\n    discovered_at: new Date().toISOString()\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "70b829e0-a495-4bba-b6c3-43f41ca071e8",
+      "name": "CLASSIFY — ROOT"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "PROJECT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "07f37cf1-38a5-49ba-a7a9-c3cce782c3aa"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PROJECT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.molotov_type }}",
+                    "rightValue": "CONTAINER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c07c8d78-c620-48c5-8061-230f5de93330"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CONTAINER"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        0
+      ],
+      "id": "b60f0f4e-422d-475f-907c-282c84f5fe34",
+      "name": "ROUTE — ROOT"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $json.id + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        880,
+        180
+      ],
+      "id": "84e7a58a-b260-4283-a40a-219f221798c8",
+      "name": "EXPLORE — CONTAINER",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all()\n  .filter(i => /^TATTOO_\\d{4}$/i.test(String(i.json.name || '').trim()))\n  .map(i => ({ json: {\n    ...i.json,\n    molotov_type: 'PROJECT',\n    project_id: String(i.json.name).trim().toUpperCase(),\n    project_folder_id: i.json.id,\n    discovered_at: new Date().toISOString()\n  }}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        180
+      ],
+      "id": "248a7c74-12b1-448e-a7fe-fd935d5dadc2",
+      "name": "FILTER — PROJECTS IN CONTAINER"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,project_id:i.json.project_id||String(i.json.name||'').toUpperCase(),project_folder_id:i.json.project_folder_id||i.json.id}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "a15f3f99-4a9b-4a76-8527-897eb3c73ae5",
+      "name": "PREPARE — PROJECT CONTEXT"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "ea60c88b-968b-4cd8-ae38-72f317f74cd3",
+      "name": "READ — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const discovered = $('NORMALIZE — MEDIA').all().map(i => i.json);\nconst existing = $input.all().map(i => i.json);\n\nfunction extractDriveId(url) {\n  if (!url) return null;\n  for (const r of [/\\/file\\/d\\/([^/]+)/, /[?&]id=([^&]+)/, /\\/d\\/([^/]+)/]) {\n    const m = String(url).match(r);\n    if (m?.[1]) return m[1];\n  }\n  return null;\n}\n\nconst driveIds = new Set();\nconst projectNames = new Set();\n\nfor (const row of existing) {\n  const d = extractDriveId(row.LINK_DRIVE);\n  if (d) driveIds.add(d);\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  const fn = String(row.ARQUIVO || '').trim().toLowerCase();\n  if (pid && fn) projectNames.add(`${pid}::${fn}`);\n}\n\nreturn discovered.map(a => {\n  const scoped = `${String(a.project_id || '').toUpperCase()}::${String(a.file_name || '').trim().toLowerCase()}`;\n  const byDrive = Boolean(a.drive_file_id && driveIds.has(a.drive_file_id));\n  const byScopedName = Boolean(a.project_id && a.file_name && projectNames.has(scoped));\n  const exists = byDrive || byScopedName;\n  return { json: {\n    ...a,\n    already_exists: exists,\n    match_method: byDrive ? 'DRIVE_ID' : byScopedName ? 'PROJECT_FILE_NAME' : 'NONE',\n    ingestion_action: exists ? 'SKIP' : 'INSERT'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "73a5258c-d130-42e7-abb9-458f86d294ee",
+      "name": "IDEMPOTENCY — PROJECT SCOPED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst stats = {};\nfor (const x of items) {\n  const p = x.project_id || 'NO_PROJECT';\n  stats[p] ??= {total:0, INSERT:0, SKIP:0};\n  stats[p].total++;\n  stats[p][x.ingestion_action] = (stats[p][x.ingestion_action] || 0) + 1;\n}\nreturn items.map(x => ({json:{...x, isolation_audit: stats}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "id": "082f55de-3678-4a20-a174-2953d182988b",
+      "name": "AUDIT — PROJECT ISOLATION"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "INSERT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6203e57a-3a09-48c6-8805-d44e8fe049a1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INSERT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ingestion_action }}",
+                    "rightValue": "SKIP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0bc104b0-8139-4ec4-8594-10b0024e9ce9"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SKIP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        0
+      ],
+      "id": "f44d6fea-bf3a-45ee-b230-c5919e29ba4a",
+      "name": "ROUTE — INGESTION"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2640,
+        160
+      ],
+      "id": "857ddedb-1e87-4602-927d-19e3381d7bba",
+      "name": "READ — 01_PROJETOS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOLOTOV SOCIAL OS — WRITE PLAN\n// Still only calculates rows. Actual writing is armed by the next safety node.\n\nconst projectRows = $input.all().map(i => i.json);\nconst projectContexts = $('PREPARE — PROJECT CONTEXT').all().map(i => i.json);\nconst media = $('AUDIT — PROJECT ISOLATION').all().map(i => i.json);\nconst existingMediaRows = $('READ — 03_MIDIAS').all().map(i => i.json);\n\nconst now = new Date().toISOString();\nconst today = now.slice(0, 10);\n\nconst existingProjects = new Set(\n  projectRows\n    .map(r => String(r.ID_PROJETO || '').trim().toUpperCase())\n    .filter(Boolean)\n);\n\nconst uniqueProjects = new Map();\nfor (const p of projectContexts) {\n  const id = String(p.project_id || '').trim().toUpperCase();\n  if (!id) continue;\n  uniqueProjects.set(id, p);\n}\n\nconst newProjects = [];\nfor (const [id, p] of uniqueProjects.entries()) {\n  if (existingProjects.has(id)) continue;\n\n  newProjects.push({\n    ID_PROJETO: id,\n    NOME: id,\n    TIPO: 'Tattoo',\n    STATUS: 'EM TRIAGEM',\n    'SESSÕES': '',\n    DATA_INICIAL: '',\n    DATA_FINAL: '',\n    PASTA_BRUTOS: `https://drive.google.com/drive/folders/${p.project_folder_id}`,\n    'ANÁLISE_VISUAL': 'PENDENTE',\n    PRIORIDADE: '',\n    'OBSERVAÇÕES': 'Cadastro automático de projeto descoberto em 00_BRUTOS.',\n    ATUALIZADO_EM: today,\n\n    DRIVE_FOLDER_ID: p.project_folder_id,\n    STORAGE_STATUS: 'ONLINE',\n    FIRST_SEEN_AT: now,\n    LAST_SEEN_AT: now,\n    OFFLINE_AT: ''\n  });\n}\n\nlet maxMediaNumber = 0;\nfor (const r of existingMediaRows) {\n  const m = String(r.ID_MIDIA || '').trim().match(/^M(\\d+)$/i);\n  if (m) maxMediaNumber = Math.max(maxMediaNumber, Number(m[1]));\n}\n\nconst inserts = media.filter(m => m.ingestion_action === 'INSERT');\n\nconst mediaRows = inserts.map((m, index) => {\n  const id = `M${String(maxMediaNumber + index + 1).padStart(4, '0')}`;\n\n  return {\n    ID_MIDIA: id,\n    ID_PROJETO: m.project_id,\n    ARQUIVO: m.file_name,\n    LINK_DRIVE: `https://drive.google.com/file/d/${m.drive_file_id}/view`,\n    TIPO: m.media_type === 'IMAGE' ? 'FOTO' : m.media_type === 'VIDEO' ? 'VÍDEO' : m.media_type,\n    DATA_CAPTURA: '',\n    'SESSÃO': '',\n    TAMANHO: m.file_size_bytes || '',\n    TRIAGEM: 'PENDENTE',\n    QUALIDADE: '',\n    'CONTEÚDO_VISUAL': '',\n    MELHOR_TRECHO: '',\n    USAR_EM: '',\n    'OBSERVAÇÕES': 'Ingestão automática pelo MOLOTOV SOCIAL OS.',\n\n    DRIVE_FILE_ID: m.drive_file_id,\n    PROJECT_FOLDER_ID: m.project_folder_id,\n    PARENT_FOLDER_ID: m.parent_folder_id || m.project_folder_id,\n    RELATIVE_PATH: m.relative_path || m.file_name,\n    MIME_TYPE: m.mime_type || '',\n    FILE_SIZE_BYTES: m.file_size_bytes || '',\n    DRIVE_MODIFIED_AT: m.drive_modified_at || '',\n    INGESTION_KEY: m.ingestion_key,\n    CONTENT_HASH: '',\n    STORAGE_STATUS: 'ONLINE',\n    FIRST_SEEN_AT: now,\n    LAST_SEEN_AT: now,\n    OFFLINE_AT: ''\n  };\n});\n\nreturn [{\n  json: {\n    dry_run: true,\n    generated_at: now,\n    summary: {\n      discovered_projects: uniqueProjects.size,\n      existing_projects: existingProjects.size,\n      new_projects_to_insert: newProjects.length,\n      media_total_discovered: media.length,\n      media_existing_skip: media.filter(m => m.ingestion_action === 'SKIP').length,\n      media_new_to_insert: mediaRows.length,\n      next_media_id_start: mediaRows.length ? mediaRows[0].ID_MIDIA : null,\n      next_media_id_end: mediaRows.length ? mediaRows[mediaRows.length - 1].ID_MIDIA : null\n    },\n    project_rows_to_insert: newProjects,\n    media_rows_to_insert: mediaRows\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        160
+      ],
+      "id": "35a3841b-6224-4a65-ac0b-1ce2c8a4e42e",
+      "name": "PLAN — REAL WRITES"
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $input.first().json;\n\nconst projects = Array.isArray(plan.project_rows_to_insert)\n  ? plan.project_rows_to_insert : [];\nconst media = Array.isArray(plan.media_rows_to_insert)\n  ? plan.media_rows_to_insert : [];\n\nfunction fail(msg) {\n  throw new Error(`WRITE_SAFETY_BLOCK: ${msg}`);\n}\n\nif (!plan.dry_run) fail('planner contract invalid');\n\nconst mediaIds = media.map(r => String(r.ID_MIDIA || '').trim());\nif (new Set(mediaIds).size !== mediaIds.length) fail('duplicate ID_MIDIA in write batch');\n\nconst driveIds = media.map(r => String(r.DRIVE_FILE_ID || '').trim()).filter(Boolean);\nif (new Set(driveIds).size !== driveIds.length) fail('duplicate DRIVE_FILE_ID in write batch');\n\nfor (const p of projects) {\n  if (!p.ID_PROJETO || !p.DRIVE_FOLDER_ID || p.STORAGE_STATUS !== 'ONLINE') {\n    fail(`invalid project row ${JSON.stringify(p)}`);\n  }\n}\n\nfor (const m of media) {\n  if (!m.ID_MIDIA || !m.ID_PROJETO || !m.DRIVE_FILE_ID || !m.INGESTION_KEY) {\n    fail(`invalid media row ${JSON.stringify(m)}`);\n  }\n  if (m.STORAGE_STATUS !== 'ONLINE') fail(`media ${m.ID_MIDIA} is not ONLINE`);\n}\n\nreturn [{\n  json: {\n    ...plan,\n    write_authorized: true,\n    write_authorized_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        160
+      ],
+      "id": "3ccaf68b-2c4d-4c29-9558-5d8a1441ca1f",
+      "name": "ARM — WRITE SAFETY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.write_authorized)throw new Error('WRITE_NOT_AUTHORIZED');return (p.project_rows_to_insert||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        60
+      ],
+      "id": "58e288ac-ef5a-40c8-a3ad-f8352138f5e8",
+      "name": "EXPAND — PROJECT ROWS"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.write_authorized)throw new Error('WRITE_NOT_AUTHORIZED');return (p.media_rows_to_insert||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        260
+      ],
+      "id": "dc5f639c-9b28-4724-8677-db68f60f55cb",
+      "name": "EXPAND — MEDIA ROWS"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOME",
+              "displayName": "NOME",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TIPO",
+              "displayName": "TIPO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÕES",
+              "displayName": "SESSÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_INICIAL",
+              "displayName": "DATA_INICIAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_FINAL",
+              "displayName": "DATA_FINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PASTA_BRUTOS",
+              "displayName": "PASTA_BRUTOS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANÁLISE_VISUAL",
+              "displayName": "ANÁLISE_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRIORIDADE",
+              "displayName": "PRIORIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATUALIZADO_EM",
+              "displayName": "ATUALIZADO_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FOLDER_ID",
+              "displayName": "DRIVE_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        60
+      ],
+      "id": "d9937d5a-35bc-40c9-aeca-edc5fb6addab",
+      "name": "APPEND — 01_PROJETOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ARQUIVO",
+              "displayName": "ARQUIVO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LINK_DRIVE",
+              "displayName": "LINK_DRIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TIPO",
+              "displayName": "TIPO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SESSÃO",
+              "displayName": "SESSÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TAMANHO",
+              "displayName": "TAMANHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FILE_ID",
+              "displayName": "DRIVE_FILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_FOLDER_ID",
+              "displayName": "PROJECT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PARENT_FOLDER_ID",
+              "displayName": "PARENT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELATIVE_PATH",
+              "displayName": "RELATIVE_PATH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_MODIFIED_AT",
+              "displayName": "DRIVE_MODIFIED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INGESTION_KEY",
+              "displayName": "INGESTION_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        260
+      ],
+      "id": "83290439-a40f-4cca-a353-7cd8cd237f99",
+      "name": "APPEND — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOLOTOV SOCIAL OS — STORAGE ROTATION PLAN\n// Produces exact row updates. The next safety node decides whether writes are allowed.\n\nconst now = new Date().toISOString();\n\nconst rootItems = $('DISCOVER — 00_BRUTOS').all().map(i => i.json);\nconst projectContexts = $('PREPARE — PROJECT CONTEXT').all().map(i => i.json);\nconst discoveredMedia = $('NORMALIZE — MEDIA').all().map(i => i.json);\nconst projectRows = $('READ — 01_PROJETOS').all().map(i => i.json);\nconst mediaRows = $('READ — 03_MIDIAS').all().map(i => i.json);\n\nfunction extractDriveId(url) {\n  if (!url) return null;\n  const s = String(url);\n  for (const p of [\n    /\\/file\\/d\\/([^/]+)/,\n    /\\/folders\\/([^/?]+)/,\n    /[?&]id=([^&]+)/\n  ]) {\n    const m = s.match(p);\n    if (m?.[1]) return m[1];\n  }\n  return null;\n}\n\nconst currentProjects = new Map();\nfor (const p of projectContexts) {\n  const id = String(p.project_id || '').trim().toUpperCase();\n  if (!id) continue;\n  currentProjects.set(id, p);\n}\n\nconst currentMediaByDriveId = new Map();\nfor (const m of discoveredMedia) {\n  const d = String(m.drive_file_id || '').trim();\n  if (d) currentMediaByDriveId.set(d, m);\n}\n\nconst projectUpdates = [];\nconst mediaUpdates = [];\nconst offlineProjectIds = new Set();\n\nfor (const row of projectRows) {\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  if (!pid || !row.row_number) continue;\n\n  const current = currentProjects.get(pid);\n  const status = String(row.STORAGE_STATUS || '').trim().toUpperCase();\n\n  if (current) {\n    const storedFolderId =\n      String(row.DRIVE_FOLDER_ID || '').trim() ||\n      extractDriveId(row.PASTA_BRUTOS) ||\n      '';\n\n    const needsIdentityBackfill =\n      !row.DRIVE_FOLDER_ID ||\n      storedFolderId !== String(current.project_folder_id);\n\n    const needsOnlineTransition = status !== 'ONLINE';\n\n    projectUpdates.push({\n      row_number: row.row_number,\n      ID_PROJETO: pid,\n      action:\n        needsOnlineTransition\n          ? 'SET_ONLINE'\n          : needsIdentityBackfill\n            ? 'BACKFILL_IDENTITY'\n            : 'TOUCH_ONLINE',\n      DRIVE_FOLDER_ID: current.project_folder_id,\n      STORAGE_STATUS: 'ONLINE',\n      FIRST_SEEN_AT: row.FIRST_SEEN_AT || now,\n      LAST_SEEN_AT: now,\n      OFFLINE_AT: ''\n    });\n    continue;\n  }\n\n  // Only projects previously managed as ONLINE are eligible for automatic OFFLINE.\n  if (status === 'ONLINE') {\n    offlineProjectIds.add(pid);\n\n    projectUpdates.push({\n      row_number: row.row_number,\n      ID_PROJETO: pid,\n      action: 'SET_OFFLINE',\n      DRIVE_FOLDER_ID:\n        row.DRIVE_FOLDER_ID ||\n        extractDriveId(row.PASTA_BRUTOS) ||\n        '',\n      STORAGE_STATUS: 'OFFLINE',\n      FIRST_SEEN_AT: row.FIRST_SEEN_AT || '',\n      LAST_SEEN_AT: row.LAST_SEEN_AT || '',\n      OFFLINE_AT: now\n    });\n  }\n}\n\nfor (const row of mediaRows) {\n  const mid = String(row.ID_MIDIA || '').trim();\n  const pid = String(row.ID_PROJETO || '').trim().toUpperCase();\n  if (!mid || !pid || !row.row_number) continue;\n\n  const driveId =\n    String(row.DRIVE_FILE_ID || '').trim() ||\n    extractDriveId(row.LINK_DRIVE) ||\n    '';\n\n  const status = String(row.STORAGE_STATUS || '').trim().toUpperCase();\n\n  if (offlineProjectIds.has(pid)) {\n    if (status === 'ONLINE') {\n      mediaUpdates.push({\n        row_number: row.row_number,\n        ID_MIDIA: mid,\n        ID_PROJETO: pid,\n        action: 'SET_OFFLINE',\n        DRIVE_FILE_ID: driveId,\n        PROJECT_FOLDER_ID: row.PROJECT_FOLDER_ID || '',\n        PARENT_FOLDER_ID: row.PARENT_FOLDER_ID || '',\n        RELATIVE_PATH: row.RELATIVE_PATH || row.ARQUIVO || '',\n        INGESTION_KEY: row.INGESTION_KEY || (driveId ? `gdrive:${driveId}` : ''),\n        STORAGE_STATUS: 'OFFLINE',\n        FIRST_SEEN_AT: row.FIRST_SEEN_AT || '',\n        LAST_SEEN_AT: row.LAST_SEEN_AT || '',\n        OFFLINE_AT: now\n      });\n    }\n    continue;\n  }\n\n  const current = driveId ? currentMediaByDriveId.get(driveId) : null;\n\n  // Only files physically observed in the active source are refreshed ONLINE.\n  if (current) {\n    mediaUpdates.push({\n      row_number: row.row_number,\n      ID_MIDIA: mid,\n      ID_PROJETO: pid,\n      action: status === 'ONLINE' ? 'TOUCH_ONLINE' : 'SET_ONLINE',\n      DRIVE_FILE_ID: driveId,\n      PROJECT_FOLDER_ID:\n        current.project_folder_id ||\n        row.PROJECT_FOLDER_ID ||\n        '',\n      PARENT_FOLDER_ID:\n        current.parent_folder_id ||\n        current.project_folder_id ||\n        row.PARENT_FOLDER_ID ||\n        '',\n      RELATIVE_PATH:\n        current.relative_path ||\n        current.file_name ||\n        row.RELATIVE_PATH ||\n        row.ARQUIVO ||\n        '',\n      INGESTION_KEY:\n        current.ingestion_key ||\n        row.INGESTION_KEY ||\n        (driveId ? `gdrive:${driveId}` : ''),\n      STORAGE_STATUS: 'ONLINE',\n      FIRST_SEEN_AT: row.FIRST_SEEN_AT || now,\n      LAST_SEEN_AT: now,\n      OFFLINE_AT: ''\n    });\n  }\n}\n\nconst summary = {\n  root_items_seen: rootItems.length,\n  current_projects_seen: currentProjects.size,\n  current_media_seen: currentMediaByDriveId.size,\n  known_projects: projectRows.filter(r => r.ID_PROJETO).length,\n  known_media: mediaRows.filter(r => r.ID_MIDIA).length,\n\n  projects_set_online:\n    projectUpdates.filter(x => x.action === 'SET_ONLINE').length,\n  projects_set_offline:\n    projectUpdates.filter(x => x.action === 'SET_OFFLINE').length,\n  projects_identity_backfill:\n    projectUpdates.filter(x => x.action === 'BACKFILL_IDENTITY').length,\n  projects_touch_online:\n    projectUpdates.filter(x => x.action === 'TOUCH_ONLINE').length,\n\n  media_set_online:\n    mediaUpdates.filter(x => x.action === 'SET_ONLINE').length,\n  media_set_offline:\n    mediaUpdates.filter(x => x.action === 'SET_OFFLINE').length,\n  media_touch_online:\n    mediaUpdates.filter(x => x.action === 'TOUCH_ONLINE').length\n};\n\nreturn [{\n  json: {\n    generated_at: now,\n    summary,\n    project_updates: projectUpdates,\n    media_updates: mediaUpdates\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        420
+      ],
+      "id": "039770d0-fbe8-4d2f-84c6-52400ceee0a1",
+      "name": "PLAN — STORAGE ROTATION"
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $input.first().json;\nconst summary = plan.summary || {};\nconst projects = Array.isArray(plan.project_updates) ? plan.project_updates : [];\nconst media = Array.isArray(plan.media_updates) ? plan.media_updates : [];\n\nfunction block(msg) {\n  throw new Error(`ROTATION_SAFETY_BLOCK: ${msg}`);\n}\n\nconst validStatus = new Set(['ONLINE', 'OFFLINE']);\n\nfor (const p of projects) {\n  if (!p.row_number || !p.ID_PROJETO || !validStatus.has(p.STORAGE_STATUS)) {\n    block(`invalid project update: ${JSON.stringify(p)}`);\n  }\n}\n\nfor (const m of media) {\n  if (!m.row_number || !m.ID_MIDIA || !m.ID_PROJETO || !validStatus.has(m.STORAGE_STATUS)) {\n    block(`invalid media update: ${JSON.stringify(m)}`);\n  }\n}\n\nconst projectRows = projects.map(x => Number(x.row_number));\nconst mediaRows = media.map(x => Number(x.row_number));\n\nif (new Set(projectRows).size !== projectRows.length) {\n  block('duplicate project row_number in update batch');\n}\nif (new Set(mediaRows).size !== mediaRows.length) {\n  block('duplicate media row_number in update batch');\n}\n\n// Fail closed on a suspicious empty discovery.\n// If managed ONLINE projects exist but the source scan sees no project at all,\n// we require a manual investigation instead of mass-marking everything OFFLINE.\nconst knownOnline = $('READ — 01_PROJETOS').all()\n  .map(i => i.json)\n  .filter(r => String(r.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE');\n\nif (knownOnline.length > 0 &&\n    Number(summary.current_projects_seen || 0) === 0 &&\n    Number(summary.projects_set_offline || 0) > 0) {\n  block('zero active projects discovered while ONLINE projects exist');\n}\n\nreturn [{\n  json: {\n    ...plan,\n    rotation_write_authorized: true,\n    rotation_write_authorized_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        420
+      ],
+      "id": "67ce581f-1d0e-4c17-a519-1f80fd6eb0bd",
+      "name": "ARM — ROTATION SAFETY"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.rotation_write_authorized)throw new Error('ROTATION_WRITE_NOT_AUTHORIZED');return (p.project_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        360
+      ],
+      "id": "37456aec-ba45-408b-a0a8-810d1ea79828",
+      "name": "EXPAND — PROJECT STATUS UPDATES"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if(!p.rotation_write_authorized)throw new Error('ROTATION_WRITE_NOT_AUTHORIZED');return (p.media_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        500
+      ],
+      "id": "3fef939e-0766-48ed-95de-7a34cd9c58c6",
+      "name": "EXPAND — MEDIA STATUS UPDATES"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "DRIVE_FOLDER_ID": "={{ $json.DRIVE_FOLDER_ID }}",
+            "STORAGE_STATUS": "={{ $json.STORAGE_STATUS }}",
+            "FIRST_SEEN_AT": "={{ $json.FIRST_SEEN_AT }}",
+            "LAST_SEEN_AT": "={{ $json.LAST_SEEN_AT }}",
+            "OFFLINE_AT": "={{ $json.OFFLINE_AT }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FOLDER_ID",
+              "displayName": "DRIVE_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        360
+      ],
+      "id": "3f45301f-b574-4ea0-ac21-7f375f5af909",
+      "name": "UPDATE — 01_PROJETOS STORAGE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "DRIVE_FILE_ID": "={{ $json.DRIVE_FILE_ID }}",
+            "PROJECT_FOLDER_ID": "={{ $json.PROJECT_FOLDER_ID }}",
+            "PARENT_FOLDER_ID": "={{ $json.PARENT_FOLDER_ID }}",
+            "RELATIVE_PATH": "={{ $json.RELATIVE_PATH }}",
+            "INGESTION_KEY": "={{ $json.INGESTION_KEY }}",
+            "STORAGE_STATUS": "={{ $json.STORAGE_STATUS }}",
+            "FIRST_SEEN_AT": "={{ $json.FIRST_SEEN_AT }}",
+            "LAST_SEEN_AT": "={{ $json.LAST_SEEN_AT }}",
+            "OFFLINE_AT": "={{ $json.OFFLINE_AT }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DRIVE_FILE_ID",
+              "displayName": "DRIVE_FILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_FOLDER_ID",
+              "displayName": "PROJECT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PARENT_FOLDER_ID",
+              "displayName": "PARENT_FOLDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELATIVE_PATH",
+              "displayName": "RELATIVE_PATH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INGESTION_KEY",
+              "displayName": "INGESTION_KEY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STORAGE_STATUS",
+              "displayName": "STORAGE_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FIRST_SEEN_AT",
+              "displayName": "FIRST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SEEN_AT",
+              "displayName": "LAST_SEEN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OFFLINE_AT",
+              "displayName": "OFFLINE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        500
+      ],
+      "id": "2516c896-70cb-49af-a083-a97f11a4151c",
+      "name": "UPDATE — 03_MIDIAS STORAGE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — BUILD SINGLE DRIVE QUERY L0\n// One Drive node execution for ALL active projects.\n// This avoids cross-run loss when several project folders are scanned.\nconst projects = $input.all()\n  .map(i => i.json)\n  .filter(p => p.project_id && p.project_folder_id);\n\nif (projects.length === 0) {\n  throw new Error('NO_PROJECT_CONTEXTS_FOUND');\n}\n\nconst parentContext = {};\nconst clauses = [];\n\nfor (const p of projects) {\n  const folderId = String(p.project_folder_id);\n  clauses.push(`'${folderId}' in parents`);\n  parentContext[folderId] = {\n    project_id: p.project_id,\n    project_folder_id: folderId,\n    relative_path: ''\n  };\n}\n\nreturn [{\n  json: {\n    tree_query: `(${clauses.join(' or ')}) and trashed = false`,\n    parent_context: parentContext,\n    folder_count: projects.length,\n    depth: 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        -520
+      ],
+      "id": "86ccf1a2-203e-4ac0-b78f-ac47d5d12983",
+      "name": "BUILD — TREE QUERY L0"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.tree_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        -520
+      ],
+      "id": "271c0e99-ee00-4d32-980d-6e121a9a0b96",
+      "name": "LIST — TREE L0",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — CLASSIFY TREE L0\nconst input = $input.all();\nconst queryContext = $('BUILD — TREE QUERY L0').first().json || {};\nconst parentContext = queryContext.parent_context || {};\n\nfunction extension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1 ? parts.pop().toLowerCase() : '';\n}\n\nfunction mediaType(name) {\n  const ext = extension(name);\n  if (['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(ext)) return 'IMAGE';\n  if (['mp4','mov','m4v','avi','mkv','webm'].includes(ext)) return 'VIDEO';\n  return 'OTHER';\n}\n\nconst out = [];\n\nfor (const item of input) {\n  const f = item.json || {};\n\n  // alwaysOutputData on the Drive node produces one empty item when the query returns 0.\n  if (!f.id) {\n    continue;\n  }\n\n  const parents = Array.isArray(f.parents) ? f.parents : [];\n  const parentId = String(parents[0] || '');\n  const p = parentContext[parentId];\n\n  if (!p) {\n    throw new Error(\n      `TREE_PARENT_CONTEXT_NOT_FOUND_L0: file=${f.name || f.id} parent=${parentId || 'MISSING'}`\n    );\n  }\n\n  const isFolder = f.mimeType === 'application/vnd.google-apps.folder';\n  const type = isFolder ? 'OTHER' : mediaType(f.name);\n  const supported = type === 'IMAGE' || type === 'VIDEO';\n\n  const basePath = String(p.relative_path || '').trim();\n  const relativePath = basePath\n    ? `${basePath}/${String(f.name || '')}`\n    : String(f.name || '');\n\n  out.push({\n    json: {\n      tree_type: isFolder ? 'FOLDER' : supported ? 'MEDIA' : 'OTHER',\n      depth: 0,\n\n      project_id: p.project_id,\n      project_folder_id: p.project_folder_id,\n      parent_folder_id: parentId,\n\n      folder_id: isFolder ? f.id : null,\n\n      drive_file_id: isFolder ? null : f.id,\n      file_name: String(f.name || ''),\n      extension: isFolder ? '' : extension(f.name),\n      media_type: type,\n      is_supported_media: supported,\n\n      relative_path: relativePath,\n\n      mime_type: f.mimeType || '',\n      file_size_bytes: f.size || '',\n      drive_modified_at: f.modifiedTime || '',\n\n      source: 'GOOGLE_DRIVE',\n      storage_status: supported ? 'ONLINE' : '',\n      ingestion_status: supported ? 'DISCOVERED' : '',\n      ingestion_key: supported ? `gdrive:${f.id}` : '',\n\n      discovered_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn out.length ? out : [{ json: { tree_type: 'EMPTY', depth: 0 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        -520
+      ],
+      "id": "6418100d-9da2-45ce-a1c7-e14b0143dc75",
+      "name": "CLASSIFY — TREE L0"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — BUILD SINGLE DRIVE QUERY L1\n// All folders found at the previous depth are collapsed into ONE Drive query.\nconst rows = $input.all().map(i => i.json);\nconst folders = rows.filter(x => x.tree_type === 'FOLDER' && x.folder_id);\n\nconst parentContext = {};\nconst clauses = [];\n\nfor (const f of folders) {\n  const folderId = String(f.folder_id);\n  clauses.push(`'${folderId}' in parents`);\n  parentContext[folderId] = {\n    project_id: f.project_id,\n    project_folder_id: f.project_folder_id,\n    relative_path: f.relative_path || ''\n  };\n}\n\nif (folders.length === 0) {\n  return [{\n    json: {\n      tree_query: \"'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and name = '__MOLOTOV_SENTINEL_NEVER_MATCH__' and trashed = false\",\n      parent_context: {},\n      folder_count: 0,\n      depth: 1,\n      _sentinel: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    tree_query: `(${clauses.join(' or ')}) and trashed = false`,\n    parent_context: parentContext,\n    folder_count: folders.length,\n    depth: 1\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        -520
+      ],
+      "id": "9524fc37-f16f-4374-8473-b933eac26609",
+      "name": "BUILD — TREE QUERY L1"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.tree_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2460,
+        -520
+      ],
+      "id": "3404c4a0-8d89-435a-bb18-d38a090eff11",
+      "name": "LIST — TREE L1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — CLASSIFY TREE L1\nconst input = $input.all();\nconst queryContext = $('BUILD — TREE QUERY L1').first().json || {};\nconst parentContext = queryContext.parent_context || {};\n\nfunction extension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1 ? parts.pop().toLowerCase() : '';\n}\n\nfunction mediaType(name) {\n  const ext = extension(name);\n  if (['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(ext)) return 'IMAGE';\n  if (['mp4','mov','m4v','avi','mkv','webm'].includes(ext)) return 'VIDEO';\n  return 'OTHER';\n}\n\nconst out = [];\n\nfor (const item of input) {\n  const f = item.json || {};\n\n  // alwaysOutputData on the Drive node produces one empty item when the query returns 0.\n  if (!f.id) {\n    continue;\n  }\n\n  const parents = Array.isArray(f.parents) ? f.parents : [];\n  const parentId = String(parents[0] || '');\n  const p = parentContext[parentId];\n\n  if (!p) {\n    throw new Error(\n      `TREE_PARENT_CONTEXT_NOT_FOUND_L1: file=${f.name || f.id} parent=${parentId || 'MISSING'}`\n    );\n  }\n\n  const isFolder = f.mimeType === 'application/vnd.google-apps.folder';\n  const type = isFolder ? 'OTHER' : mediaType(f.name);\n  const supported = type === 'IMAGE' || type === 'VIDEO';\n\n  const basePath = String(p.relative_path || '').trim();\n  const relativePath = basePath\n    ? `${basePath}/${String(f.name || '')}`\n    : String(f.name || '');\n\n  out.push({\n    json: {\n      tree_type: isFolder ? 'FOLDER' : supported ? 'MEDIA' : 'OTHER',\n      depth: 1,\n\n      project_id: p.project_id,\n      project_folder_id: p.project_folder_id,\n      parent_folder_id: parentId,\n\n      folder_id: isFolder ? f.id : null,\n\n      drive_file_id: isFolder ? null : f.id,\n      file_name: String(f.name || ''),\n      extension: isFolder ? '' : extension(f.name),\n      media_type: type,\n      is_supported_media: supported,\n\n      relative_path: relativePath,\n\n      mime_type: f.mimeType || '',\n      file_size_bytes: f.size || '',\n      drive_modified_at: f.modifiedTime || '',\n\n      source: 'GOOGLE_DRIVE',\n      storage_status: supported ? 'ONLINE' : '',\n      ingestion_status: supported ? 'DISCOVERED' : '',\n      ingestion_key: supported ? `gdrive:${f.id}` : '',\n\n      discovered_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn out.length ? out : [{ json: { tree_type: 'EMPTY', depth: 1 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        -520
+      ],
+      "id": "f82d9f8b-8eba-4bbf-baf3-0c40e31ce77a",
+      "name": "CLASSIFY — TREE L1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — BUILD SINGLE DRIVE QUERY L2\n// All folders found at the previous depth are collapsed into ONE Drive query.\nconst rows = $input.all().map(i => i.json);\nconst folders = rows.filter(x => x.tree_type === 'FOLDER' && x.folder_id);\n\nconst parentContext = {};\nconst clauses = [];\n\nfor (const f of folders) {\n  const folderId = String(f.folder_id);\n  clauses.push(`'${folderId}' in parents`);\n  parentContext[folderId] = {\n    project_id: f.project_id,\n    project_folder_id: f.project_folder_id,\n    relative_path: f.relative_path || ''\n  };\n}\n\nif (folders.length === 0) {\n  return [{\n    json: {\n      tree_query: \"'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and name = '__MOLOTOV_SENTINEL_NEVER_MATCH__' and trashed = false\",\n      parent_context: {},\n      folder_count: 0,\n      depth: 2,\n      _sentinel: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    tree_query: `(${clauses.join(' or ')}) and trashed = false`,\n    parent_context: parentContext,\n    folder_count: folders.length,\n    depth: 2\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        -520
+      ],
+      "id": "d6d5f961-8760-49d4-9efc-4bb93a9a5802",
+      "name": "BUILD — TREE QUERY L2"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.tree_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3120,
+        -520
+      ],
+      "id": "e8a3be2b-dd51-4fef-8d21-d0e1ce894c16",
+      "name": "LIST — TREE L2",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — CLASSIFY TREE L2\nconst input = $input.all();\nconst queryContext = $('BUILD — TREE QUERY L2').first().json || {};\nconst parentContext = queryContext.parent_context || {};\n\nfunction extension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1 ? parts.pop().toLowerCase() : '';\n}\n\nfunction mediaType(name) {\n  const ext = extension(name);\n  if (['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(ext)) return 'IMAGE';\n  if (['mp4','mov','m4v','avi','mkv','webm'].includes(ext)) return 'VIDEO';\n  return 'OTHER';\n}\n\nconst out = [];\n\nfor (const item of input) {\n  const f = item.json || {};\n\n  // alwaysOutputData on the Drive node produces one empty item when the query returns 0.\n  if (!f.id) {\n    continue;\n  }\n\n  const parents = Array.isArray(f.parents) ? f.parents : [];\n  const parentId = String(parents[0] || '');\n  const p = parentContext[parentId];\n\n  if (!p) {\n    throw new Error(\n      `TREE_PARENT_CONTEXT_NOT_FOUND_L2: file=${f.name || f.id} parent=${parentId || 'MISSING'}`\n    );\n  }\n\n  const isFolder = f.mimeType === 'application/vnd.google-apps.folder';\n  const type = isFolder ? 'OTHER' : mediaType(f.name);\n  const supported = type === 'IMAGE' || type === 'VIDEO';\n\n  const basePath = String(p.relative_path || '').trim();\n  const relativePath = basePath\n    ? `${basePath}/${String(f.name || '')}`\n    : String(f.name || '');\n\n  out.push({\n    json: {\n      tree_type: isFolder ? 'FOLDER' : supported ? 'MEDIA' : 'OTHER',\n      depth: 2,\n\n      project_id: p.project_id,\n      project_folder_id: p.project_folder_id,\n      parent_folder_id: parentId,\n\n      folder_id: isFolder ? f.id : null,\n\n      drive_file_id: isFolder ? null : f.id,\n      file_name: String(f.name || ''),\n      extension: isFolder ? '' : extension(f.name),\n      media_type: type,\n      is_supported_media: supported,\n\n      relative_path: relativePath,\n\n      mime_type: f.mimeType || '',\n      file_size_bytes: f.size || '',\n      drive_modified_at: f.modifiedTime || '',\n\n      source: 'GOOGLE_DRIVE',\n      storage_status: supported ? 'ONLINE' : '',\n      ingestion_status: supported ? 'DISCOVERED' : '',\n      ingestion_key: supported ? `gdrive:${f.id}` : '',\n\n      discovered_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn out.length ? out : [{ json: { tree_type: 'EMPTY', depth: 2 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3340,
+        -520
+      ],
+      "id": "133eab66-836f-49b2-a6f3-fe844b2b2da8",
+      "name": "CLASSIFY — TREE L2"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — BUILD SINGLE DRIVE QUERY L3\n// All folders found at the previous depth are collapsed into ONE Drive query.\nconst rows = $input.all().map(i => i.json);\nconst folders = rows.filter(x => x.tree_type === 'FOLDER' && x.folder_id);\n\nconst parentContext = {};\nconst clauses = [];\n\nfor (const f of folders) {\n  const folderId = String(f.folder_id);\n  clauses.push(`'${folderId}' in parents`);\n  parentContext[folderId] = {\n    project_id: f.project_id,\n    project_folder_id: f.project_folder_id,\n    relative_path: f.relative_path || ''\n  };\n}\n\nif (folders.length === 0) {\n  return [{\n    json: {\n      tree_query: \"'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and name = '__MOLOTOV_SENTINEL_NEVER_MATCH__' and trashed = false\",\n      parent_context: {},\n      folder_count: 0,\n      depth: 3,\n      _sentinel: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    tree_query: `(${clauses.join(' or ')}) and trashed = false`,\n    parent_context: parentContext,\n    folder_count: folders.length,\n    depth: 3\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3560,
+        -520
+      ],
+      "id": "321b8d2b-a433-435d-8736-60018d2c465e",
+      "name": "BUILD — TREE QUERY L3"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.tree_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3780,
+        -520
+      ],
+      "id": "77c62897-2420-4cf8-b061-68b02f6fff38",
+      "name": "LIST — TREE L3",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — CLASSIFY TREE L3\nconst input = $input.all();\nconst queryContext = $('BUILD — TREE QUERY L3').first().json || {};\nconst parentContext = queryContext.parent_context || {};\n\nfunction extension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1 ? parts.pop().toLowerCase() : '';\n}\n\nfunction mediaType(name) {\n  const ext = extension(name);\n  if (['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(ext)) return 'IMAGE';\n  if (['mp4','mov','m4v','avi','mkv','webm'].includes(ext)) return 'VIDEO';\n  return 'OTHER';\n}\n\nconst out = [];\n\nfor (const item of input) {\n  const f = item.json || {};\n\n  // alwaysOutputData on the Drive node produces one empty item when the query returns 0.\n  if (!f.id) {\n    continue;\n  }\n\n  const parents = Array.isArray(f.parents) ? f.parents : [];\n  const parentId = String(parents[0] || '');\n  const p = parentContext[parentId];\n\n  if (!p) {\n    throw new Error(\n      `TREE_PARENT_CONTEXT_NOT_FOUND_L3: file=${f.name || f.id} parent=${parentId || 'MISSING'}`\n    );\n  }\n\n  const isFolder = f.mimeType === 'application/vnd.google-apps.folder';\n  const type = isFolder ? 'OTHER' : mediaType(f.name);\n  const supported = type === 'IMAGE' || type === 'VIDEO';\n\n  const basePath = String(p.relative_path || '').trim();\n  const relativePath = basePath\n    ? `${basePath}/${String(f.name || '')}`\n    : String(f.name || '');\n\n  out.push({\n    json: {\n      tree_type: isFolder ? 'FOLDER' : supported ? 'MEDIA' : 'OTHER',\n      depth: 3,\n\n      project_id: p.project_id,\n      project_folder_id: p.project_folder_id,\n      parent_folder_id: parentId,\n\n      folder_id: isFolder ? f.id : null,\n\n      drive_file_id: isFolder ? null : f.id,\n      file_name: String(f.name || ''),\n      extension: isFolder ? '' : extension(f.name),\n      media_type: type,\n      is_supported_media: supported,\n\n      relative_path: relativePath,\n\n      mime_type: f.mimeType || '',\n      file_size_bytes: f.size || '',\n      drive_modified_at: f.modifiedTime || '',\n\n      source: 'GOOGLE_DRIVE',\n      storage_status: supported ? 'ONLINE' : '',\n      ingestion_status: supported ? 'DISCOVERED' : '',\n      ingestion_key: supported ? `gdrive:${f.id}` : '',\n\n      discovered_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn out.length ? out : [{ json: { tree_type: 'EMPTY', depth: 3 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        -520
+      ],
+      "id": "2c139ced-da01-42aa-b850-ba200a45a2a7",
+      "name": "CLASSIFY — TREE L3"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — BUILD SINGLE DRIVE QUERY L4\n// All folders found at the previous depth are collapsed into ONE Drive query.\nconst rows = $input.all().map(i => i.json);\nconst folders = rows.filter(x => x.tree_type === 'FOLDER' && x.folder_id);\n\nconst parentContext = {};\nconst clauses = [];\n\nfor (const f of folders) {\n  const folderId = String(f.folder_id);\n  clauses.push(`'${folderId}' in parents`);\n  parentContext[folderId] = {\n    project_id: f.project_id,\n    project_folder_id: f.project_folder_id,\n    relative_path: f.relative_path || ''\n  };\n}\n\nif (folders.length === 0) {\n  return [{\n    json: {\n      tree_query: \"'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk' in parents and name = '__MOLOTOV_SENTINEL_NEVER_MATCH__' and trashed = false\",\n      parent_context: {},\n      folder_count: 0,\n      depth: 4,\n      _sentinel: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    tree_query: `(${clauses.join(' or ')}) and trashed = false`,\n    parent_context: parentContext,\n    folder_count: folders.length,\n    depth: 4\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4220,
+        -520
+      ],
+      "id": "78a3e410-a6ef-4561-99af-36196c064866",
+      "name": "BUILD — TREE QUERY L4"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.tree_query }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4440,
+        -520
+      ],
+      "id": "dad09300-c9d8-4bbb-ae73-b381ecf89f23",
+      "name": "LIST — TREE L4",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — CLASSIFY TREE L4\nconst input = $input.all();\nconst queryContext = $('BUILD — TREE QUERY L4').first().json || {};\nconst parentContext = queryContext.parent_context || {};\n\nfunction extension(name) {\n  const parts = String(name || '').split('.');\n  return parts.length > 1 ? parts.pop().toLowerCase() : '';\n}\n\nfunction mediaType(name) {\n  const ext = extension(name);\n  if (['jpg','jpeg','png','webp','heic','heif','tif','tiff'].includes(ext)) return 'IMAGE';\n  if (['mp4','mov','m4v','avi','mkv','webm'].includes(ext)) return 'VIDEO';\n  return 'OTHER';\n}\n\nconst out = [];\n\nfor (const item of input) {\n  const f = item.json || {};\n\n  // alwaysOutputData on the Drive node produces one empty item when the query returns 0.\n  if (!f.id) {\n    continue;\n  }\n\n  const parents = Array.isArray(f.parents) ? f.parents : [];\n  const parentId = String(parents[0] || '');\n  const p = parentContext[parentId];\n\n  if (!p) {\n    throw new Error(\n      `TREE_PARENT_CONTEXT_NOT_FOUND_L4: file=${f.name || f.id} parent=${parentId || 'MISSING'}`\n    );\n  }\n\n  const isFolder = f.mimeType === 'application/vnd.google-apps.folder';\n  const type = isFolder ? 'OTHER' : mediaType(f.name);\n  const supported = type === 'IMAGE' || type === 'VIDEO';\n\n  const basePath = String(p.relative_path || '').trim();\n  const relativePath = basePath\n    ? `${basePath}/${String(f.name || '')}`\n    : String(f.name || '');\n\n  out.push({\n    json: {\n      tree_type: isFolder ? 'FOLDER' : supported ? 'MEDIA' : 'OTHER',\n      depth: 4,\n\n      project_id: p.project_id,\n      project_folder_id: p.project_folder_id,\n      parent_folder_id: parentId,\n\n      folder_id: isFolder ? f.id : null,\n\n      drive_file_id: isFolder ? null : f.id,\n      file_name: String(f.name || ''),\n      extension: isFolder ? '' : extension(f.name),\n      media_type: type,\n      is_supported_media: supported,\n\n      relative_path: relativePath,\n\n      mime_type: f.mimeType || '',\n      file_size_bytes: f.size || '',\n      drive_modified_at: f.modifiedTime || '',\n\n      source: 'GOOGLE_DRIVE',\n      storage_status: supported ? 'ONLINE' : '',\n      ingestion_status: supported ? 'DISCOVERED' : '',\n      ingestion_key: supported ? `gdrive:${f.id}` : '',\n\n      discovered_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn out.length ? out : [{ json: { tree_type: 'EMPTY', depth: 4 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4660,
+        -520
+      ],
+      "id": "001adaa0-c9d3-4759-9e3a-4e2d1d620248",
+      "name": "CLASSIFY — TREE L4"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// MOLOTOV SOCIAL OS — COLLECT MEDIA FROM ALL TREE LEVELS\nconst levels = [\n  'CLASSIFY — TREE L0',\n  'CLASSIFY — TREE L1',\n  'CLASSIFY — TREE L2',\n  'CLASSIFY — TREE L3',\n  'CLASSIFY — TREE L4'\n];\n\nconst byDriveId = new Map();\n\nfor (const nodeName of levels) {\n  const items = $(nodeName).all(0, 0);\n\n  for (const item of items) {\n    const x = item.json || {};\n    if (x.tree_type !== 'MEDIA' || !x.is_supported_media || !x.drive_file_id) continue;\n\n    // Drive file ID is the primary physical identity.\n    // If the same file somehow appears twice, keep the shallowest/current occurrence.\n    if (!byDriveId.has(x.drive_file_id)) {\n      byDriveId.set(x.drive_file_id, x);\n    }\n  }\n}\n\nconst media = [...byDriveId.values()].sort((a, b) => {\n  const projectCmp = String(a.project_id).localeCompare(String(b.project_id));\n  if (projectCmp !== 0) return projectCmp;\n  return String(a.relative_path).localeCompare(String(b.relative_path));\n});\n\nreturn media.map((x, index) => ({\n  json: {\n    ...x,\n    discovery_index: index + 1\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4880,
+        -360
+      ],
+      "id": "d1d2fec4-d194-43ea-bab4-8d76d1ff534e",
+      "name": "NORMALIZE — MEDIA"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const media = $('NORMALIZE — MEDIA').all(0, 0).map(i => i.json);\n\nconst byProject = {};\nconst byDepth = {};\nconst foldersByLevel = {};\n\nfor (const m of media) {\n  byProject[m.project_id || 'NO_PROJECT'] =\n    (byProject[m.project_id || 'NO_PROJECT'] || 0) + 1;\n\n  const d = String(m.depth ?? 'UNKNOWN');\n  byDepth[d] = (byDepth[d] || 0) + 1;\n}\n\nfor (let level = 0; level <= 4; level++) {\n  const rows = $(`CLASSIFY — TREE L${level}`).all(0, 0).map(i => i.json);\n  foldersByLevel[`L${level}`] =\n    rows.filter(x => x.tree_type === 'FOLDER').length;\n}\n\nreturn [{\n  json: {\n    total_supported_media: media.length,\n    by_project: byProject,\n    by_depth: byDepth,\n    folders_discovered_by_level: foldersByLevel,\n    max_supported_depth: 4,\n    sample_paths: media.slice(0, 30).map(m => ({\n      project_id: m.project_id,\n      relative_path: m.relative_path,\n      parent_folder_id: m.parent_folder_id,\n      depth: m.depth\n    }))\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5100,
+        -520
+      ],
+      "id": "4a96e4b9-39bc-4e52-8a21-f078b70fffde",
+      "name": "AUDIT — TREE DISCOVERY"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "MANUAL — TEST": {
+      "main": [
+        [
+          {
+            "node": "DISCOVER — 00_BRUTOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DISCOVER — 00_BRUTOS": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — ROOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — ROOT": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — ROOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ROOT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "EXPLORE — CONTAINER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPLORE — CONTAINER": {
+      "main": [
+        [
+          {
+            "node": "FILTER — PROJECTS IN CONTAINER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FILTER — PROJECTS IN CONTAINER": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PROJECT CONTEXT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — PROJECT CONTEXT": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TREE QUERY L0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "IDEMPOTENCY — PROJECT SCOPED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IDEMPOTENCY — PROJECT SCOPED": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PROJECT ISOLATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — PROJECT ISOLATION": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — INGESTION",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "READ — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 01_PROJETOS": {
+      "main": [
+        [
+          {
+            "node": "PLAN — REAL WRITES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PLAN — STORAGE ROTATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLAN — REAL WRITES": {
+      "main": [
+        [
+          {
+            "node": "ARM — WRITE SAFETY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARM — WRITE SAFETY": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT ROWS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — MEDIA ROWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA ROWS": {
+      "main": [
+        [
+          {
+            "node": "APPEND — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLAN — STORAGE ROTATION": {
+      "main": [
+        [
+          {
+            "node": "ARM — ROTATION SAFETY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ARM — ROTATION SAFETY": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT STATUS UPDATES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EXPAND — MEDIA STATUS UPDATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT STATUS UPDATES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 01_PROJETOS STORAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA STATUS UPDATES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 03_MIDIAS STORAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TREE QUERY L0": {
+      "main": [
+        [
+          {
+            "node": "LIST — TREE L0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — TREE L0": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — TREE L0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — TREE L0": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TREE QUERY L1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TREE QUERY L1": {
+      "main": [
+        [
+          {
+            "node": "LIST — TREE L1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — TREE L1": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — TREE L1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — TREE L1": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TREE QUERY L2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TREE QUERY L2": {
+      "main": [
+        [
+          {
+            "node": "LIST — TREE L2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — TREE L2": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — TREE L2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — TREE L2": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TREE QUERY L3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TREE QUERY L3": {
+      "main": [
+        [
+          {
+            "node": "LIST — TREE L3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — TREE L3": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — TREE L3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — TREE L3": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TREE QUERY L4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TREE QUERY L4": {
+      "main": [
+        [
+          {
+            "node": "LIST — TREE L4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LIST — TREE L4": {
+      "main": [
+        [
+          {
+            "node": "CLASSIFY — TREE L4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASSIFY — TREE L4": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE — MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AUDIT — TREE DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

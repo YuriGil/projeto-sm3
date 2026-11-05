@@ -1,0 +1,6 @@
+{
+  "id": "AG_EDITOR",
+  "name": "Editorial Director",
+  "uses_llm": true,
+  "version": "1.0"
+}

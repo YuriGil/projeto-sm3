@@ -1,0 +1,767 @@
+{
+  "name": "PROJETO SM3 — 07A — PRODUCTION VARIANTS — v1 EDIT FOUNDATION",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        0
+      ],
+      "id": "a9bcb4ce-8e93-40e9-94d7-e24fb5be52e4",
+      "name": "MANUAL — PRODUCTION VARIANTS"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1080,
+        0
+      ],
+      "id": "b1898734-d010-472f-a003-9e172132707b",
+      "name": "READ — PRODUCTION CONTENT",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -880,
+        0
+      ],
+      "id": "6b19ac7d-2775-4470-acb0-acd66cb94ae1",
+      "name": "READ — PRODUCTION MEDIA",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1445428327,
+          "mode": "list",
+          "cachedResultName": "07_ATIVOS_IDENTIDADE"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -680,
+        0
+      ],
+      "id": "a1ddb5ed-89b0-418a-b806-b1f75f80a083",
+      "name": "READ — IDENTITY ASSETS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 746329393,
+          "mode": "list",
+          "cachedResultName": "08_REGRAS_IDENTIDADE"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "8edb993d-e38f-443e-918e-7ae056077191",
+      "name": "READ — IDENTITY RULES",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1592130734,
+          "mode": "list",
+          "cachedResultName": "09_MOTOR_COMPOSICAO"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -280,
+        0
+      ],
+      "id": "61203cbe-43b6-47c4-872d-d20e0822bfbb",
+      "name": "READ — COMPOSITION ENGINE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1648364747,
+          "mode": "list",
+          "cachedResultName": "10_TEMPLATES"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "2dc17940-c55a-4d8d-984b-ead89148cd71",
+      "name": "READ — PRODUCTION TEMPLATES",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — PRODUCTION VARIANT QUEUE v1\n// Builds editable production packages for both APPROVED and REVIEW items.\n// REVISAR no longer requires notes; it opens an editor/variant workspace.\n\nconst contentRows = $('READ — PRODUCTION CONTENT').all().map(i => i.json);\nconst mediaRows = $('READ — PRODUCTION MEDIA').all().map(i => i.json);\nconst assetsRows = $('READ — IDENTITY ASSETS').all().map(i => i.json);\nconst rulesRows = $('READ — IDENTITY RULES').all().map(i => i.json);\nconst engineRows = $('READ — COMPOSITION ENGINE').all().map(i => i.json);\nconst templateRows = $input.all().map(i => i.json);\n\nconst mediaById = new Map(mediaRows.filter(r=>String(r.ID_MIDIA||'').trim()).map(r=>[String(r.ID_MIDIA).trim(),r]));\nconst templateById = new Map(templateRows.filter(r=>String(r.ID_TEMPLATE||'').trim()).map(r=>[String(r.ID_TEMPLATE).trim(),r]));\nconst profileById = new Map(engineRows.filter(r=>String(r.ID_PERFIL||'').trim()).map(r=>[String(r.ID_PERFIL).trim(),r]));\n\nconst activeRules = rulesRows\n  .filter(r=>String(r.STATUS||'').trim().toUpperCase()==='ATIVA')\n  .map(r=>({id:r.ID_REGRA,scope:r.ESCOPO,rule:r.REGRA,priority:r.PRIORIDADE,application:r.APLICAÇÃO,exception:r.EXCEÇÃO||''}));\n\nconst availableAssets = assetsRows\n  .filter(r=>['ATIVO','OFICIAL','MUTÁVEL'].includes(String(r.STATUS||'').trim().toUpperCase()))\n  .map(r=>({id:r.ID_ATIVO,category:r.CATEGORIA,name:r.NOME,type:r.TIPO,status:r.STATUS,authority:r.AUTORIDADE,function:r['FUNÇÃO']||'',recommended_use:r.USO_RECOMENDADO||'',restrictions:r['RESTRIÇÕES']||'',drive_id:r.ID_DRIVE||'',variant:r.VARIANTE||'',priority:r.PRIORIDADE||''}));\n\nfunction mediaIds(value){\n  return [...new Set((String(value||'').match(/M\\d{4}/g)||[]))];\n}\nfunction kind(tipo){\n  const t=String(tipo||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();\n  return t.includes('VIDEO') ? 'video' : 'image';\n}\nfunction target(format){\n  const f=String(format||'').trim().toUpperCase();\n  if(f==='REEL'||f==='STORY') return {width:1080,height:1920,fps:30,aspect_ratio:'9:16',container:f==='REEL'?'mp4':'mixed'};\n  if(f==='CARROSSEL'||f==='FOTO') return {width:1080,height:1350,fps:null,aspect_ratio:'4:5',container:'jpg'};\n  return null;\n}\n\nconst out=[];\nfor(const c of contentRows){\n  const decision=String(c.EDITORIAL_COMMITTED_STATUS||'').trim().toUpperCase();\n  const targetRoute=String(c.ROUTING_TARGET||'').trim().toUpperCase();\n  const prod=String(c.PRODUCTION_STATUS||'').trim().toUpperCase();\n  const editorial=String(c.EDITORIAL_STATUS||'').trim().toUpperCase();\n  const review=String(c.VARIANT_REVIEW_STATUS||'').trim().toUpperCase();\n  const existingSet=String(c.VARIANT_SET_ID||'').trim();\n\n  const approved = decision==='APROVADO' && targetRoute==='PRODUCTION' && prod==='READY';\n  const reviewReady = decision==='REVISAR' && targetRoute==='EDITOR_REVIEW' && prod==='READY_FOR_VARIANTS';\n  if(!(approved||reviewReady)) continue;\n  if(editorial!=='ACTIVE') continue;\n\n  // Idempotency: only regenerate when explicitly requested.\n  if(existingSet && review!=='REGENERATE') continue;\n\n  const ids=mediaIds(c.BRUTOS_USADOS);\n  const targetSpec=target(c.FORMATO);\n  const blocking=[];\n  if(!targetSpec) blocking.push(`UNSUPPORTED_FORMAT:${c.FORMATO}`);\n  if(!ids.length) blocking.push('NO_SOURCE_MEDIA');\n\n  const media=[];\n  for(const id of ids){\n    const m=mediaById.get(id);\n    if(!m){ blocking.push(`MISSING_MEDIA:${id}`); continue; }\n    if(String(m.STORAGE_STATUS||'').trim().toUpperCase()!=='ONLINE') blocking.push(`MEDIA_OFFLINE:${id}`);\n    media.push({\n      media_id:id,\n      kind:kind(m.TIPO),\n      file_name:m.ARQUIVO||'',\n      drive_file_id:m.DRIVE_FILE_ID||'',\n      link_drive:m.LINK_DRIVE||'',\n      best_moment:m.MELHOR_TRECHO||'',\n      visual_summary:m['CONTEÚDO_VISUAL']||'',\n      analysis_stage:m.ANALYSIS_STAGE||'',\n      shot_type:m.SHOT_TYPE||'',\n      body_region:m.BODY_REGION||'',\n      body_subregion:m.BODY_SUBREGION||'',\n      view_angle:m.VIEW_ANGLE||'',\n      body_pose:m.BODY_POSE||'',\n      tattoo_orientation:m.TATTOO_ORIENTATION||'',\n      tattoo_style_tags:m.TATTOO_STYLE_TAGS||'',\n      tattoo_subject_primary:m.TATTOO_SUBJECT_PRIMARY||'',\n      tattoo_subject_tags:m.TATTOO_SUBJECT_TAGS||'',\n      tattoo_stage_structural:m.TATTOO_STAGE_STRUCTURAL||'',\n      tattoo_coverage:m.TATTOO_COVERAGE||'',\n      composition_shape:m.COMPOSITION_SHAPE||'',\n      focal_description:m.FOCAL_DESCRIPTION||'',\n      focus_point_norm:m.FOCUS_POINT_NORM||'',\n      tattoo_bbox_norm:m.TATTOO_BBOX_NORM||'',\n      crop_guidance_json:m.CROP_GUIDANCE_JSON||'',\n      format_fit_json:m.FORMAT_FIT_JSON||'',\n      best_formats:m.BEST_FORMATS||'',\n      structural_confidence:Number(m.STRUCTURAL_CONFIDENCE||0)||null\n    });\n  }\n\n  const tpl=templateById.get(String(c.TEMPLATE_ID||c.CONTENT_TEMPLATE_ID||'').trim())||null;\n  const profile=profileById.get(String(c.ART_DIRECTION_PROFILE_ID||'').trim())||null;\n  if(!tpl) blocking.push('TEMPLATE_NOT_FOUND');\n  if(!profile) blocking.push('ART_DIRECTION_PROFILE_NOT_FOUND');\n\n  out.push({json:{\n    no_work:false,\n    route_key:blocking.length?'BLOCKED':'PLAN',\n    blocking_reasons:blocking,\n    project_id:c.ID_PROJETO,\n    content_id:c.ID_CONTEÚDO,\n    format:c.FORMATO,\n    title:c.TÍTULO_INTERNO||'',\n    objective:c.OBJETIVO||'',\n    hook:c.HOOK||'',\n    script:c.ROTEIRO||'',\n    caption:c.LEGENDA||'',\n    cta:c.CTA||'',\n    template_id:String(c.TEMPLATE_ID||c.CONTENT_TEMPLATE_ID||''),\n    art_direction_profile_id:String(c.ART_DIRECTION_PROFILE_ID||''),\n    editorial_decision:decision,\n    editorial_notes:String(c.EDITORIAL_APPROVAL_NOTES||''),\n    revision_mode:String(c.REVISION_MODE||'UNDECIDED').trim().toUpperCase()||'UNDECIDED',\n    variant_count:3,\n    render_target:targetSpec||{},\n    source_media:media,\n    identity_rules:activeRules,\n    identity_assets:availableAssets,\n    persist:true,\n    production_contract_version:'SM3_PRODUCTION_EDIT_V1',\n    queued_at:new Date().toISOString()\n  }});\n}\n\nif(!out.length){\n  return [{json:{no_work:true,route_key:'NO_WORK',message:'Nenhum conteúdo requer novo conjunto de variantes.',checked_at:new Date().toISOString()}}];\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        0
+      ],
+      "id": "47ae10a1-1093-48c0-a5d3-3b5a4f7a41d7",
+      "name": "BUILD — VARIANT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "PLAN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "18bfb6c8-673b-4a77-ae96-fb1dc7bdfd4a"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PLAN"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "BLOCKED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "aa93eb6c-1ddd-4092-b7ec-4fc07cca2622"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BLOCKED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3fd8fbcb-1c8b-4aa5-9d34-24497213dd9f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "04ba0ae7-caed-430f-8fd2-8ada8e2f0979",
+      "name": "ROUTE — VARIANT PLAN QUEUE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/plan-variants",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,content_id:$json.content_id,format:$json.format,title:$json.title,objective:$json.objective,hook:$json.hook,script:$json.script,caption:$json.caption,cta:$json.cta,template_id:$json.template_id,art_direction_profile_id:$json.art_direction_profile_id,editorial_decision:$json.editorial_decision,editorial_notes:$json.editorial_notes,revision_mode:$json.revision_mode,variant_count:$json.variant_count,render_target:$json.render_target,source_media:$json.source_media,identity_rules:$json.identity_rules,identity_assets:$json.identity_assets,persist:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1280,
+        -120
+      ],
+      "id": "761e7ee5-a520-4853-a4e3-251551c4a2ec",
+      "name": "AI — PLAN EDIT VARIANTS",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const x=$json;\nif(!x.ok) throw new Error('VARIANT_PLAN_FAILED');\nreturn [{json:{\n  ID_CONTEÚDO:x.content_id,\n  PRODUCTION_SESSION_ID:x.production_session_id,\n  VARIANT_SET_ID:x.variant_set_id,\n  VARIANT_COUNT:x.variant_count,\n  VARIANT_REVIEW_STATUS:'PENDING',\n  SELECTED_VARIANT_ID:'',\n  REVISION_MODE:String(x.revision_mode||'UNDECIDED').toUpperCase(),\n  EDIT_SESSION_ID:'',\n  EDIT_SESSION_STATUS:'NOT_STARTED',\n  EDIT_RECIPE_VERSION:'SM3_EDIT_RECIPE_V1',\n  FINAL_RENDER_ID:'',\n  FINAL_RENDER_STATUS:'NOT_STARTED',\n  PRODUCTION_CONTRACT_VERSION:'SM3_PRODUCTION_EDIT_V1',\n  RENDER_STATUS:'VARIANTS_PLANNED',\n  PIPELINE_STATE:'VARIANT_REVIEW_PENDING',\n  STATE_UPDATED_AT:new Date().toISOString(),\n  STATE_VERSION:'SM3_STATE_V3',\n  variant_set_path:x.state_path,\n  provider:x.provider,\n  model:x.model,\n  variants:x.variants\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -120
+      ],
+      "id": "4c0afb55-6718-41ed-ba2d-80ef8eccdcc4",
+      "name": "BUILD — VARIANT STATE WRITE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "PRODUCTION_SESSION_ID": "={{ $json.PRODUCTION_SESSION_ID }}",
+            "VARIANT_SET_ID": "={{ $json.VARIANT_SET_ID }}",
+            "VARIANT_COUNT": "={{ $json.VARIANT_COUNT }}",
+            "VARIANT_REVIEW_STATUS": "={{ $json.VARIANT_REVIEW_STATUS }}",
+            "SELECTED_VARIANT_ID": "={{ $json.SELECTED_VARIANT_ID }}",
+            "REVISION_MODE": "={{ $json.REVISION_MODE }}",
+            "EDIT_SESSION_ID": "={{ $json.EDIT_SESSION_ID }}",
+            "EDIT_SESSION_STATUS": "={{ $json.EDIT_SESSION_STATUS }}",
+            "EDIT_RECIPE_VERSION": "={{ $json.EDIT_RECIPE_VERSION }}",
+            "FINAL_RENDER_ID": "={{ $json.FINAL_RENDER_ID }}",
+            "FINAL_RENDER_STATUS": "={{ $json.FINAL_RENDER_STATUS }}",
+            "PRODUCTION_CONTRACT_VERSION": "={{ $json.PRODUCTION_CONTRACT_VERSION }}",
+            "RENDER_STATUS": "={{ $json.RENDER_STATUS }}",
+            "PIPELINE_STATE": "={{ $json.PIPELINE_STATE }}",
+            "STATE_UPDATED_AT": "={{ $json.STATE_UPDATED_AT }}",
+            "STATE_VERSION": "={{ $json.STATE_VERSION }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_SESSION_ID",
+              "displayName": "PRODUCTION_SESSION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VARIANT_SET_ID",
+              "displayName": "VARIANT_SET_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VARIANT_COUNT",
+              "displayName": "VARIANT_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VARIANT_REVIEW_STATUS",
+              "displayName": "VARIANT_REVIEW_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SELECTED_VARIANT_ID",
+              "displayName": "SELECTED_VARIANT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_MODE",
+              "displayName": "REVISION_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDIT_SESSION_ID",
+              "displayName": "EDIT_SESSION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDIT_SESSION_STATUS",
+              "displayName": "EDIT_SESSION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDIT_RECIPE_VERSION",
+              "displayName": "EDIT_RECIPE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_RENDER_ID",
+              "displayName": "FINAL_RENDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_RENDER_STATUS",
+              "displayName": "FINAL_RENDER_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_CONTRACT_VERSION",
+              "displayName": "PRODUCTION_CONTRACT_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_STATUS",
+              "displayName": "RENDER_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PIPELINE_STATE",
+              "displayName": "PIPELINE_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_UPDATED_AT",
+              "displayName": "STATE_UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_VERSION",
+              "displayName": "STATE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1720,
+        -120
+      ],
+      "id": "175531e8-8ac3-401e-a5d6-c4da4e6d1a0c",
+      "name": "UPDATE — VARIANT STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{status:'VARIANT_SETS_PLANNED',rows_updated:items.length,content_ids:items.map(x=>x.ID_CONTEÚDO),variant_set_ids:items.map(x=>x.VARIANT_SET_ID),completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        -120
+      ],
+      "id": "8b1af0d2-4582-4f13-8d5e-a28b4e468e4a",
+      "name": "AUDIT — VARIANT PLAN WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json); return [{json:{status:'PRODUCTION_VARIANT_BLOCKED',count:items.length,items:items.map(x=>({content_id:x.content_id,reasons:x.blocking_reasons})),completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        80
+      ],
+      "id": "7cc8052d-1691-4df5-a672-f1f3ca73e809",
+      "name": "AUDIT — VARIANT BLOCKED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_VARIANT_WORK',message:'Nenhum conteúdo requer novo conjunto de variantes.',completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        260
+      ],
+      "id": "521cfbbb-0c44-4c09-b98d-d7c974fc7064",
+      "name": "NO WORK — VARIANT PLAN CURRENT"
+    }
+  ],
+  "connections": {
+    "MANUAL — PRODUCTION VARIANTS": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION CONTENT": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION MEDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION MEDIA": {
+      "main": [
+        [
+          {
+            "node": "READ — IDENTITY ASSETS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — IDENTITY ASSETS": {
+      "main": [
+        [
+          {
+            "node": "READ — IDENTITY RULES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — IDENTITY RULES": {
+      "main": [
+        [
+          {
+            "node": "READ — COMPOSITION ENGINE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — COMPOSITION ENGINE": {
+      "main": [
+        [
+          {
+            "node": "READ — PRODUCTION TEMPLATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — PRODUCTION TEMPLATES": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VARIANT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VARIANT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — VARIANT PLAN QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — VARIANT PLAN QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AI — PLAN EDIT VARIANTS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIT — VARIANT BLOCKED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — VARIANT PLAN CURRENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — PLAN EDIT VARIANTS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VARIANT STATE WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VARIANT STATE WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — VARIANT STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — VARIANT STATE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VARIANT PLAN WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

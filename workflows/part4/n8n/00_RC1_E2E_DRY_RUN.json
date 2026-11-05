@@ -1,0 +1,118 @@
+{
+  "name": "MOLOTOV SOCIAL OS RC1 - E2E DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "TESTE MANUAL",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{project_id:'TATTOO_0002',state:'DETECTED',dry_run:true}}];"
+      },
+      "id": "a",
+      "name": "Detect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'CURATED',selected:['M0001','M0002','M0004','M0006'],blocked_duplicate:'M0005'}}];"
+      },
+      "id": "b",
+      "name": "Curate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'QA_PASS',content:'CARROSSEL_PROCESSO_TESTE_0002',publish_eligible:false}}];"
+      },
+      "id": "c",
+      "name": "Editorial Render QA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'AWAITING_APPROVAL',next:'HUMAN_GATE'}}];"
+      },
+      "id": "d",
+      "name": "Human Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TESTE MANUAL": {
+      "main": [
+        [
+          {
+            "node": "Detect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect": {
+      "main": [
+        [
+          {
+            "node": "Curate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Curate": {
+      "main": [
+        [
+          {
+            "node": "Editorial Render QA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editorial Render QA": {
+      "main": [
+        [
+          {
+            "node": "Human Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

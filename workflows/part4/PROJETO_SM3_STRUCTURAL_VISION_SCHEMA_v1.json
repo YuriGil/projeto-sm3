@@ -1,0 +1,728 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Projeto SM3 Structural Vision Contract v1",
+  "description": "Camada de inteligência visual estrutural para mídia de tatuagem. Coordenadas normalizadas usam origem no canto superior esquerdo.",
+  "type": "object",
+  "properties": {
+    "structure": {
+      "type": "object",
+      "properties": {
+        "geometry_mode": {
+          "type": "string",
+          "enum": [
+            "IMAGE_EXACT",
+            "VIDEO_CONTACT_SHEET_ESTIMATE"
+          ]
+        },
+        "anatomy": {
+          "type": "object",
+          "properties": {
+            "body_region": {
+              "type": "string",
+              "enum": [
+                "HEAD_NECK",
+                "SHOULDER",
+                "UPPER_ARM",
+                "FOREARM",
+                "HAND",
+                "CHEST",
+                "RIBS",
+                "ABDOMEN",
+                "UPPER_BACK",
+                "LOWER_BACK",
+                "HIP",
+                "GLUTE",
+                "THIGH",
+                "KNEE",
+                "SHIN",
+                "CALF",
+                "ANKLE",
+                "FOOT",
+                "MULTI_REGION",
+                "UNKNOWN"
+              ]
+            },
+            "body_subregion": {
+              "type": "string"
+            },
+            "view_angle": {
+              "type": "string",
+              "enum": [
+                "FRONT",
+                "REAR",
+                "LATERAL",
+                "OBLIQUE",
+                "TOP_DOWN",
+                "BOTTOM_UP",
+                "UNKNOWN"
+              ]
+            },
+            "body_pose": {
+              "type": "string",
+              "enum": [
+                "STRAIGHT",
+                "BENT",
+                "ROTATED",
+                "FLEXED",
+                "RELAXED",
+                "MIXED",
+                "UNKNOWN"
+              ]
+            }
+          },
+          "required": [
+            "body_region",
+            "body_subregion",
+            "view_angle",
+            "body_pose"
+          ],
+          "additionalProperties": false
+        },
+        "tattoo": {
+          "type": "object",
+          "properties": {
+            "orientation": {
+              "type": "string",
+              "enum": [
+                "VERTICAL",
+                "HORIZONTAL",
+                "DIAGONAL",
+                "RADIAL",
+                "WRAP_AROUND",
+                "IRREGULAR",
+                "UNKNOWN"
+              ]
+            },
+            "style_tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "BLACKWORK",
+                  "BLACK_AND_GREY",
+                  "FINELINE",
+                  "REALISM",
+                  "ILLUSTRATIVE",
+                  "ANIME_MANGA",
+                  "TRADITIONAL",
+                  "NEO_TRADITIONAL",
+                  "ORNAMENTAL",
+                  "GEOMETRIC",
+                  "LETTERING",
+                  "DOTWORK",
+                  "ABSTRACT",
+                  "COLOR",
+                  "OTHER",
+                  "UNKNOWN"
+                ]
+              }
+            },
+            "subject_primary": {
+              "type": "string"
+            },
+            "subject_tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 10
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "DRAWING_REFERENCE",
+                "STENCIL_ONLY",
+                "LINEWORK",
+                "SHADING_IN_PROGRESS",
+                "COLOR_IN_PROGRESS",
+                "NEAR_FINISHED",
+                "FRESH_FINISHED",
+                "HEALED",
+                "UNKNOWN"
+              ]
+            },
+            "coverage": {
+              "type": "string",
+              "enum": [
+                "FULL",
+                "MOSTLY_FULL",
+                "PARTIAL",
+                "DETAIL_ONLY",
+                "UNKNOWN"
+              ]
+            },
+            "composition_shape": {
+              "type": "string",
+              "enum": [
+                "TALL_VERTICAL",
+                "WIDE_HORIZONTAL",
+                "COMPACT_SQUARE",
+                "RADIAL",
+                "WRAP_AROUND",
+                "IRREGULAR",
+                "UNKNOWN"
+              ]
+            }
+          },
+          "required": [
+            "orientation",
+            "style_tags",
+            "subject_primary",
+            "subject_tags",
+            "stage",
+            "coverage",
+            "composition_shape"
+          ],
+          "additionalProperties": false
+        },
+        "framing": {
+          "type": "object",
+          "properties": {
+            "focal_description": {
+              "type": "string"
+            },
+            "focus_point_norm": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            },
+            "tattoo_bbox_norm": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "w": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "h": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "reliability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "w",
+                "h",
+                "reliability"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "focal_description",
+            "focus_point_norm",
+            "tattoo_bbox_norm"
+          ],
+          "additionalProperties": false
+        },
+        "crops": {
+          "type": "object",
+          "properties": {
+            "reel_9x16": {
+              "type": "object",
+              "properties": {
+                "viability_score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "USE_FULL_FRAME",
+                    "SMART_CROP",
+                    "CONTAIN_BLUR",
+                    "PAN_SCAN",
+                    "TRACK_SUBJECT",
+                    "NOT_RECOMMENDED"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "CENTER",
+                    "TOP",
+                    "BOTTOM",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP_LEFT",
+                    "TOP_RIGHT",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "DYNAMIC"
+                  ]
+                },
+                "rect_norm": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "w": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "h": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h"
+                  ],
+                  "additionalProperties": false
+                },
+                "rect_reliability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "viability_score",
+                "strategy",
+                "anchor",
+                "rect_norm",
+                "rect_reliability",
+                "rationale"
+              ],
+              "additionalProperties": false
+            },
+            "story_9x16": {
+              "type": "object",
+              "properties": {
+                "viability_score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "USE_FULL_FRAME",
+                    "SMART_CROP",
+                    "CONTAIN_BLUR",
+                    "PAN_SCAN",
+                    "TRACK_SUBJECT",
+                    "NOT_RECOMMENDED"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "CENTER",
+                    "TOP",
+                    "BOTTOM",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP_LEFT",
+                    "TOP_RIGHT",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "DYNAMIC"
+                  ]
+                },
+                "rect_norm": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "w": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "h": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h"
+                  ],
+                  "additionalProperties": false
+                },
+                "rect_reliability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "viability_score",
+                "strategy",
+                "anchor",
+                "rect_norm",
+                "rect_reliability",
+                "rationale"
+              ],
+              "additionalProperties": false
+            },
+            "feed_4x5": {
+              "type": "object",
+              "properties": {
+                "viability_score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "USE_FULL_FRAME",
+                    "SMART_CROP",
+                    "CONTAIN_BLUR",
+                    "PAN_SCAN",
+                    "TRACK_SUBJECT",
+                    "NOT_RECOMMENDED"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "CENTER",
+                    "TOP",
+                    "BOTTOM",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP_LEFT",
+                    "TOP_RIGHT",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "DYNAMIC"
+                  ]
+                },
+                "rect_norm": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "w": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "h": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h"
+                  ],
+                  "additionalProperties": false
+                },
+                "rect_reliability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "viability_score",
+                "strategy",
+                "anchor",
+                "rect_norm",
+                "rect_reliability",
+                "rationale"
+              ],
+              "additionalProperties": false
+            },
+            "square_1x1": {
+              "type": "object",
+              "properties": {
+                "viability_score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "USE_FULL_FRAME",
+                    "SMART_CROP",
+                    "CONTAIN_BLUR",
+                    "PAN_SCAN",
+                    "TRACK_SUBJECT",
+                    "NOT_RECOMMENDED"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "CENTER",
+                    "TOP",
+                    "BOTTOM",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP_LEFT",
+                    "TOP_RIGHT",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "DYNAMIC"
+                  ]
+                },
+                "rect_norm": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "w": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "h": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h"
+                  ],
+                  "additionalProperties": false
+                },
+                "rect_reliability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "viability_score",
+                "strategy",
+                "anchor",
+                "rect_norm",
+                "rect_reliability",
+                "rationale"
+              ],
+              "additionalProperties": false
+            },
+            "landscape_16x9": {
+              "type": "object",
+              "properties": {
+                "viability_score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "USE_FULL_FRAME",
+                    "SMART_CROP",
+                    "CONTAIN_BLUR",
+                    "PAN_SCAN",
+                    "TRACK_SUBJECT",
+                    "NOT_RECOMMENDED"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "CENTER",
+                    "TOP",
+                    "BOTTOM",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP_LEFT",
+                    "TOP_RIGHT",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "DYNAMIC"
+                  ]
+                },
+                "rect_norm": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "w": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "h": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h"
+                  ],
+                  "additionalProperties": false
+                },
+                "rect_reliability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "viability_score",
+                "strategy",
+                "anchor",
+                "rect_norm",
+                "rect_reliability",
+                "rationale"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "reel_9x16",
+            "story_9x16",
+            "feed_4x5",
+            "square_1x1",
+            "landscape_16x9"
+          ],
+          "additionalProperties": false
+        },
+        "best_formats": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "REEL_9X16",
+              "STORY_9X16",
+              "FEED_4X5",
+              "SQUARE_1X1",
+              "LANDSCAPE_16X9",
+              "CAROUSEL"
+            ]
+          }
+        },
+        "structural_confidence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "geometry_mode",
+        "anatomy",
+        "tattoo",
+        "framing",
+        "crops",
+        "best_formats",
+        "structural_confidence",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "structure"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,1191 @@
+{
+  "name": "PROJETO SM3 — 09C.2 — META ELIGIBILITY + FALLBACK ROUTER — v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1760,
+        0
+      ],
+      "id": "32846679-8e31-4918-aa91-3e896a56d0cc",
+      "name": "MANUAL — META ELIGIBILITY + COLLECT"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9c60e92a-9201-44ed-a38f-d96039d0bfa7",
+              "name": "api_version",
+              "value": "v26.0",
+              "type": "string"
+            },
+            {
+              "id": "0cf7080b-a6b4-4980-b936-f3c85895412d",
+              "name": "preferred_page_id",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "cf9bd660-1011-482e-a758-c988ff1386a4",
+              "name": "profile_probe_limit",
+              "value": 5,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1560,
+        0
+      ],
+      "id": "42065813-6812-43a0-ac65-aca3978d270d",
+      "name": "CONFIG — META 09C.2"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://graph.facebook.com/{{$('CONFIG — META 09C.2').first().json.api_version}}/me/accounts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "name,id,tasks,instagram_business_account,access_token"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1350,
+        0
+      ],
+      "id": "58a8d716-2a33-4d2d-8038-18abcd9ccbc1",
+      "name": "META — DISCOVER LINKED PAGE",
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg=$('CONFIG — META 09C.2').first().json;\nconst pages=Array.isArray($json.data)?$json.data:[];\nconst linked=pages.filter(p=>p?.instagram_business_account?.id && p?.access_token);\nif(!linked.length) throw new Error('SM3_META_NO_LINKED_PAGE_WITH_INSTAGRAM_BUSINESS_ACCOUNT');\nlet selected=null;\nconst preferred=String(cfg.preferred_page_id||'').trim();\nif(preferred){\n  selected=linked.find(p=>String(p.id)===preferred);\n  if(!selected) throw new Error('SM3_META_PREFERRED_PAGE_NOT_FOUND:'+preferred);\n}else if(linked.length===1){\n  selected=linked[0];\n}else{\n  throw new Error('SM3_META_MULTIPLE_LINKED_PAGES_SET_PREFERRED_PAGE_ID:'+linked.map(p=>p.id).join(','));\n}\nreturn [{json:{\n api_version:String(cfg.api_version||'v26.0'),\n page_id:String(selected.id),\n page_name:String(selected.name||''),\n ig_user_id:String(selected.instagram_business_account.id),\n page_access_token:String(selected.access_token),\n profile_probe_limit:Number(cfg.profile_probe_limit||5)\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        0
+      ],
+      "id": "0e7a2002-f1de-4d8b-818d-b950cd84e850",
+      "name": "SELECT — LINKED META PAGE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -930,
+        0
+      ],
+      "id": "98fc45ee-adf2-4c60-a68e-01f7571bfc6d",
+      "name": "READ — 31 META PROFILES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rows=$input.all().map(i=>i.json);\nconst meta=$('SELECT — LINKED META PAGE').first().json;\nconst bool=x=>typeof x==='boolean'?x:['TRUE','1','YES','SIM'].includes(String(x??'').trim().toUpperCase());\nconst norm=x=>String(x??'').trim();\nconst selected=rows.filter(r=>{\n const mode=norm(r.PROVIDER_MODE||'AUTO').toUpperCase();\n return norm(r.REFERENCE_PROFILE_ID) && norm(r.HANDLE) &&\n  norm(r.NETWORK).toLowerCase()==='instagram' &&\n  bool(r.AUTO_HARVEST) &&\n  ['AUTO','META_PRIMARY','META_ONLY'].includes(mode);\n}).slice(0,Math.max(1,meta.profile_probe_limit||5));\nreturn selected.map(r=>({json:{\n reference_profile_id:norm(r.REFERENCE_PROFILE_ID),\n handle:norm(r.HANDLE).replace(/^@/,'').toLowerCase(),\n profile_url:norm(r.PROFILE_URL)||`https://www.instagram.com/${norm(r.HANDLE).replace(/^@/,'')}/`,\n allow_public_scraping:bool(r.ALLOW_PUBLIC_SCRAPING),\n active:bool(r.ACTIVE),\n human_priority:Number(r.HUMAN_PRIORITY||50)||50,\n promote_percentile:Number(r.HARVEST_PROMOTE_PERCENTILE||85)||85,\n max_items_per_run:Number(r.HARVEST_MAX_ITEMS_PER_RUN||5)||5,\n api_version:meta.api_version,\n ig_user_id:meta.ig_user_id,\n page_access_token:meta.page_access_token\n}}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        0
+      ],
+      "id": "6cacdb84-052f-46f0-aa98-b7f2229b02ff",
+      "name": "BUILD — META PROFILE PROBES"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{$json.api_version}}/{{$json.ig_user_id}}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.page_access_token}}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "=business_discovery.username({{$json.handle}}){username,name,followers_count,media_count,media.limit(25){id,caption,comments_count,like_count,media_type,permalink,timestamp}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -490,
+        0
+      ],
+      "id": "919560bb-64a7-47ee-9eea-e6aea60c365f",
+      "name": "META — BUSINESS DISCOVERY",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst src=$('BUILD — META PROFILE PROBES').item.json;\nconst now=new Date().toISOString();\nconst bd=$json?.business_discovery;\nif(!bd){\n const err=String($json?.error?.message || $json?.message || 'META_BUSINESS_DISCOVERY_UNAVAILABLE');\n return [{json:{\n  route:'FALLBACK',\n  reference_profile_id:src.reference_profile_id,\n  handle:src.handle,\n  profile_url:src.profile_url,\n  allow_public_scraping:src.allow_public_scraping,\n  meta_eligibility:'UNAVAILABLE',\n  provider_status:'SCRAPER_FALLBACK',\n  provider_last_used:'META_GRAPH',\n  provider_last_success_at:'',\n  provider_last_error_at:now,\n  provider_last_error:err.slice(0,500),\n  observations:[]\n }}];\n}\nconst observations=[{\n reference_profile_id:src.reference_profile_id,\n network:'instagram',\n handle:src.handle,\n content_type:'PROFILE',\n platform_item_id:null,\n url:src.profile_url,\n provider:'META_GRAPH',\n fetched_at:now,\n published_at:null,\n followers:bd.followers_count??null,\n media_count:bd.media_count??null,\n raw:{name:bd.name||'',username:bd.username||src.handle},\n notes:'09C2_META_BUSINESS_DISCOVERY'\n}];\nfor(const m of (Array.isArray(bd?.media?.data)?bd.media.data:[])){\n const permalink=String(m?.permalink||'');\n if(!permalink || !/instagram\\.com\\/reel\\//i.test(permalink)) continue;\n observations.push({\n  reference_profile_id:src.reference_profile_id,\n  network:'instagram',\n  handle:src.handle,\n  content_type:'REEL',\n  platform_item_id:m.id?String(m.id):null,\n  url:permalink,\n  provider:'META_GRAPH',\n  fetched_at:now,\n  published_at:m.timestamp||null,\n  likes:m.like_count??null,\n  comments:m.comments_count??null,\n  raw:{caption:m.caption||'',media_type:m.media_type||''},\n  notes:'09C2_META_BUSINESS_DISCOVERY'\n });\n}\nreturn [{json:{\n route:'META_OK',\n reference_profile_id:src.reference_profile_id,\n handle:src.handle,\n profile_url:src.profile_url,\n allow_public_scraping:src.allow_public_scraping,\n meta_eligibility:'ELIGIBLE',\n provider_status:'OK',\n provider_last_used:'META_GRAPH',\n provider_last_success_at:now,\n provider_last_error_at:'',\n provider_last_error:'',\n observations,\n profile_policy:{\n  reference_profile_id:src.reference_profile_id,\n  network:'instagram',\n  handle:src.handle,\n  auto_harvest:true,\n  promote_percentile:src.promote_percentile,\n  max_items_per_run:src.max_items_per_run,\n  active:src.active,\n  human_priority:src.human_priority\n }\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "266d8a31-22fd-4fae-bfa8-c097f3ebc362",
+      "name": "NORMALIZE — META OR FALLBACK"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.route}}",
+                    "rightValue": "META_OK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a76a8d24-725d-4d46-8229-ec3eea82baa0"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "META_OK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.route}}",
+                    "rightValue": "FALLBACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "741bf957-38b5-45d2-9016-81771c277fe3"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FALLBACK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -30,
+        0
+      ],
+      "id": "41310616-3ae2-4eb4-a7c6-504c8e42c741",
+      "name": "ROUTE — META RESULT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/observations",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {observations:$json.observations,harvest_after_ingest:true,promotion_enabled:true,source_window_from:'1970-01-01',source_window_to:new Date().toISOString().slice(0,10),profile_policies:[$json.profile_policy],notes:'09C2_META_ELIGIBILITY_ROUTER'} }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        210,
+        -130
+      ],
+      "id": "98f6016e-6e57-402e-80e4-2fc5546cbbba",
+      "name": "WORKER — INGEST META OBSERVATIONS",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst out=[];\nfor(const o of ($json.observations||[])){\n out.push({json:{row:{\n  OBSERVATION_ID:o.observation_id,\n  REFERENCE_PROFILE_ID:o.reference_profile_id,\n  NETWORK:o.network,\n  HANDLE:o.handle,\n  CONTENT_TYPE:o.content_type,\n  PLATFORM_ITEM_ID:o.platform_item_id||'',\n  URL:o.url,\n  PROVIDER:o.provider,\n  FETCHED_AT:o.fetched_at||'',\n  PUBLISHED_AT:o.published_at||'',\n  LIKES:o.likes,\n  COMMENTS:o.comments,\n  VIEWS:o.views,\n  INTERACTIONS:o.interactions,\n  ENGAGEMENT:o.engagement,\n  FOLLOWERS:o.followers,\n  MEDIA_COUNT:o.media_count,\n  RAW_SHA256:o.raw_sha256||'',\n  OBSERVATION_SHA256:o.observation_sha256||'',\n  CONFIDENCE:'',\n  STATUS:'OBSERVED',\n  CORROBORATING_PROVIDERS:o.provider,\n  CONFLICT_FIELDS:'',\n  HARVEST_RUN_ID:$json?.harvest?.run?.harvest_run_id||'',\n  NOTES:o.notes||''\n }}});\n}\nreturn out.length?out:[{json:{noop:true}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -130
+      ],
+      "id": "cfad12ad-28a2-4ac5-9b18-562b230ad627",
+      "name": "BUILD — 40 META OBSERVATION ROWS"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000022,
+          "mode": "list",
+          "cachedResultName": "40_REFERENCE_OBSERVATIONS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "OBSERVATION_ID": "={$json.row.OBSERVATION_ID}",
+            "REFERENCE_PROFILE_ID": "={$json.row.REFERENCE_PROFILE_ID}",
+            "NETWORK": "={$json.row.NETWORK}",
+            "HANDLE": "={$json.row.HANDLE}",
+            "CONTENT_TYPE": "={$json.row.CONTENT_TYPE}",
+            "PLATFORM_ITEM_ID": "={$json.row.PLATFORM_ITEM_ID}",
+            "URL": "={$json.row.URL}",
+            "PROVIDER": "={$json.row.PROVIDER}",
+            "FETCHED_AT": "={$json.row.FETCHED_AT}",
+            "PUBLISHED_AT": "={$json.row.PUBLISHED_AT}",
+            "LIKES": "={$json.row.LIKES}",
+            "COMMENTS": "={$json.row.COMMENTS}",
+            "VIEWS": "={$json.row.VIEWS}",
+            "INTERACTIONS": "={$json.row.INTERACTIONS}",
+            "ENGAGEMENT": "={$json.row.ENGAGEMENT}",
+            "FOLLOWERS": "={$json.row.FOLLOWERS}",
+            "MEDIA_COUNT": "={$json.row.MEDIA_COUNT}",
+            "RAW_SHA256": "={$json.row.RAW_SHA256}",
+            "OBSERVATION_SHA256": "={$json.row.OBSERVATION_SHA256}",
+            "CONFIDENCE": "={$json.row.CONFIDENCE}",
+            "STATUS": "={$json.row.STATUS}",
+            "CORROBORATING_PROVIDERS": "={$json.row.CORROBORATING_PROVIDERS}",
+            "CONFLICT_FIELDS": "={$json.row.CONFLICT_FIELDS}",
+            "HARVEST_RUN_ID": "={$json.row.HARVEST_RUN_ID}",
+            "NOTES": "={$json.row.NOTES}"
+          },
+          "matchingColumns": [
+            "OBSERVATION_ID"
+          ],
+          "schema": [
+            {
+              "id": "OBSERVATION_ID",
+              "displayName": "OBSERVATION_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HANDLE",
+              "displayName": "HANDLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_TYPE",
+              "displayName": "CONTENT_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLATFORM_ITEM_ID",
+              "displayName": "PLATFORM_ITEM_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER",
+              "displayName": "PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FETCHED_AT",
+              "displayName": "FETCHED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PUBLISHED_AT",
+              "displayName": "PUBLISHED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LIKES",
+              "displayName": "LIKES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMMENTS",
+              "displayName": "COMMENTS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEWS",
+              "displayName": "VIEWS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "INTERACTIONS",
+              "displayName": "INTERACTIONS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENGAGEMENT",
+              "displayName": "ENGAGEMENT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOLLOWERS",
+              "displayName": "FOLLOWERS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MEDIA_COUNT",
+              "displayName": "MEDIA_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RAW_SHA256",
+              "displayName": "RAW_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVATION_SHA256",
+              "displayName": "OBSERVATION_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONFIDENCE",
+              "displayName": "CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CORROBORATING_PROVIDERS",
+              "displayName": "CORROBORATING_PROVIDERS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONFLICT_FIELDS",
+              "displayName": "CONFLICT_FIELDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HARVEST_RUN_ID",
+              "displayName": "HARVEST_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        680,
+        -130
+      ],
+      "id": "eb0a589d-1135-4008-9b15-957c9b81805d",
+      "name": "UPSERT — 40 META OBSERVATIONS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/scraper/public-profile",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {reference_profile_id:$json.reference_profile_id,profile_url:$json.profile_url,allow_public_scraping:$json.allow_public_scraping,notes:'09C2_META_FALLBACK'} }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        210,
+        130
+      ],
+      "id": "2f688a96-8efc-4cb6-aace-4800148288b9",
+      "name": "WORKER — SCRAPER FALLBACK",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst src=$('NORMALIZE — META OR FALLBACK').item.json;\nconst job=$json?.job||$json||{};\nreturn [{json:{row:{\n SCRAPE_JOB_ID:job.scrape_job_id||job.job_id||'',\n REFERENCE_PROFILE_ID:src.reference_profile_id,\n NETWORK:'instagram',\n HANDLE:src.handle,\n URL:src.profile_url,\n MODE:'PUBLIC_HTML_V1',\n STATUS:job.status||'ATTEMPTED',\n ATTEMPTS:job.attempts??1,\n MAX_ATTEMPTS:3,\n NEXT_ATTEMPT_AT:job.next_attempt_at||'',\n LAST_HTTP_STATUS:job.http_status||job.last_http_status||'',\n LAST_ERROR:job.error||job.last_error||src.provider_last_error||'',\n SNAPSHOT_SHA256:job.snapshot_sha256||'',\n EXTRACTED_OBSERVATION_ID:job.observation_id||job.extracted_observation_id||'',\n CREATED_AT:job.created_at||new Date().toISOString(),\n UPDATED_AT:job.updated_at||new Date().toISOString(),\n NOTES:'09C2_META_FALLBACK'\n}}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        130
+      ],
+      "id": "feb212d1-6f0c-4533-b94c-60bc4f0b856d",
+      "name": "BUILD — 41 SCRAPER QUEUE ROW"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000023,
+          "mode": "list",
+          "cachedResultName": "41_REFERENCE_SCRAPER_QUEUE"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SCRAPE_JOB_ID": "={$json.row.SCRAPE_JOB_ID}",
+            "REFERENCE_PROFILE_ID": "={$json.row.REFERENCE_PROFILE_ID}",
+            "NETWORK": "={$json.row.NETWORK}",
+            "HANDLE": "={$json.row.HANDLE}",
+            "URL": "={$json.row.URL}",
+            "MODE": "={$json.row.MODE}",
+            "STATUS": "={$json.row.STATUS}",
+            "ATTEMPTS": "={$json.row.ATTEMPTS}",
+            "MAX_ATTEMPTS": "={$json.row.MAX_ATTEMPTS}",
+            "NEXT_ATTEMPT_AT": "={$json.row.NEXT_ATTEMPT_AT}",
+            "LAST_HTTP_STATUS": "={$json.row.LAST_HTTP_STATUS}",
+            "LAST_ERROR": "={$json.row.LAST_ERROR}",
+            "SNAPSHOT_SHA256": "={$json.row.SNAPSHOT_SHA256}",
+            "EXTRACTED_OBSERVATION_ID": "={$json.row.EXTRACTED_OBSERVATION_ID}",
+            "CREATED_AT": "={$json.row.CREATED_AT}",
+            "UPDATED_AT": "={$json.row.UPDATED_AT}",
+            "NOTES": "={$json.row.NOTES}"
+          },
+          "matchingColumns": [
+            "SCRAPE_JOB_ID"
+          ],
+          "schema": [
+            {
+              "id": "SCRAPE_JOB_ID",
+              "displayName": "SCRAPE_JOB_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NETWORK",
+              "displayName": "NETWORK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HANDLE",
+              "displayName": "HANDLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MODE",
+              "displayName": "MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATTEMPTS",
+              "displayName": "ATTEMPTS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MAX_ATTEMPTS",
+              "displayName": "MAX_ATTEMPTS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_ATTEMPT_AT",
+              "displayName": "NEXT_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_HTTP_STATUS",
+              "displayName": "LAST_HTTP_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR",
+              "displayName": "LAST_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SNAPSHOT_SHA256",
+              "displayName": "SNAPSHOT_SHA256",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EXTRACTED_OBSERVATION_ID",
+              "displayName": "EXTRACTED_OBSERVATION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UPDATED_AT",
+              "displayName": "UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        680,
+        130
+      ],
+      "id": "85db3163-ea4e-4a3d-b675-7e1d9101007b",
+      "name": "UPSERT — 41 SCRAPER QUEUE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REFERENCE_PROFILE_ID": "={{$('NORMALIZE — META OR FALLBACK').item.json.reference_profile_id}}",
+            "META_ELIGIBILITY": "={{$('NORMALIZE — META OR FALLBACK').item.json.meta_eligibility}}",
+            "PROVIDER_LAST_USED": "={{$('NORMALIZE — META OR FALLBACK').item.json.provider_last_used}}",
+            "PROVIDER_STATUS": "={{$('NORMALIZE — META OR FALLBACK').item.json.provider_status}}",
+            "PROVIDER_LAST_SUCCESS_AT": "={{$('NORMALIZE — META OR FALLBACK').item.json.provider_last_success_at || ''}}",
+            "PROVIDER_LAST_ERROR_AT": "={{$('NORMALIZE — META OR FALLBACK').item.json.provider_last_error_at || ''}}",
+            "PROVIDER_LAST_ERROR": "={{$('NORMALIZE — META OR FALLBACK').item.json.provider_last_error || ''}}"
+          },
+          "matchingColumns": [
+            "REFERENCE_PROFILE_ID"
+          ],
+          "schema": [
+            {
+              "id": "REFERENCE_PROFILE_ID",
+              "displayName": "REFERENCE_PROFILE_ID",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "META_ELIGIBILITY",
+              "displayName": "META_ELIGIBILITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER_LAST_USED",
+              "displayName": "PROVIDER_LAST_USED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER_STATUS",
+              "displayName": "PROVIDER_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER_LAST_SUCCESS_AT",
+              "displayName": "PROVIDER_LAST_SUCCESS_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER_LAST_ERROR_AT",
+              "displayName": "PROVIDER_LAST_ERROR_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROVIDER_LAST_ERROR",
+              "displayName": "PROVIDER_LAST_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        930,
+        0
+      ],
+      "id": "16906845-a3bc-414c-9e90-5cf12e17780b",
+      "name": "UPDATE — 31 PROVIDER RESULT",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,sm3_result:'SM3_09C2_META_ELIGIBILITY_AND_FALLBACK_PASS'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        0
+      ],
+      "id": "f7a2071b-3770-404d-bb1a-a9c34e98658a",
+      "name": "DONE — 09C2 META ROUTED"
+    },
+    {
+      "parameters": {
+        "content": "## 09C.2 — configuração Meta\n\n1. Rode `SM3_09C2_META_ONBOARDING_DIAGNOSTICO.ps1`.\n2. Em **CONFIG — META 09C.2**, preencha `preferred_page_id` com o Page ID retornado.\n3. No node **META — DISCOVER LINKED PAGE**, crie/selecione uma credencial **HTTP Header Auth**:\n   - Header: `Authorization`\n   - Value: `Bearer <USER ACCESS TOKEN>`\n4. Não salve token em Sheets/Set/JSON.\n5. Primeiro teste com `profile_probe_limit = 5`; depois aumente para 23.\n\nGraph API: v26.0. Falha de Business Discovery cai para `SCRAPER_PUBLIC`.",
+        "height": 390,
+        "width": 540
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1420,
+        -500
+      ],
+      "id": "00d959a3-bcc7-4881-b790-c7243cdacde8",
+      "name": "SETUP — META CREDENTIAL"
+    }
+  ],
+  "connections": {
+    "MANUAL — META ELIGIBILITY + COLLECT": {
+      "main": [
+        [
+          {
+            "node": "CONFIG — META 09C.2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG — META 09C.2": {
+      "main": [
+        [
+          {
+            "node": "META — DISCOVER LINKED PAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "META — DISCOVER LINKED PAGE": {
+      "main": [
+        [
+          {
+            "node": "SELECT — LINKED META PAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SELECT — LINKED META PAGE": {
+      "main": [
+        [
+          {
+            "node": "READ — 31 META PROFILES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 31 META PROFILES": {
+      "main": [
+        [
+          {
+            "node": "BUILD — META PROFILE PROBES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — META PROFILE PROBES": {
+      "main": [
+        [
+          {
+            "node": "META — BUSINESS DISCOVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "META — BUSINESS DISCOVERY": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE — META OR FALLBACK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE — META OR FALLBACK": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — META RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — META RESULT": {
+      "main": [
+        [
+          {
+            "node": "WORKER — INGEST META OBSERVATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WORKER — SCRAPER FALLBACK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — INGEST META OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — 40 META OBSERVATION ROWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — 40 META OBSERVATION ROWS": {
+      "main": [
+        [
+          {
+            "node": "UPSERT — 40 META OBSERVATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 40 META OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 31 PROVIDER RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — SCRAPER FALLBACK": {
+      "main": [
+        [
+          {
+            "node": "BUILD — 41 SCRAPER QUEUE ROW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — 41 SCRAPER QUEUE ROW": {
+      "main": [
+        [
+          {
+            "node": "UPSERT — 41 SCRAPER QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 41 SCRAPER QUEUE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — 31 PROVIDER RESULT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — 31 PROVIDER RESULT": {
+      "main": [
+        [
+          {
+            "node": "DONE — 09C2 META ROUTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false
+  },
+  "active": false,
+  "versionId": "9336fe44-d5cb-4b5c-8f25-4a71e0d9883f",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

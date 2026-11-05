@@ -1,0 +1,94 @@
+{
+  "name": "MOLOTOV SOCIAL OS RC2 - Google Drive Ingestion Binding",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "TESTE MANUAL",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{root_id:'10A8m7D4ndeREvZIWKZjiY3eXvb4LDukk',project_id:'TATTOO_0001',folder_id:'1D86F6KUCl9XtkCGHPaHLcJU3qiMXyKPm',read_only:true}}];"
+      },
+      "id": "b",
+      "name": "Real Binding Fixture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;if(!/^TATTOO_\\d{4}$/.test(x.project_id)) throw new Error('INVALID_PROJECT_ID');if(!x.read_only) throw new Error('ORIGINAL_POLICY_VIOLATION');return [{json:{...x,state:'DRIVE_BOUND',next:'INDEX_MEDIA'}}];"
+      },
+      "id": "v",
+      "name": "Validate Ingestion Contract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,state:'READY_FOR_REAL_DRIVE_TRIGGER',mutation:false}}];"
+      },
+      "id": "o",
+      "name": "Connector Acceptance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TESTE MANUAL": {
+      "main": [
+        [
+          {
+            "node": "Real Binding Fixture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Real Binding Fixture": {
+      "main": [
+        [
+          {
+            "node": "Validate Ingestion Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Ingestion Contract": {
+      "main": [
+        [
+          {
+            "node": "Connector Acceptance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "name": "PROJETO SM3 — 05 — APPROVAL — v1 QUEUE DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3a9b15f6-aeb3-43a6-a805-78df50016822",
+      "name": "MANUAL — APPROVAL"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "bb21ce96-05b9-43d8-b91b-214d0a28e601",
+      "name": "READ — CONTENT FOR APPROVAL",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\nconst pending = rows.filter(r =>\n  String(r.STATUS_APROVAÇÃO || '').trim().toUpperCase() === 'PENDENTE' &&\n  String(r.PLAN_STATUS || '').trim().toUpperCase() === 'AI_PLANNED'\n);\n\nif (pending.length === 0) {\n  return [{\n    json: {\n      no_work: true,\n      approval_queue_count: 0,\n      message: 'Nenhum conteúdo AI_PLANNED está pendente de aprovação.'\n    }\n  }];\n}\n\npending.sort((a, b) => {\n  const p = {ALTA: 1, 'MÉDIA': 2, MEDIA: 2, BAIXA: 3};\n  const pa = p[String(a.PRIORIDADE || '').toUpperCase()] || 9;\n  const pb = p[String(b.PRIORIDADE || '').toUpperCase()] || 9;\n  if (pa !== pb) return pa - pb;\n  return Number(a.ORDEM_EDITORIAL || 999) - Number(b.ORDEM_EDITORIAL || 999);\n});\n\nreturn pending.map((r, idx) => ({\n  json: {\n    no_work: false,\n    queue_position: idx + 1,\n    ID_CONTEÚDO: r.ID_CONTEÚDO,\n    ID_PROJETO: r.ID_PROJETO,\n    TÍTULO_INTERNO: r.TÍTULO_INTERNO,\n    FORMATO: r.FORMATO,\n    OBJETIVO: r.OBJETIVO,\n    PRIORIDADE: r.PRIORIDADE,\n    BRUTOS_USADOS: r.BRUTOS_USADOS,\n    HOOK: r.HOOK,\n    ROTEIRO: r.ROTEIRO,\n    LEGENDA: r.LEGENDA,\n    CTA: r.CTA,\n    TEMPLATE_ID: r.TEMPLATE_ID,\n    STATUS_EDIÇÃO: r.STATUS_EDIÇÃO,\n    STATUS_APROVAÇÃO: r.STATUS_APROVAÇÃO,\n    PLAN_RUN_ID: r.PLAN_RUN_ID,\n    CURATION_RUN_ID: r.CURATION_RUN_ID,\n    approval_options: ['APROVADO', 'REVISAR', 'DESCARTADO']\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "cd453710-7051-4586-9292-8e69f019eafa",
+      "name": "BUILD — APPROVAL QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nif (items.length === 1 && items[0].no_work === true) {\n  return [{json:{\n    dry_run: true,\n    queue_empty: true,\n    approval_queue_count: 0,\n    message: items[0].message\n  }}];\n}\n\nconst byFormat = {};\nconst byProject = {};\n\nfor (const x of items) {\n  const f = x.FORMATO || 'UNKNOWN';\n  const p = x.ID_PROJETO || 'NO_PROJECT';\n  byFormat[f] = (byFormat[f] || 0) + 1;\n  byProject[p] = (byProject[p] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    dry_run: true,\n    queue_empty: false,\n    approval_queue_count: items.length,\n    by_format: byFormat,\n    by_project: byProject,\n    content_ids: items.map(x => x.ID_CONTEÚDO),\n    approval_options: ['APROVADO', 'REVISAR', 'DESCARTADO'],\n    queue: items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "12c78bad-8aba-44cc-be6b-b078dbf21b1c",
+      "name": "AUDIT — APPROVAL QUEUE"
+    }
+  ],
+  "connections": {
+    "MANUAL — APPROVAL": {
+      "main": [
+        [
+          {
+            "node": "READ — CONTENT FOR APPROVAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — CONTENT FOR APPROVAL": {
+      "main": [
+        [
+          {
+            "node": "BUILD — APPROVAL QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — APPROVAL QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — APPROVAL QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

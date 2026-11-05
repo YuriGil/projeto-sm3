@@ -1,0 +1,24 @@
+services:
+  sm3-r25-relay:
+    build:
+      context: ../r25_relay
+      dockerfile: Dockerfile
+    container_name: sm3-r25-relay
+    restart: unless-stopped
+    environment:
+      - SM3_PROJECT_ROOT=/project
+      - SM3_R25_PORT=8092
+    volumes:
+      - ../:/project
+    expose:
+      - "8092"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,json; x=json.load(urllib.request.urlopen('http://127.0.0.1:8092/health',timeout=3)); assert x['ok']"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

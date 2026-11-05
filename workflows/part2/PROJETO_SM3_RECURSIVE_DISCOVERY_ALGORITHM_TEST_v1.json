@@ -1,0 +1,12 @@
+{
+  "project_discovery": {
+    "nested_container_depth": 5,
+    "project_found": true
+  },
+  "media_discovery": {
+    "nested_media_depth": 7,
+    "media_found": true
+  },
+  "fixed_depth_dependency": false,
+  "status": "PASS"
+}

@@ -1,0 +1,1256 @@
+{
+  "name": "PROJETO SM3 — 06 — DECISION ROUTING — PROD",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b0bcf6d6-d682-4155-a98f-f225f9550be8",
+      "name": "MANUAL — ROUTE DECISIONS"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "cd20b81e-ffed-4b36-aad7-b64989824a6d",
+      "name": "READ — COMMITTED DECISIONS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — DECISION ROUTING v2\n// Writes a durable routing state only when necessary.\n// Re-running without changes becomes NO_WORK.\n//\n// Special case for REVISAR:\n// - no APPROVAL_NOTES => REVISION_NEEDS_NOTES\n// - notes added later => REVISION_READY, even if approval status itself did not change.\n\nconst rows = $input.all().map(i => i.json);\nconst now = new Date().toISOString();\n\nconst candidates = [];\n\nfor (const r of rows) {\n  const decision = String(r.APPROVAL_COMMITTED_STATUS || '').trim().toUpperCase();\n  const source = String(r.APPROVAL_SOURCE || '').trim().toUpperCase();\n\n  if (!['APROVADO', 'REVISAR', 'DESCARTADO'].includes(decision)) continue;\n  if (source !== 'HUMAN_GOOGLE_SHEETS') continue;\n\n  const notes = String(r.APPROVAL_NOTES || '').trim();\n  const approvalAt = String(r.APPROVAL_DECIDED_AT || '').trim();\n  const routedFrom = String(r.ROUTED_FROM_APPROVAL_AT || '').trim();\n\n  let route_key = '';\n  let target = '';\n  let production = '';\n  let revision = '';\n  let editorial = '';\n\n  if (decision === 'APROVADO') {\n    route_key = 'PRODUCTION_READY';\n    target = 'PRODUCTION';\n    production = 'READY';\n    revision = 'NOT_REQUIRED';\n    editorial = 'ACTIVE';\n  } else if (decision === 'REVISAR' && notes) {\n    route_key = 'REVISION_READY';\n    target = 'REVISION';\n    production = 'BLOCKED_REVISION';\n    revision = 'READY';\n    editorial = 'ACTIVE';\n  } else if (decision === 'REVISAR') {\n    route_key = 'REVISION_NEEDS_NOTES';\n    target = 'REVISION';\n    production = 'BLOCKED_REVISION';\n    revision = 'NEEDS_NOTES';\n    editorial = 'ACTIVE';\n  } else if (decision === 'DESCARTADO') {\n    route_key = 'EDITORIAL_CLOSED';\n    target = 'CLOSED';\n    production = 'NOT_APPLICABLE';\n    revision = 'NOT_APPLICABLE';\n    editorial = 'CLOSED';\n  }\n\n  const currentRoute = String(r.ROUTING_TARGET || '').trim().toUpperCase();\n  const currentProduction = String(r.PRODUCTION_STATUS || '').trim().toUpperCase();\n  const currentRevision = String(r.REVISION_STATUS || '').trim().toUpperCase();\n  const currentEditorial = String(r.EDITORIAL_STATUS || '').trim().toUpperCase();\n\n  const approvalChanged = approvalAt && approvalAt !== routedFrom;\n  const routingMismatch =\n    currentRoute !== target ||\n    currentProduction !== production ||\n    currentRevision !== revision ||\n    currentEditorial !== editorial;\n\n  if (!approvalChanged && !routingMismatch) continue;\n\n  candidates.push({\n    json: {\n      no_work: false,\n      route_key,\n      ID_CONTEÚDO: r.ID_CONTEÚDO,\n      ID_PROJETO: r.ID_PROJETO,\n      TÍTULO_INTERNO: r.TÍTULO_INTERNO,\n      FORMATO: r.FORMATO,\n      OBJETIVO: r.OBJETIVO,\n      PRIORIDADE: r.PRIORIDADE,\n      BRUTOS_USADOS: r.BRUTOS_USADOS,\n      HOOK: r.HOOK,\n      ROTEIRO: r.ROTEIRO,\n      LEGENDA: r.LEGENDA,\n      CTA: r.CTA,\n      TEMPLATE_ID: r.TEMPLATE_ID,\n      APPROVAL_COMMITTED_STATUS: decision,\n      APPROVAL_NOTES: notes,\n      APPROVAL_DECIDED_AT: approvalAt,\n\n      ROUTING_STATUS: 'ROUTED',\n      ROUTING_VERSION: 'SM3_ROUTING_V1',\n      ROUTING_DECISION: decision,\n      ROUTING_TARGET: target,\n      ROUTED_AT: now,\n      ROUTING_SOURCE: 'HUMAN_APPROVAL_GATE',\n      ROUTED_FROM_APPROVAL_AT: approvalAt,\n      PRODUCTION_STATUS: production,\n      REVISION_STATUS: revision,\n      EDITORIAL_STATUS: editorial\n    }\n  });\n}\n\nif (candidates.length === 0) {\n  return [{\n    json: {\n      no_work: true,\n      route_key: 'NO_WORK',\n      message: 'Todas as decisões humanas já estão roteadas no estado atual.',\n      checked_at: now\n    }\n  }];\n}\n\nreturn candidates;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "fe9d0380-c3e7-466c-8c7f-6a1e8c2cfbdf",
+      "name": "BUILD — DECISION ROUTES"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "PRODUCTION_READY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e7eceb15-6f66-43bc-9606-c542453a8ebb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PRODUCTION_READY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "REVISION_READY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b1e9f7b9-11db-45f1-b489-b9e8a1399e36"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REVISION_READY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "REVISION_NEEDS_NOTES",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b1c33d3-c6b8-4b0b-96fd-0236110cdc00"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REVISION_NEEDS_NOTES"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "EDITORIAL_CLOSED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "31fab332-f3a9-49e0-9dd6-9fb8eaa5680e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "EDITORIAL_CLOSED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_key }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "335b12ba-1032-4280-9c04-a31a1b862fc6"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        0
+      ],
+      "id": "97c2d47f-560c-4797-8cab-d7db495a0159",
+      "name": "ROUTE — HUMAN DECISIONS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:{...i.json,branch_audit:'PRODUCTION_READY'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -240
+      ],
+      "id": "11fb0e50-a362-4e79-a956-f8b573e3c741",
+      "name": "PREPARE — PRODUCTION READY"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "ROUTING_STATUS": "={{ $json.ROUTING_STATUS }}",
+            "ROUTING_VERSION": "={{ $json.ROUTING_VERSION }}",
+            "ROUTING_DECISION": "={{ $json.ROUTING_DECISION }}",
+            "ROUTING_TARGET": "={{ $json.ROUTING_TARGET }}",
+            "ROUTED_AT": "={{ $json.ROUTED_AT }}",
+            "ROUTING_SOURCE": "={{ $json.ROUTING_SOURCE }}",
+            "ROUTED_FROM_APPROVAL_AT": "={{ $json.ROUTED_FROM_APPROVAL_AT }}",
+            "PRODUCTION_STATUS": "={{ $json.PRODUCTION_STATUS }}",
+            "REVISION_STATUS": "={{ $json.REVISION_STATUS }}",
+            "EDITORIAL_STATUS": "={{ $json.EDITORIAL_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_STATUS",
+              "displayName": "ROUTING_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_VERSION",
+              "displayName": "ROUTING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_DECISION",
+              "displayName": "ROUTING_DECISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_TARGET",
+              "displayName": "ROUTING_TARGET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_AT",
+              "displayName": "ROUTED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_SOURCE",
+              "displayName": "ROUTING_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_FROM_APPROVAL_AT",
+              "displayName": "ROUTED_FROM_APPROVAL_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_STATUS",
+              "displayName": "PRODUCTION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_STATUS",
+              "displayName": "REVISION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_STATUS",
+              "displayName": "EDITORIAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        -240
+      ],
+      "id": "6324f0cf-e26f-4491-ab6c-d425a917d64d",
+      "name": "UPDATE — PRODUCTION READY",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  status:'PRODUCTION_READY',\n  rows_updated:items.length,\n  content_ids:items.map(x=>x.ID_CONTEÚDO),\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        -240
+      ],
+      "id": "38218333-f65c-4ad8-862c-46f83c0a80f6",
+      "name": "AUDIT — PRODUCTION READY"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:{...i.json,branch_audit:'REVISION_READY'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -80
+      ],
+      "id": "2c74c70e-5a0d-4f3f-840a-6ae400b81ddb",
+      "name": "PREPARE — REVISION READY"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "ROUTING_STATUS": "={{ $json.ROUTING_STATUS }}",
+            "ROUTING_VERSION": "={{ $json.ROUTING_VERSION }}",
+            "ROUTING_DECISION": "={{ $json.ROUTING_DECISION }}",
+            "ROUTING_TARGET": "={{ $json.ROUTING_TARGET }}",
+            "ROUTED_AT": "={{ $json.ROUTED_AT }}",
+            "ROUTING_SOURCE": "={{ $json.ROUTING_SOURCE }}",
+            "ROUTED_FROM_APPROVAL_AT": "={{ $json.ROUTED_FROM_APPROVAL_AT }}",
+            "PRODUCTION_STATUS": "={{ $json.PRODUCTION_STATUS }}",
+            "REVISION_STATUS": "={{ $json.REVISION_STATUS }}",
+            "EDITORIAL_STATUS": "={{ $json.EDITORIAL_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_STATUS",
+              "displayName": "ROUTING_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_VERSION",
+              "displayName": "ROUTING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_DECISION",
+              "displayName": "ROUTING_DECISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_TARGET",
+              "displayName": "ROUTING_TARGET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_AT",
+              "displayName": "ROUTED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_SOURCE",
+              "displayName": "ROUTING_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_FROM_APPROVAL_AT",
+              "displayName": "ROUTED_FROM_APPROVAL_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_STATUS",
+              "displayName": "PRODUCTION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_STATUS",
+              "displayName": "REVISION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_STATUS",
+              "displayName": "EDITORIAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        -80
+      ],
+      "id": "b6d1428b-2b58-43b2-a09e-ef2c51c81c6d",
+      "name": "UPDATE — REVISION READY",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  status:'REVISION_READY',\n  rows_updated:items.length,\n  content_ids:items.map(x=>x.ID_CONTEÚDO),\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        -80
+      ],
+      "id": "45e7c6b5-01ad-449a-8cad-d5696636066e",
+      "name": "AUDIT — REVISION READY"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:{...i.json,branch_audit:'REVISION_NEEDS_NOTES'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        80
+      ],
+      "id": "81fa32ba-3f24-4fef-91d1-3d5eead98d9f",
+      "name": "PREPARE — REVISION NEEDS NOTES"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "ROUTING_STATUS": "={{ $json.ROUTING_STATUS }}",
+            "ROUTING_VERSION": "={{ $json.ROUTING_VERSION }}",
+            "ROUTING_DECISION": "={{ $json.ROUTING_DECISION }}",
+            "ROUTING_TARGET": "={{ $json.ROUTING_TARGET }}",
+            "ROUTED_AT": "={{ $json.ROUTED_AT }}",
+            "ROUTING_SOURCE": "={{ $json.ROUTING_SOURCE }}",
+            "ROUTED_FROM_APPROVAL_AT": "={{ $json.ROUTED_FROM_APPROVAL_AT }}",
+            "PRODUCTION_STATUS": "={{ $json.PRODUCTION_STATUS }}",
+            "REVISION_STATUS": "={{ $json.REVISION_STATUS }}",
+            "EDITORIAL_STATUS": "={{ $json.EDITORIAL_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_STATUS",
+              "displayName": "ROUTING_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_VERSION",
+              "displayName": "ROUTING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_DECISION",
+              "displayName": "ROUTING_DECISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_TARGET",
+              "displayName": "ROUTING_TARGET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_AT",
+              "displayName": "ROUTED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_SOURCE",
+              "displayName": "ROUTING_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_FROM_APPROVAL_AT",
+              "displayName": "ROUTED_FROM_APPROVAL_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_STATUS",
+              "displayName": "PRODUCTION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_STATUS",
+              "displayName": "REVISION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_STATUS",
+              "displayName": "EDITORIAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        80
+      ],
+      "id": "f7a5b3c4-a99a-41b7-a39e-c1b3a8df1e7b",
+      "name": "UPDATE — REVISION NEEDS NOTES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  status:'REVISION_NEEDS_NOTES',\n  rows_updated:items.length,\n  content_ids:items.map(x=>x.ID_CONTEÚDO),\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        80
+      ],
+      "id": "a53e56a0-e58f-4983-add7-e2dbeacf0059",
+      "name": "AUDIT — REVISION NEEDS NOTES"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({json:{...i.json,branch_audit:'EDITORIAL_CLOSED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "533f777a-d5dd-431d-bdde-257710614599",
+      "name": "PREPARE — EDITORIAL CLOSED"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "ROUTING_STATUS": "={{ $json.ROUTING_STATUS }}",
+            "ROUTING_VERSION": "={{ $json.ROUTING_VERSION }}",
+            "ROUTING_DECISION": "={{ $json.ROUTING_DECISION }}",
+            "ROUTING_TARGET": "={{ $json.ROUTING_TARGET }}",
+            "ROUTED_AT": "={{ $json.ROUTED_AT }}",
+            "ROUTING_SOURCE": "={{ $json.ROUTING_SOURCE }}",
+            "ROUTED_FROM_APPROVAL_AT": "={{ $json.ROUTED_FROM_APPROVAL_AT }}",
+            "PRODUCTION_STATUS": "={{ $json.PRODUCTION_STATUS }}",
+            "REVISION_STATUS": "={{ $json.REVISION_STATUS }}",
+            "EDITORIAL_STATUS": "={{ $json.EDITORIAL_STATUS }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_STATUS",
+              "displayName": "ROUTING_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_VERSION",
+              "displayName": "ROUTING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_DECISION",
+              "displayName": "ROUTING_DECISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_TARGET",
+              "displayName": "ROUTING_TARGET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_AT",
+              "displayName": "ROUTED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_SOURCE",
+              "displayName": "ROUTING_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_FROM_APPROVAL_AT",
+              "displayName": "ROUTED_FROM_APPROVAL_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_STATUS",
+              "displayName": "PRODUCTION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_STATUS",
+              "displayName": "REVISION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_STATUS",
+              "displayName": "EDITORIAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        240
+      ],
+      "id": "04c07d3e-a116-4d26-b83b-b34e60828101",
+      "name": "UPDATE — EDITORIAL CLOSED",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  status:'EDITORIAL_CLOSED',\n  rows_updated:items.length,\n  content_ids:items.map(x=>x.ID_CONTEÚDO),\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        240
+      ],
+      "id": "adced173-01fd-4250-9649-74e3376a7281",
+      "name": "AUDIT — EDITORIAL CLOSED"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  status:'NO_CHANGES',\n  message:'Todas as decisões humanas já estão roteadas no estado atual.',\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        400
+      ],
+      "id": "d4f866bb-1a46-4e3a-a73b-017cc40b5562",
+      "name": "NO WORK — ROUTING CURRENT"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1580,
+        -80
+      ],
+      "id": "b01f2c01-7d0d-4e63-84fc-d1d2ed8ee6b0",
+      "name": "MERGE — ROUTING RESULTS A"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1580,
+        180
+      ],
+      "id": "4b8dc5c4-ad0b-4962-bea2-e20b44a8125d",
+      "name": "MERGE — ROUTING RESULTS B"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1800,
+        60
+      ],
+      "id": "6c3ba462-5a07-44d8-9b8e-eeaceb6dd8d0",
+      "name": "MERGE — ROUTING COMPLETE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nreturn [{json:{\n  workflow:'PROJETO_SM3_06_DECISION_ROUTING',\n  statuses:items.map(x=>x.status).filter(Boolean),\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        60
+      ],
+      "id": "10d2008b-a7e9-436e-b52d-8415936f3ec8",
+      "name": "DECISION ROUTING — COMPLETE"
+    }
+  ],
+  "connections": {
+    "MANUAL — ROUTE DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "READ — COMMITTED DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — COMMITTED DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — DECISION ROUTES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — DECISION ROUTES": {
+      "main": [
+        [
+          {
+            "node": "ROUTE — HUMAN DECISIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — PRODUCTION READY": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — PRODUCTION READY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — PRODUCTION READY": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — PRODUCTION READY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — REVISION READY": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — REVISION READY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — REVISION READY": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — REVISION READY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — REVISION NEEDS NOTES": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — REVISION NEEDS NOTES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — REVISION NEEDS NOTES": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — REVISION NEEDS NOTES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — EDITORIAL CLOSED": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — EDITORIAL CLOSED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — EDITORIAL CLOSED": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — EDITORIAL CLOSED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — HUMAN DECISIONS": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — PRODUCTION READY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — REVISION READY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — REVISION NEEDS NOTES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — EDITORIAL CLOSED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — ROUTING CURRENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — PRODUCTION READY": {
+      "main": [
+        [
+          {
+            "node": "MERGE — ROUTING RESULTS A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — REVISION READY": {
+      "main": [
+        [
+          {
+            "node": "MERGE — ROUTING RESULTS A",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "AUDIT — REVISION NEEDS NOTES": {
+      "main": [
+        [
+          {
+            "node": "MERGE — ROUTING RESULTS B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — EDITORIAL CLOSED": {
+      "main": [
+        [
+          {
+            "node": "MERGE — ROUTING RESULTS B",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "MERGE — ROUTING RESULTS A": {
+      "main": [
+        [
+          {
+            "node": "MERGE — ROUTING COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MERGE — ROUTING RESULTS B": {
+      "main": [
+        [
+          {
+            "node": "MERGE — ROUTING COMPLETE",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "MERGE — ROUTING COMPLETE": {
+      "main": [
+        [
+          {
+            "node": "DECISION ROUTING — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NO WORK — ROUTING CURRENT": {
+      "main": [
+        [
+          {
+            "node": "DECISION ROUTING — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

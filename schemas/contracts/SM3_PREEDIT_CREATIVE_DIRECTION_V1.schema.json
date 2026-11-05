@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_PREEDIT_CREATIVE_DIRECTION_V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "generated_at",
+    "status",
+    "strategy_id",
+    "recommended_direction",
+    "alternative_directions",
+    "effective_direction",
+    "next_stage",
+    "guards",
+    "preedit_id",
+    "preedit_sha256"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_PREEDIT_CREATIVE_DIRECTION_V1"
+    },
+    "status": {
+      "enum": [
+        "READY_RECOMMENDED_DIRECTION",
+        "READY_USER_OVERRIDE"
+      ]
+    },
+    "recommended_direction": {
+      "type": "object"
+    },
+    "alternative_directions": {
+      "type": "array"
+    },
+    "user_override": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "effective_direction": {
+      "type": "object"
+    },
+    "guards": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

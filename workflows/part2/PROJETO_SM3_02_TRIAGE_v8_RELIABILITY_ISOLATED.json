@@ -1,0 +1,2993 @@
+{
+  "name": "PROJETO SM3 — 02 — TRIAGE — v8 RELIABILITY ISOLATED",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d189b8b-be52-444b-9bd5-a674d5318d24",
+      "name": "MANUAL — TRIAGE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "3d011ece-40a8-4cfb-abe3-71045d954d5a",
+      "name": "READ — 03_MIDIAS QUEUE",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PROJETO SM3 — TRIAGE QUEUE CONTRACT\n// Only ANALYSIS_STATUS=QUEUED + ONLINE is eligible.\n// If there is no work, emit one explicit NO_WORK sentinel so the execution\n// communicates \"nothing pending\" instead of silently stopping.\n\nconst rows = $input.all().map(i => i.json);\n\nconst eligible = rows.filter(r =>\n  String(r.ANALYSIS_STATUS || '').trim().toUpperCase() === 'QUEUED' &&\n  String(r.STORAGE_STATUS || '').trim().toUpperCase() === 'ONLINE' &&\n  String(r.PROCESS_STATUS || '').trim().toUpperCase() !== 'DEAD_LETTER'\n);\n\nif (eligible.length === 0) {\n  return [{\n    json: {\n      queue_empty: true,\n      analysis_route: 'NO_WORK',\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  }];\n}\n\nreturn eligible.map(r => {\n  const type = String(r.TIPO || '').trim().toUpperCase();\n\n  const route =\n    type === 'FOTO' ? 'IMAGE_ORIGINAL' :\n    type === 'VÍDEO' || type === 'VIDEO' ? 'VIDEO_PROXY' :\n    'UNSUPPORTED';\n\n  return {\n    json: {\n      ...r,\n      queue_empty: false,\n      analysis_route: route,\n      analysis_source_planned:\n        route === 'IMAGE_ORIGINAL' ? 'ORIGINAL' :\n        route === 'VIDEO_PROXY' ? 'PROXY' : '',\n      proxy_required: route === 'VIDEO_PROXY',\n      queued_for_analysis_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "4136e57a-f5ba-4084-bcb9-f12d11ad934e",
+      "name": "BUILD — TRIAGE QUEUE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const all = $input.all().map(i => i.json);\nconst items = all.filter(x => !x.queue_empty);\n\nconst summary = {\n  queue_empty: items.length === 0,\n  queued_total: items.length,\n  image_original: items.filter(x => x.analysis_route === 'IMAGE_ORIGINAL').length,\n  video_proxy: items.filter(x => x.analysis_route === 'VIDEO_PROXY').length,\n  unsupported: items.filter(x => x.analysis_route === 'UNSUPPORTED').length,\n  projects: {}\n};\n\nfor (const x of items) {\n  const p = x.ID_PROJETO || 'NO_PROJECT';\n  summary.projects[p] = (summary.projects[p] || 0) + 1;\n}\n\nreturn [{\n  json: {\n    dry_run: false,\n    summary,\n    queued_ids: items.map(x => x.ID_MIDIA),\n    queue: items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -140
+      ],
+      "id": "73ba0345-b0da-44fa-96d3-29c916c4c3a2",
+      "name": "AUDIT — TRIAGE QUEUE"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "IMAGE_ORIGINAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a89483cb-610c-48fc-a91e-2021f0755ca2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IMAGE_ORIGINAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "VIDEO_PROXY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b7f6f5d-e9a5-4984-bdad-100ac5001a67"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VIDEO_PROXY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "UNSUPPORTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e031c51f-3c4b-4cf3-9be2-bbddf13c8096"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNSUPPORTED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.analysis_route }}",
+                    "rightValue": "NO_WORK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5ae2ecb7-4db7-4746-9f34-a26d80bff1c7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NO_WORK"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        80
+      ],
+      "id": "85fcb316-40cc-4eb5-b204-5a03fe6a0960",
+      "name": "ROUTE — ANALYSIS INPUT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{...i.json, next_action:'SKIP_UNSUPPORTED'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ],
+      "id": "aac306f4-122e-4450-9fb8-6854efc67568",
+      "name": "UNSUPPORTED — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'jpg').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'image',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "b13d63c6-cfcc-4372-b1c6-bb9792e49c3f",
+      "name": "PREPARE — IMAGE WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        -40
+      ],
+      "id": "211b4648-5c50-41cb-be38-388484c6b566",
+      "name": "DOWNLOAD — IMAGE ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ],
+      "id": "89ded77d-2f7a-45d9-b67c-bfe6041431c3",
+      "name": "WRITE — IMAGE TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'image',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -40
+      ],
+      "id": "8f4b55c3-2902-4a6e-939a-17ebaf87d635",
+      "name": "WORKER — PROCESS IMAGE",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    media_id: i.json.media_id,\n    project_id: i.json.project_id,\n    row_number: i.json.row_number,\n    provider: i.json.provider,\n    model: i.json.model,\n    analysis: i.json.analysis,\n    analysis_path: i.json.analysis_path,\n    dry_run: true\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -40
+      ],
+      "id": "bd78e1fd-b319-4bed-8a84-07a2d71c83f1",
+      "name": "AUDIT — IMAGE ANALYSIS",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ext=String($json.ARQUIVO||'mp4').split('.').pop().toLowerCase();return {json:{...$json,worker_kind:'video',worker_source_path:`/data/media/inbox/${$json.ID_MIDIA}.${ext}`}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        120
+      ],
+      "id": "5a1eb337-e763-4850-92c9-33df4f0a778e",
+      "name": "PREPARE — VIDEO WORK ITEM"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.DRIVE_FILE_ID }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.ARQUIVO }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        120
+      ],
+      "id": "aa33612a-3920-4667-889f-c8e10eb3ccfb",
+      "name": "DOWNLOAD — VIDEO ORIGINAL",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ZG0KCgnKM9HjrMsm",
+          "name": "Google Drive account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.worker_source_path }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        120
+      ],
+      "id": "790c2d01-4863-4fab-b7ed-bf880b50e3ef",
+      "name": "WRITE — VIDEO TEMP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/process-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.ID_PROJETO,media_id:$json.ID_MIDIA,kind:'video',source_path:$json.worker_source_path,file_name:$json.ARQUIVO,row_number:$json.row_number,drive_file_id:$json.DRIVE_FILE_ID,relative_path:$json.RELATIVE_PATH,delete_source_after:true} }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        120
+      ],
+      "id": "4abc5dbb-c381-4c18-8b97-fa830c858fd9",
+      "name": "WORKER — PROCESS VIDEO",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    media_id: i.json.media_id,\n    project_id: i.json.project_id,\n    row_number: i.json.row_number,\n    provider: i.json.provider,\n    model: i.json.model,\n    analysis: i.json.analysis,\n    analysis_path: i.json.analysis_path,\n    dry_run: true\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        120
+      ],
+      "id": "679c8a36-6895-423d-aaf5-97f91fffd823",
+      "name": "AUDIT — VIDEO ANALYSIS",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/analyze-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,media_id:$json.media_id,kind:'image',analysis_path:$json.proxy_path,file_name:$json.file_name,row_number:$json.row_number,drive_file_id:$json.drive_file_id,relative_path:$json.relative_path,context:'Triagem de portfólio de tatuagem para redes sociais.'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        -40
+      ],
+      "id": "731665b2-4ec6-48a2-9e84-ed3db3a34211",
+      "name": "VISION — ANALYZE IMAGE",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/analyze-path",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {project_id:$json.project_id,media_id:$json.media_id,kind:'video',analysis_path:$json.contact_sheet_path,file_name:$json.file_name,row_number:$json.row_number,drive_file_id:$json.drive_file_id,relative_path:$json.relative_path,context:'Contact sheet com timestamps de um vídeo de tatuagem. Escolha o melhor momento aproximado visualmente.'} }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        120
+      ],
+      "id": "aa7db2da-bd14-48ec-8502-776d01029f65",
+      "name": "VISION — ANALYZE VIDEO CONTACT SHEET",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ANALYSIS_SOURCE = 'IMAGE_PROXY';\n\nconst now = new Date().toISOString();\nconst items = $input.all().map(i => i.json);\n\nconst workerByMedia = new Map(\n  $('WORKER — PROCESS IMAGE').all().map(i => [String(i.json.media_id || ''), i.json])\n);\n\n\nfunction numericScore(v, field) {\n  const n = Number(v);\n  if (!Number.isFinite(n) || n < 0 || n > 100) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid ${field}=${v}`);\n  }\n  return n;\n}\n\nfunction normalizeScoreSet(a) {\n  const raw = {\n    editorial_score: numericScore(a.editorial_score, 'editorial_score'),\n    technical_score: numericScore(a.technical_score, 'technical_score'),\n    composition_score: numericScore(a.composition_score, 'composition_score'),\n    tattoo_visibility: numericScore(a.tattoo_visibility, 'tattoo_visibility'),\n    confidence: numericScore(a.confidence, 'confidence')\n  };\n\n  const visualFour = [\n    raw.editorial_score,\n    raw.technical_score,\n    raw.composition_score,\n    raw.tattoo_visibility\n  ];\n\n  // Strong evidence that the model accidentally used a 0–10 scale:\n  // at least 3 of the 4 core scores are >0 and <=10.\n  const lowCount = visualFour.filter(v => v > 0 && v <= 10).length;\n  const detected10 = lowCount >= 3;\n\n  const normalize = (v) => detected10 && v > 0 && v <= 10 ? v * 10 : v;\n\n  return {\n    editorial_score: Math.round(normalize(raw.editorial_score)),\n    technical_score: Math.round(normalize(raw.technical_score)),\n    composition_score: Math.round(normalize(raw.composition_score)),\n    tattoo_visibility: Math.round(normalize(raw.tattoo_visibility)),\n    confidence: Math.round(\n      detected10 && raw.confidence > 0 && raw.confidence <= 10\n        ? raw.confidence * 10\n        : raw.confidence\n    ),\n    scale_detected: detected10 ? '10_NORMALIZED' : '100',\n    normalization: detected10 ? 'X10_FROM_0_10' : 'NONE'\n  };\n}\n\nconst allowedSelection = new Set(['DESCARTAR', 'ANALISADO', 'SELECIONADO']);\nconst allowedQuality = new Set(['BAIXA', 'MEDIA', 'ALTA']);\n\nreturn items.map(x => {\n  const a = x.analysis || {};\n\n  const w = workerByMedia.get(String(x.media_id || '')) || {};\n  const meta = w.metadata || {};\n\n\n  if (!x.row_number || !x.media_id || !x.project_id) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: missing row/media/project identity`);\n  }\n  if (!x.provider || !x.model) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: missing provider/model for ${x.media_id}`);\n  }\n  if (!allowedSelection.has(String(a.selection || '').toUpperCase())) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid selection for ${x.media_id}`);\n  }\n  if (!allowedQuality.has(String(a.quality || '').toUpperCase())) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid quality for ${x.media_id}`);\n  }\n  if (!String(a.visual_summary || '').trim()) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: empty visual_summary for ${x.media_id}`);\n  }\n\n  const scores = normalizeScoreSet(a);\n  const recommended = Array.isArray(a.recommended_use) ? a.recommended_use : [];\n\n  const s = a.structure || {};\n  const anatomy = s.anatomy || {};\n  const tattoo = s.tattoo || {};\n  const framing = s.framing || {};\n  const crops = s.crops || {};\n\n  const structuralConfidence = Number(s.structural_confidence);\n  if (!Number.isFinite(structuralConfidence) || structuralConfidence < 0 || structuralConfidence > 100) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid structural_confidence for ${x.media_id}`);\n  }\n\n  const requiredStructural = [\n    s.geometry_mode,\n    anatomy.body_region,\n    anatomy.view_angle,\n    tattoo.orientation,\n    tattoo.subject_primary,\n    tattoo.stage,\n    tattoo.coverage,\n    tattoo.composition_shape,\n    framing.focal_description\n  ];\n  if (requiredStructural.some(v => !String(v || '').trim())) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: incomplete structural vision for ${x.media_id}`);\n  }\n\n  const cropGuidance = {\n    reel_9x16: crops.reel_9x16 || {},\n    story_9x16: crops.story_9x16 || {},\n    feed_4x5: crops.feed_4x5 || {},\n    square_1x1: crops.square_1x1 || {},\n    landscape_16x9: crops.landscape_16x9 || {}\n  };\n\n  const formatFit = Object.fromEntries(\n    Object.entries(cropGuidance).map(([k, v]) => [k, {\n      viability_score: v.viability_score,\n      strategy: v.strategy,\n      anchor: v.anchor,\n      rect_reliability: v.rect_reliability,\n      rationale: v.rationale\n    }])\n  );\n\n\n  return {\n    json: {\n      ID_MIDIA: x.media_id,\n      ID_PROJETO: x.project_id,\n\n      TRIAGEM: String(a.selection).toUpperCase(),\n      QUALIDADE: String(a.quality).toUpperCase(),\n      'CONTEÚDO_VISUAL': String(a.visual_summary || '').trim(),\n      MELHOR_TRECHO: ANALYSIS_SOURCE === 'VIDEO_CONTACT_SHEET'\n        ? String(a.best_moment || '').trim()\n        : '',\n      USAR_EM: recommended.join(', '),\n\n      ANALYSIS_STATUS: 'ANALYZED',\n      ANALYSIS_VERSION: 'SM3_TRIAGE_V4_HARDENED',\n      ANALYSIS_SOURCE: ANALYSIS_SOURCE,\n      VISION_PROVIDER: x.provider,\n      VISION_MODEL: x.model,\n      ANALYZED_AT: now,\n      ANALYSIS_ERROR: '',\n      PROCESS_STATUS: 'SUCCESS',\n      RETRY_COUNT: 0,\n      LAST_ATTEMPT_AT: now,\n      LAST_ERROR_CODE: '',\n      LAST_ERROR_MESSAGE: '',\n      LAST_FAILURE_STAGE: '',\n      LAST_FAILURE_NODE: '',\n      NEXT_RETRY_AT: '',\n      DEAD_LETTER_AT: '',\n      DEAD_LETTER_ID: '',\n      RELIABILITY_VERSION: 'SM3_RELIABILITY_V1',\n      EDITORIAL_SCORE: scores.editorial_score,\n      PROXY_STATUS: 'LOCAL_READY',\n\n      ANALYSIS_STAGE: String(a.stage || '').toUpperCase(),\n      SHOT_TYPE: String(a.shot_type || '').toUpperCase(),\n      TECHNICAL_NOTES: String(a.technical_notes || '').trim(),\n      TECHNICAL_SCORE: scores.technical_score,\n      COMPOSITION_SCORE: scores.composition_score,\n      TATTOO_VISIBILITY: scores.tattoo_visibility,\n      ANALYSIS_CONFIDENCE: scores.confidence,\n      REDUNDANCY_HINT: String(a.redundancy_hint || '').trim(),\n\n      SCORE_SCALE_DETECTED: scores.scale_detected,\n      SCORE_NORMALIZATION: scores.normalization,\n\n      DATA_CAPTURA: String(meta.captured_at || ''),\n      MIME_TYPE: String(meta.mime_type || ''),\n      FILE_SIZE_BYTES: Number(meta.bytes || 0) || '',\n      CONTENT_HASH: String(w.content_hash || meta.sha256 || ''),\n      CAPTURED_AT_SOURCE: String(meta.captured_at_source || ''),\n      TECHNICAL_METADATA_JSON: JSON.stringify(meta || {}),\n\n\n      STRUCTURAL_ANALYSIS_VERSION: 'SM3_STRUCTURAL_V2',\n      GEOMETRY_MODE: String(s.geometry_mode || '') === 'IMAGE_EXACT'\n        ? 'IMAGE_SINGLE_FRAME_ESTIMATE'\n        : String(s.geometry_mode || ''),\n      BODY_REGION: String(anatomy.body_region || ''),\n      BODY_SUBREGION: String(anatomy.body_subregion || ''),\n      VIEW_ANGLE: String(anatomy.view_angle || ''),\n      BODY_POSE: String(anatomy.body_pose || ''),\n      TATTOO_ORIENTATION: String(tattoo.orientation || ''),\n      TATTOO_STYLE_TAGS: Array.isArray(tattoo.style_tags) ? tattoo.style_tags.join(', ') : '',\n      TATTOO_SUBJECT_PRIMARY: String(tattoo.subject_primary || ''),\n      TATTOO_SUBJECT_TAGS: Array.isArray(tattoo.subject_tags) ? tattoo.subject_tags.join(', ') : '',\n      TATTOO_STAGE_STRUCTURAL: String(tattoo.stage || ''),\n      TATTOO_COVERAGE: String(tattoo.coverage || ''),\n      COMPOSITION_SHAPE: String(tattoo.composition_shape || ''),\n      FOCAL_DESCRIPTION: String(framing.focal_description || ''),\n      FOCUS_POINT_NORM: JSON.stringify(framing.focus_point_norm || {}),\n      TATTOO_BBOX_NORM: JSON.stringify(framing.tattoo_bbox_norm || {}),\n      CROP_GUIDANCE_JSON: JSON.stringify(cropGuidance),\n      FORMAT_FIT_JSON: JSON.stringify(formatFit),\n      BEST_FORMATS: Array.isArray(s.best_formats) ? s.best_formats.join(', ') : '',\n      STRUCTURAL_CONFIDENCE: Math.round(structuralConfidence),\n      STRUCTURAL_NOTES: String(s.notes || '')\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        -40
+      ],
+      "id": "2c7e5095-2f1d-4afa-bae2-369542ead76b",
+      "name": "BUILD — IMAGE ANALYSIS WRITE",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ANALYSIS_SOURCE = 'VIDEO_CONTACT_SHEET';\n\nconst now = new Date().toISOString();\nconst items = $input.all().map(i => i.json);\n\nconst workerByMedia = new Map(\n  $('WORKER — PROCESS VIDEO').all().map(i => [String(i.json.media_id || ''), i.json])\n);\n\n\nfunction numericScore(v, field) {\n  const n = Number(v);\n  if (!Number.isFinite(n) || n < 0 || n > 100) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid ${field}=${v}`);\n  }\n  return n;\n}\n\nfunction normalizeScoreSet(a) {\n  const raw = {\n    editorial_score: numericScore(a.editorial_score, 'editorial_score'),\n    technical_score: numericScore(a.technical_score, 'technical_score'),\n    composition_score: numericScore(a.composition_score, 'composition_score'),\n    tattoo_visibility: numericScore(a.tattoo_visibility, 'tattoo_visibility'),\n    confidence: numericScore(a.confidence, 'confidence')\n  };\n\n  const visualFour = [\n    raw.editorial_score,\n    raw.technical_score,\n    raw.composition_score,\n    raw.tattoo_visibility\n  ];\n\n  // Strong evidence that the model accidentally used a 0–10 scale:\n  // at least 3 of the 4 core scores are >0 and <=10.\n  const lowCount = visualFour.filter(v => v > 0 && v <= 10).length;\n  const detected10 = lowCount >= 3;\n\n  const normalize = (v) => detected10 && v > 0 && v <= 10 ? v * 10 : v;\n\n  return {\n    editorial_score: Math.round(normalize(raw.editorial_score)),\n    technical_score: Math.round(normalize(raw.technical_score)),\n    composition_score: Math.round(normalize(raw.composition_score)),\n    tattoo_visibility: Math.round(normalize(raw.tattoo_visibility)),\n    confidence: Math.round(\n      detected10 && raw.confidence > 0 && raw.confidence <= 10\n        ? raw.confidence * 10\n        : raw.confidence\n    ),\n    scale_detected: detected10 ? '10_NORMALIZED' : '100',\n    normalization: detected10 ? 'X10_FROM_0_10' : 'NONE'\n  };\n}\n\nconst allowedSelection = new Set(['DESCARTAR', 'ANALISADO', 'SELECIONADO']);\nconst allowedQuality = new Set(['BAIXA', 'MEDIA', 'ALTA']);\n\nreturn items.map(x => {\n  const a = x.analysis || {};\n\n  const w = workerByMedia.get(String(x.media_id || '')) || {};\n  const meta = w.metadata || {};\n\n\n  if (!x.row_number || !x.media_id || !x.project_id) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: missing row/media/project identity`);\n  }\n  if (!x.provider || !x.model) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: missing provider/model for ${x.media_id}`);\n  }\n  if (!allowedSelection.has(String(a.selection || '').toUpperCase())) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid selection for ${x.media_id}`);\n  }\n  if (!allowedQuality.has(String(a.quality || '').toUpperCase())) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid quality for ${x.media_id}`);\n  }\n  if (!String(a.visual_summary || '').trim()) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: empty visual_summary for ${x.media_id}`);\n  }\n\n  const scores = normalizeScoreSet(a);\n  const recommended = Array.isArray(a.recommended_use) ? a.recommended_use : [];\n\n  const s = a.structure || {};\n  const anatomy = s.anatomy || {};\n  const tattoo = s.tattoo || {};\n  const framing = s.framing || {};\n  const crops = s.crops || {};\n\n  const structuralConfidence = Number(s.structural_confidence);\n  if (!Number.isFinite(structuralConfidence) || structuralConfidence < 0 || structuralConfidence > 100) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: invalid structural_confidence for ${x.media_id}`);\n  }\n\n  const requiredStructural = [\n    s.geometry_mode,\n    anatomy.body_region,\n    anatomy.view_angle,\n    tattoo.orientation,\n    tattoo.subject_primary,\n    tattoo.stage,\n    tattoo.coverage,\n    tattoo.composition_shape,\n    framing.focal_description\n  ];\n  if (requiredStructural.some(v => !String(v || '').trim())) {\n    throw new Error(`ANALYSIS_WRITE_BLOCK: incomplete structural vision for ${x.media_id}`);\n  }\n\n  const cropGuidance = {\n    reel_9x16: crops.reel_9x16 || {},\n    story_9x16: crops.story_9x16 || {},\n    feed_4x5: crops.feed_4x5 || {},\n    square_1x1: crops.square_1x1 || {},\n    landscape_16x9: crops.landscape_16x9 || {}\n  };\n\n  const formatFit = Object.fromEntries(\n    Object.entries(cropGuidance).map(([k, v]) => [k, {\n      viability_score: v.viability_score,\n      strategy: v.strategy,\n      anchor: v.anchor,\n      rect_reliability: v.rect_reliability,\n      rationale: v.rationale\n    }])\n  );\n\n\n  return {\n    json: {\n      ID_MIDIA: x.media_id,\n      ID_PROJETO: x.project_id,\n\n      TRIAGEM: String(a.selection).toUpperCase(),\n      QUALIDADE: String(a.quality).toUpperCase(),\n      'CONTEÚDO_VISUAL': String(a.visual_summary || '').trim(),\n      MELHOR_TRECHO: ANALYSIS_SOURCE === 'VIDEO_CONTACT_SHEET'\n        ? String(a.best_moment || '').trim()\n        : '',\n      USAR_EM: recommended.join(', '),\n\n      ANALYSIS_STATUS: 'ANALYZED',\n      ANALYSIS_VERSION: 'SM3_TRIAGE_V4_HARDENED',\n      ANALYSIS_SOURCE: ANALYSIS_SOURCE,\n      VISION_PROVIDER: x.provider,\n      VISION_MODEL: x.model,\n      ANALYZED_AT: now,\n      ANALYSIS_ERROR: '',\n      PROCESS_STATUS: 'SUCCESS',\n      RETRY_COUNT: 0,\n      LAST_ATTEMPT_AT: now,\n      LAST_ERROR_CODE: '',\n      LAST_ERROR_MESSAGE: '',\n      LAST_FAILURE_STAGE: '',\n      LAST_FAILURE_NODE: '',\n      NEXT_RETRY_AT: '',\n      DEAD_LETTER_AT: '',\n      DEAD_LETTER_ID: '',\n      RELIABILITY_VERSION: 'SM3_RELIABILITY_V1',\n      EDITORIAL_SCORE: scores.editorial_score,\n      PROXY_STATUS: 'LOCAL_READY',\n\n      ANALYSIS_STAGE: String(a.stage || '').toUpperCase(),\n      SHOT_TYPE: String(a.shot_type || '').toUpperCase(),\n      TECHNICAL_NOTES: String(a.technical_notes || '').trim(),\n      TECHNICAL_SCORE: scores.technical_score,\n      COMPOSITION_SCORE: scores.composition_score,\n      TATTOO_VISIBILITY: scores.tattoo_visibility,\n      ANALYSIS_CONFIDENCE: scores.confidence,\n      REDUNDANCY_HINT: String(a.redundancy_hint || '').trim(),\n\n      SCORE_SCALE_DETECTED: scores.scale_detected,\n      SCORE_NORMALIZATION: scores.normalization,\n\n      DATA_CAPTURA: String(meta.captured_at || ''),\n      MIME_TYPE: String(meta.mime_type || ''),\n      FILE_SIZE_BYTES: Number(meta.bytes || 0) || '',\n      CONTENT_HASH: String(w.content_hash || meta.sha256 || ''),\n      CAPTURED_AT_SOURCE: String(meta.captured_at_source || ''),\n      TECHNICAL_METADATA_JSON: JSON.stringify(meta || {}),\n\n\n      STRUCTURAL_ANALYSIS_VERSION: 'SM3_STRUCTURAL_V2',\n      GEOMETRY_MODE: String(s.geometry_mode || '') === 'IMAGE_EXACT'\n        ? 'IMAGE_SINGLE_FRAME_ESTIMATE'\n        : String(s.geometry_mode || ''),\n      BODY_REGION: String(anatomy.body_region || ''),\n      BODY_SUBREGION: String(anatomy.body_subregion || ''),\n      VIEW_ANGLE: String(anatomy.view_angle || ''),\n      BODY_POSE: String(anatomy.body_pose || ''),\n      TATTOO_ORIENTATION: String(tattoo.orientation || ''),\n      TATTOO_STYLE_TAGS: Array.isArray(tattoo.style_tags) ? tattoo.style_tags.join(', ') : '',\n      TATTOO_SUBJECT_PRIMARY: String(tattoo.subject_primary || ''),\n      TATTOO_SUBJECT_TAGS: Array.isArray(tattoo.subject_tags) ? tattoo.subject_tags.join(', ') : '',\n      TATTOO_STAGE_STRUCTURAL: String(tattoo.stage || ''),\n      TATTOO_COVERAGE: String(tattoo.coverage || ''),\n      COMPOSITION_SHAPE: String(tattoo.composition_shape || ''),\n      FOCAL_DESCRIPTION: String(framing.focal_description || ''),\n      FOCUS_POINT_NORM: JSON.stringify(framing.focus_point_norm || {}),\n      TATTOO_BBOX_NORM: JSON.stringify(framing.tattoo_bbox_norm || {}),\n      CROP_GUIDANCE_JSON: JSON.stringify(cropGuidance),\n      FORMAT_FIT_JSON: JSON.stringify(formatFit),\n      BEST_FORMATS: Array.isArray(s.best_formats) ? s.best_formats.join(', ') : '',\n      STRUCTURAL_CONFIDENCE: Math.round(structuralConfidence),\n      STRUCTURAL_NOTES: String(s.notes || '')\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        120
+      ],
+      "id": "b9cf56f9-88b5-43cb-9422-7034c1e2ec95",
+      "name": "BUILD — VIDEO ANALYSIS WRITE",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "TRIAGEM": "={{ $json.TRIAGEM }}",
+            "QUALIDADE": "={{ $json.QUALIDADE }}",
+            "CONTEÚDO_VISUAL": "={{ $json['CONTEÚDO_VISUAL'] }}",
+            "MELHOR_TRECHO": "={{ $json.MELHOR_TRECHO }}",
+            "USAR_EM": "={{ $json.USAR_EM }}",
+            "ANALYSIS_STATUS": "={{ $json.ANALYSIS_STATUS }}",
+            "ANALYSIS_VERSION": "={{ $json.ANALYSIS_VERSION }}",
+            "ANALYSIS_SOURCE": "={{ $json.ANALYSIS_SOURCE }}",
+            "VISION_PROVIDER": "={{ $json.VISION_PROVIDER }}",
+            "VISION_MODEL": "={{ $json.VISION_MODEL }}",
+            "ANALYZED_AT": "={{ $json.ANALYZED_AT }}",
+            "ANALYSIS_ERROR": "={{ $json.ANALYSIS_ERROR }}",
+            "EDITORIAL_SCORE": "={{ $json.EDITORIAL_SCORE }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}",
+            "ANALYSIS_STAGE": "={{ $json.ANALYSIS_STAGE }}",
+            "SHOT_TYPE": "={{ $json.SHOT_TYPE }}",
+            "TECHNICAL_NOTES": "={{ $json.TECHNICAL_NOTES }}",
+            "TECHNICAL_SCORE": "={{ $json.TECHNICAL_SCORE }}",
+            "COMPOSITION_SCORE": "={{ $json.COMPOSITION_SCORE }}",
+            "TATTOO_VISIBILITY": "={{ $json.TATTOO_VISIBILITY }}",
+            "ANALYSIS_CONFIDENCE": "={{ $json.ANALYSIS_CONFIDENCE }}",
+            "REDUNDANCY_HINT": "={{ $json.REDUNDANCY_HINT }}",
+            "SCORE_SCALE_DETECTED": "={{ $json.SCORE_SCALE_DETECTED }}",
+            "SCORE_NORMALIZATION": "={{ $json.SCORE_NORMALIZATION }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STATUS",
+              "displayName": "ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_VERSION",
+              "displayName": "ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_SOURCE",
+              "displayName": "ANALYSIS_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_PROVIDER",
+              "displayName": "VISION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_MODEL",
+              "displayName": "VISION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYZED_AT",
+              "displayName": "ANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_ERROR",
+              "displayName": "ANALYSIS_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_SCORE",
+              "displayName": "EDITORIAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STAGE",
+              "displayName": "ANALYSIS_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SHOT_TYPE",
+              "displayName": "SHOT_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_NOTES",
+              "displayName": "TECHNICAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_SCORE",
+              "displayName": "TECHNICAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SCORE",
+              "displayName": "COMPOSITION_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_VISIBILITY",
+              "displayName": "TATTOO_VISIBILITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_CONFIDENCE",
+              "displayName": "ANALYSIS_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_HINT",
+              "displayName": "REDUNDANCY_HINT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_SCALE_DETECTED",
+              "displayName": "SCORE_SCALE_DETECTED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_NORMALIZATION",
+              "displayName": "SCORE_NORMALIZATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2440,
+        -40
+      ],
+      "id": "f2b30dd4-6f74-4222-9882-7374660f57bf",
+      "name": "UPDATE — IMAGE ANALYSIS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "TRIAGEM": "={{ $json.TRIAGEM }}",
+            "QUALIDADE": "={{ $json.QUALIDADE }}",
+            "CONTEÚDO_VISUAL": "={{ $json['CONTEÚDO_VISUAL'] }}",
+            "MELHOR_TRECHO": "={{ $json.MELHOR_TRECHO }}",
+            "USAR_EM": "={{ $json.USAR_EM }}",
+            "ANALYSIS_STATUS": "={{ $json.ANALYSIS_STATUS }}",
+            "ANALYSIS_VERSION": "={{ $json.ANALYSIS_VERSION }}",
+            "ANALYSIS_SOURCE": "={{ $json.ANALYSIS_SOURCE }}",
+            "VISION_PROVIDER": "={{ $json.VISION_PROVIDER }}",
+            "VISION_MODEL": "={{ $json.VISION_MODEL }}",
+            "ANALYZED_AT": "={{ $json.ANALYZED_AT }}",
+            "ANALYSIS_ERROR": "={{ $json.ANALYSIS_ERROR }}",
+            "EDITORIAL_SCORE": "={{ $json.EDITORIAL_SCORE }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}",
+            "ANALYSIS_STAGE": "={{ $json.ANALYSIS_STAGE }}",
+            "SHOT_TYPE": "={{ $json.SHOT_TYPE }}",
+            "TECHNICAL_NOTES": "={{ $json.TECHNICAL_NOTES }}",
+            "TECHNICAL_SCORE": "={{ $json.TECHNICAL_SCORE }}",
+            "COMPOSITION_SCORE": "={{ $json.COMPOSITION_SCORE }}",
+            "TATTOO_VISIBILITY": "={{ $json.TATTOO_VISIBILITY }}",
+            "ANALYSIS_CONFIDENCE": "={{ $json.ANALYSIS_CONFIDENCE }}",
+            "REDUNDANCY_HINT": "={{ $json.REDUNDANCY_HINT }}",
+            "SCORE_SCALE_DETECTED": "={{ $json.SCORE_SCALE_DETECTED }}",
+            "SCORE_NORMALIZATION": "={{ $json.SCORE_NORMALIZATION }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STATUS",
+              "displayName": "ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_VERSION",
+              "displayName": "ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_SOURCE",
+              "displayName": "ANALYSIS_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_PROVIDER",
+              "displayName": "VISION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_MODEL",
+              "displayName": "VISION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYZED_AT",
+              "displayName": "ANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_ERROR",
+              "displayName": "ANALYSIS_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_SCORE",
+              "displayName": "EDITORIAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STAGE",
+              "displayName": "ANALYSIS_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SHOT_TYPE",
+              "displayName": "SHOT_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_NOTES",
+              "displayName": "TECHNICAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_SCORE",
+              "displayName": "TECHNICAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SCORE",
+              "displayName": "COMPOSITION_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_VISIBILITY",
+              "displayName": "TATTOO_VISIBILITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_CONFIDENCE",
+              "displayName": "ANALYSIS_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_HINT",
+              "displayName": "REDUNDANCY_HINT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_SCALE_DETECTED",
+              "displayName": "SCORE_SCALE_DETECTED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_NORMALIZATION",
+              "displayName": "SCORE_NORMALIZATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2440,
+        120
+      ],
+      "id": "1682a1ef-e6d9-43ba-b888-dd2416fc3b47",
+      "name": "UPDATE — VIDEO ANALYSIS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{status:'NO_WORK',message:'Nenhuma mídia QUEUED + ONLINE pendente de análise.',completed_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        320
+      ],
+      "id": "d8e803d6-8353-4b05-9e81-2c3bbcdf388c",
+      "name": "NO WORK — COMPLETE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'DRIVE_DOWNLOAD_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'DOWNLOAD — ORIGINAL',\n    STAGE: 'DRIVE_DOWNLOAD',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'DOWNLOAD — ORIGINAL',\n    stage: 'DRIVE_DOWNLOAD',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'DRIVE_DOWNLOAD',\n    LAST_FAILURE_NODE: 'DOWNLOAD — ORIGINAL',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        520
+      ],
+      "id": "4ee36496-4218-4430-812c-d8b362ffd276",
+      "name": "FAIL — DRIVE_DOWNLOAD"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 2;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'LOCAL_TEMP_WRITE_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'WRITE — TEMP',\n    STAGE: 'LOCAL_TEMP_WRITE',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'WRITE — TEMP',\n    stage: 'LOCAL_TEMP_WRITE',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'LOCAL_TEMP_WRITE',\n    LAST_FAILURE_NODE: 'WRITE — TEMP',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1510,
+        520
+      ],
+      "id": "50e807e3-c829-4bdc-b2f1-515aee8605b2",
+      "name": "FAIL — LOCAL_TEMP_WRITE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 2;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'MEDIA_WORKER_PROCESS_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'WORKER — PROCESS',\n    STAGE: 'MEDIA_WORKER_PROCESS',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'WORKER — PROCESS',\n    stage: 'MEDIA_WORKER_PROCESS',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'MEDIA_WORKER_PROCESS',\n    LAST_FAILURE_NODE: 'WORKER — PROCESS',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1770,
+        520
+      ],
+      "id": "10b00efb-d26c-4735-a8db-5c8d8fb7a524",
+      "name": "FAIL — MEDIA_WORKER_PROCESS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'VISION_ANALYSIS_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'VISION — ANALYZE',\n    STAGE: 'VISION_ANALYSIS',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'VISION — ANALYZE',\n    stage: 'VISION_ANALYSIS',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'VISION_ANALYSIS',\n    LAST_FAILURE_NODE: 'VISION — ANALYZE',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2030,
+        520
+      ],
+      "id": "efb1ac58-1407-41a5-8fa5-b07967ba5c47",
+      "name": "FAIL — VISION_ANALYSIS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 1;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'VISION_RESPONSE_AUDIT_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'AUDIT — ANALYSIS',\n    STAGE: 'VISION_RESPONSE_AUDIT',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'AUDIT — ANALYSIS',\n    stage: 'VISION_RESPONSE_AUDIT',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'VISION_RESPONSE_AUDIT',\n    LAST_FAILURE_NODE: 'AUDIT — ANALYSIS',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        740
+      ],
+      "id": "7720b161-fff0-495b-b7c8-2da1ee2cec96",
+      "name": "FAIL — VISION_RESPONSE_AUDIT"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 1;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'ANALYSIS_CONTRACT_VALIDATION_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'BUILD — ANALYSIS WRITE',\n    STAGE: 'ANALYSIS_CONTRACT_VALIDATION',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'BUILD — ANALYSIS WRITE',\n    stage: 'ANALYSIS_CONTRACT_VALIDATION',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'ANALYSIS_CONTRACT_VALIDATION',\n    LAST_FAILURE_NODE: 'BUILD — ANALYSIS WRITE',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1510,
+        740
+      ],
+      "id": "517c4b69-9750-4ad9-be9e-de2541b36de5",
+      "name": "FAIL — ANALYSIS_CONTRACT_VALIDATION"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date().toISOString();\nconst maxTries = 3;\nconst workflow = 'PROJETO_SM3_02_TRIAGE_V8';\n\nfunction compactError(x) {\n  const e = x.error || x;\n  const code = String(e.code || e.name || x.code || 'SHEET_WRITE_ANALYSIS_FAILED').slice(0, 200);\n  let msg = String(e.message || x.message || e.description || 'Terminal failure after retries.');\n  if (msg.length > 4000) msg = msg.slice(0, 4000);\n  return {code, msg};\n}\n\nreturn $input.all().map((item, idx) => {\n  const x = item.json || {};\n  const mediaId = String(x.ID_MIDIA || x.media_id || x.MEDIA_ID || '').trim();\n  const projectId = String(x.ID_PROJETO || x.project_id || x.PROJECT_ID || '').trim();\n  const err = compactError(x);\n  const suffix = Math.random().toString(36).slice(2, 8);\n  const eventId = `DLQ_${Date.now()}_${mediaId || 'UNKNOWN'}_${suffix}`;\n\n  return {json:{\n    EVENT_ID: eventId,\n    CREATED_AT: now,\n    WORKFLOW: workflow,\n    NODE: 'UPDATE — ANALYSIS',\n    STAGE: 'SHEET_WRITE_ANALYSIS',\n    ENTITY_TYPE: 'MEDIA',\n    ENTITY_ID: mediaId || 'UNKNOWN',\n    PROJECT_ID: projectId,\n    MEDIA_ID: mediaId,\n    CONTENT_ID: '',\n    ERROR_CODE: err.code,\n    ERROR_MESSAGE: err.msg,\n    ATTEMPT_COUNT: maxTries,\n    MAX_TRIES: maxTries,\n    RETRYABLE: false,\n    DISPOSITION: 'DEAD_LETTER',\n    EXECUTION_ID: String($execution.id || ''),\n    PAYLOAD_JSON: JSON.stringify({\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || ''),\n      caught_by: 'continueErrorOutput'\n    }),\n    RESOLVED_AT: '',\n    RESOLUTION_NOTES: '',\n    VERSION: 'SM3_RELIABILITY_V1',\n\n    // lower-case contract for /ops/dead-letter\n    event_id: eventId,\n    created_at: now,\n    workflow,\n    node: 'UPDATE — ANALYSIS',\n    stage: 'SHEET_WRITE_ANALYSIS',\n    entity_type: 'MEDIA',\n    entity_id: mediaId || 'UNKNOWN',\n    project_id: projectId,\n    media_id: mediaId,\n    content_id: '',\n    error_code: err.code,\n    error_message: err.msg,\n    attempt_count: maxTries,\n    max_tries: maxTries,\n    retryable: false,\n    disposition: 'DEAD_LETTER',\n    execution_id: String($execution.id || ''),\n    payload: {\n      source_type: String(x.TIPO || x.kind || x.worker_kind || ''),\n      file_name: String(x.ARQUIVO || x.file_name || ''),\n      drive_file_id: String(x.DRIVE_FILE_ID || x.drive_file_id || ''),\n      relative_path: String(x.RELATIVE_PATH || x.relative_path || '')\n    },\n    version: 'SM3_RELIABILITY_V1',\n\n    // current media operational state\n    ID_MIDIA: mediaId,\n    ANALYSIS_STATUS: mediaId ? 'DEAD_LETTER' : '',\n    PROCESS_STATUS: 'DEAD_LETTER',\n    RETRY_COUNT: Math.max(0, maxTries - 1),\n    LAST_ATTEMPT_AT: now,\n    LAST_ERROR_CODE: err.code,\n    LAST_ERROR_MESSAGE: err.msg,\n    LAST_FAILURE_STAGE: 'SHEET_WRITE_ANALYSIS',\n    LAST_FAILURE_NODE: 'UPDATE — ANALYSIS',\n    NEXT_RETRY_AT: '',\n    DEAD_LETTER_AT: now,\n    DEAD_LETTER_ID: eventId,\n    RELIABILITY_VERSION: 'SM3_RELIABILITY_V1'\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1770,
+        740
+      ],
+      "id": "19c766f1-2a21-4783-8059-b22e576ac87c",
+      "name": "FAIL — SHEET_WRITE_ANALYSIS"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/ops/dead-letter",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ {event_id:$json.event_id,created_at:$json.created_at,workflow:$json.workflow,node:$json.node,stage:$json.stage,entity_type:$json.entity_type,entity_id:$json.entity_id,project_id:$json.project_id,media_id:$json.media_id,content_id:$json.content_id,error_code:$json.error_code,error_message:$json.error_message,attempt_count:$json.attempt_count,max_tries:$json.max_tries,retryable:$json.retryable,disposition:$json.disposition,execution_id:$json.execution_id,payload:$json.payload,version:$json.version} }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2350,
+        520
+      ],
+      "id": "e5c23e6f-9215-4c7a-8515-b64636a2651b",
+      "name": "SINK — DEAD LETTER LOCAL",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1938475611,
+          "mode": "list",
+          "cachedResultName": "17_OS_FAILURES"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "EVENT_ID": "={{ $json.EVENT_ID }}",
+            "CREATED_AT": "={{ $json.CREATED_AT }}",
+            "WORKFLOW": "={{ $json.WORKFLOW }}",
+            "NODE": "={{ $json.NODE }}",
+            "STAGE": "={{ $json.STAGE }}",
+            "ENTITY_TYPE": "={{ $json.ENTITY_TYPE }}",
+            "ENTITY_ID": "={{ $json.ENTITY_ID }}",
+            "PROJECT_ID": "={{ $json.PROJECT_ID }}",
+            "MEDIA_ID": "={{ $json.MEDIA_ID }}",
+            "CONTENT_ID": "={{ $json.CONTENT_ID }}",
+            "ERROR_CODE": "={{ $json.ERROR_CODE }}",
+            "ERROR_MESSAGE": "={{ $json.ERROR_MESSAGE }}",
+            "ATTEMPT_COUNT": "={{ $json.ATTEMPT_COUNT }}",
+            "MAX_TRIES": "={{ $json.MAX_TRIES }}",
+            "RETRYABLE": "={{ $json.RETRYABLE }}",
+            "DISPOSITION": "={{ $json.DISPOSITION }}",
+            "EXECUTION_ID": "={{ $json.EXECUTION_ID }}",
+            "PAYLOAD_JSON": "={{ $json.PAYLOAD_JSON }}",
+            "RESOLVED_AT": "={{ $json.RESOLVED_AT }}",
+            "RESOLUTION_NOTES": "={{ $json.RESOLUTION_NOTES }}",
+            "VERSION": "={{ $json.VERSION }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "EVENT_ID",
+              "displayName": "EVENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CREATED_AT",
+              "displayName": "CREATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "WORKFLOW",
+              "displayName": "WORKFLOW",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NODE",
+              "displayName": "NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STAGE",
+              "displayName": "STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_TYPE",
+              "displayName": "ENTITY_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENTITY_ID",
+              "displayName": "ENTITY_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROJECT_ID",
+              "displayName": "PROJECT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MEDIA_ID",
+              "displayName": "MEDIA_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_ID",
+              "displayName": "CONTENT_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ERROR_CODE",
+              "displayName": "ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ERROR_MESSAGE",
+              "displayName": "ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ATTEMPT_COUNT",
+              "displayName": "ATTEMPT_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MAX_TRIES",
+              "displayName": "MAX_TRIES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRYABLE",
+              "displayName": "RETRYABLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DISPOSITION",
+              "displayName": "DISPOSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EXECUTION_ID",
+              "displayName": "EXECUTION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PAYLOAD_JSON",
+              "displayName": "PAYLOAD_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESOLVED_AT",
+              "displayName": "RESOLVED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RESOLUTION_NOTES",
+              "displayName": "RESOLUTION_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VERSION",
+              "displayName": "VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2350,
+        680
+      ],
+      "id": "35eda334-7062-4921-aaf5-6851821be7a9",
+      "name": "SINK — 17_OS_FAILURES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all()\n  .map(i => i.json)\n  .filter(x => String(x.ID_MIDIA || '').trim())\n  .map(x => ({json:{\n    ID_MIDIA:x.ID_MIDIA,\n    ANALYSIS_STATUS:x.ANALYSIS_STATUS,\n    PROCESS_STATUS:x.PROCESS_STATUS,\n    RETRY_COUNT:x.RETRY_COUNT,\n    LAST_ATTEMPT_AT:x.LAST_ATTEMPT_AT,\n    LAST_ERROR_CODE:x.LAST_ERROR_CODE,\n    LAST_ERROR_MESSAGE:x.LAST_ERROR_MESSAGE,\n    LAST_FAILURE_STAGE:x.LAST_FAILURE_STAGE,\n    LAST_FAILURE_NODE:x.LAST_FAILURE_NODE,\n    NEXT_RETRY_AT:x.NEXT_RETRY_AT,\n    DEAD_LETTER_AT:x.DEAD_LETTER_AT,\n    DEAD_LETTER_ID:x.DEAD_LETTER_ID,\n    RELIABILITY_VERSION:x.RELIABILITY_VERSION\n  }}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2350,
+        840
+      ],
+      "id": "bfcbcbcf-4dc4-4aa6-a750-0a213cac4ce0",
+      "name": "BUILD — MEDIA FAILURE STATUS"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "ANALYSIS_STATUS": "={{ $json.ANALYSIS_STATUS }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STATUS",
+              "displayName": "ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2620,
+        840
+      ],
+      "id": "0ec97c90-deef-4a78-836f-d19a68ba3a2d",
+      "name": "UPDATE — MEDIA FAILURE STATUS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{contract:'SM3_RELIABILITY_V1',mode:'ISOLATE_ITEM',dead_letter:'DUAL_SINK',auto_replay:false}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        840
+      ],
+      "id": "aa954c3a-5b23-47e0-a487-2cbcd75e640d",
+      "name": "DOC — RELIABILITY V1",
+      "disabled": true,
+      "notesInFlow": true,
+      "notes": "Per-media failures use retry + continueErrorOutput. Terminal errors fan out to LOCAL_JSONL and 17_OS_FAILURES, then mark the media DEAD_LETTER when Sheets is available."
+    }
+  ],
+  "connections": {
+    "MANUAL — TRIAGE": {
+      "main": [
+        [
+          {
+            "node": "READ — 03_MIDIAS QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 03_MIDIAS QUEUE": {
+      "main": [
+        [
+          {
+            "node": "BUILD — TRIAGE QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — TRIAGE QUEUE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — TRIAGE QUEUE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ROUTE — ANALYSIS INPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ROUTE — ANALYSIS INPUT": {
+      "main": [
+        [
+          {
+            "node": "PREPARE — IMAGE WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PREPARE — VIDEO WORK ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UNSUPPORTED — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO WORK — COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — IMAGE WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — IMAGE ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — IMAGE ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — IMAGE TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — DRIVE_DOWNLOAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — IMAGE TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — LOCAL_TEMP_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS IMAGE": {
+      "main": [
+        [
+          {
+            "node": "VISION — ANALYZE IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — MEDIA_WORKER_PROCESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARE — VIDEO WORK ITEM": {
+      "main": [
+        [
+          {
+            "node": "DOWNLOAD — VIDEO ORIGINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOWNLOAD — VIDEO ORIGINAL": {
+      "main": [
+        [
+          {
+            "node": "WRITE — VIDEO TEMP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — DRIVE_DOWNLOAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WRITE — VIDEO TEMP": {
+      "main": [
+        [
+          {
+            "node": "WORKER — PROCESS VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — LOCAL_TEMP_WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — PROCESS VIDEO": {
+      "main": [
+        [
+          {
+            "node": "VISION — ANALYZE VIDEO CONTACT SHEET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — MEDIA_WORKER_PROCESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — ANALYZE IMAGE": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — IMAGE ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — VISION_ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISION — ANALYZE VIDEO CONTACT SHEET": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — VIDEO ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — VISION_ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — IMAGE ANALYSIS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — IMAGE ANALYSIS WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — VISION_RESPONSE_AUDIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — IMAGE ANALYSIS WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — IMAGE ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — ANALYSIS_CONTRACT_VALIDATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — VIDEO ANALYSIS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — VIDEO ANALYSIS WRITE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — VISION_RESPONSE_AUDIT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — VIDEO ANALYSIS WRITE": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — VIDEO ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL — ANALYSIS_CONTRACT_VALIDATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — IMAGE ANALYSIS": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FAIL — SHEET_WRITE_ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE — VIDEO ANALYSIS": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FAIL — SHEET_WRITE_ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — DRIVE_DOWNLOAD": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — LOCAL_TEMP_WRITE": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — MEDIA_WORKER_PROCESS": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — VISION_ANALYSIS": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — VISION_RESPONSE_AUDIT": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — ANALYSIS_CONTRACT_VALIDATION": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL — SHEET_WRITE_ANALYSIS": {
+      "main": [
+        [
+          {
+            "node": "SINK — DEAD LETTER LOCAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SINK — 17_OS_FAILURES",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BUILD — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — MEDIA FAILURE STATUS": {
+      "main": [
+        [
+          {
+            "node": "UPDATE — MEDIA FAILURE STATUS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SINK — DEAD LETTER LOCAL": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "SINK — 17_OS_FAILURES": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "UPDATE — MEDIA FAILURE STATUS": {
+      "main": [
+        [],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SM3_REFERENCE_FEATURES_V1",
+  "type": "object",
+  "required": [
+    "reference_item_id"
+  ],
+  "properties": {
+    "reference_item_id": {
+      "type": "string"
+    },
+    "video_duration_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "hook_duration_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "cuts_per_10s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "median_shot_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "camera_motion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_scale": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_coverage": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "text_density": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "text_position": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transition_style": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "speed_ramp": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "beat_sync": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "color_contrast": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "color_saturation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "color_temperature": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sharpness_grain": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identity_usage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tattoo_presentation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "story_structure": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "preference_signal": {
+      "enum": [
+        "LIKE",
+        "NEUTRAL",
+        "DISLIKE",
+        "UNKNOWN"
+      ]
+    },
+    "analysis_confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "source_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

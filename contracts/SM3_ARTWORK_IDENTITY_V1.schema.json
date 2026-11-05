@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_ARTWORK_IDENTITY_V1",
+  "title": "SM3 Artwork Identity V1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "artwork_id",
+    "project_id",
+    "identity_basis",
+    "assets"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "SM3_ARTWORK_IDENTITY_V1"
+    },
+    "artwork_id": {
+      "type": "string",
+      "pattern": "^ART_[a-f0-9]{24}$"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_basis": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "DRIVE_FOLDER_LINEAGE",
+          "VISUAL_MOTIF_MATCH",
+          "TEMPORAL_SEQUENCE",
+          "HUMAN_CONFIRMATION",
+          "OTHER"
+        ]
+      },
+      "minItems": 1
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

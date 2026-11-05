@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_SEMANTIC_GEOMETRY_V1",
+  "title": "Projeto SM3 Semantic Geometry Record V1",
+  "type": "object",
+  "required": [
+    "geometry_id",
+    "project_id",
+    "media_id",
+    "kind",
+    "source_content_hash",
+    "analysis_asset_sha256",
+    "contract_version",
+    "analyzer_version",
+    "vision_model",
+    "profile_independent",
+    "request_fingerprint",
+    "compiled_geometry",
+    "created_at",
+    "record_sha256"
+  ],
+  "properties": {
+    "geometry_id": {
+      "type": "string",
+      "pattern": "^SG_[a-f0-9]{32}$"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "media_id": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "image",
+        "video"
+      ]
+    },
+    "source_content_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysis_asset_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contract_version": {
+      "const": "SM3_SEMANTIC_GEOMETRY_V1"
+    },
+    "analyzer_version": {
+      "const": "SM3_GEOMETRY_ANALYZER_V1"
+    },
+    "vision_model": {
+      "type": "string"
+    },
+    "profile_independent": {
+      "const": true
+    },
+    "request_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "compiled_geometry": {
+      "type": "object",
+      "required": [
+        "geometry_mode",
+        "profile_independent",
+        "tattoo_bbox_norm",
+        "tattoo_protected_bbox_norm",
+        "body_axis_norm",
+        "tattoo_axis_norm",
+        "recommended_rotation_deg",
+        "overlay_safe_regions",
+        "forbidden_overlay_regions",
+        "crop_policy",
+        "dynamic_required",
+        "geometry_confidence",
+        "evidence_crosscheck",
+        "status",
+        "consumable",
+        "constraints"
+      ],
+      "properties": {
+        "geometry_mode": {
+          "enum": [
+            "IMAGE_SINGLE_FRAME",
+            "VIDEO_RECURRENCE_ESTIMATE"
+          ]
+        },
+        "profile_independent": {
+          "const": true
+        },
+        "recommended_rotation_deg": {
+          "type": "number",
+          "minimum": -12,
+          "maximum": 12
+        },
+        "geometry_confidence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "REVIEW_REQUIRED"
+          ]
+        },
+        "consumable": {
+          "type": "boolean"
+        },
+        "constraints": {
+          "type": "object",
+          "required": [
+            "overlay_on_tattoo_forbidden",
+            "direction_profile_may_not_override_protected_regions"
+          ],
+          "properties": {
+            "overlay_on_tattoo_forbidden": {
+              "const": true
+            },
+            "direction_profile_may_not_override_protected_regions": {
+              "const": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "record_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": true
+}

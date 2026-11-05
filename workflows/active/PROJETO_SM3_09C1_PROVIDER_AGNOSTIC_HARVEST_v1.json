@@ -1,0 +1,157 @@
+{
+  "name": "PROJETO SM3 — 09C.1 — PROVIDER AGNOSTIC HARVEST — v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "876feee1-a5e2-4503-ab77-f1cf732093d1",
+      "name": "MANUAL — SCORE OBSERVATIONS"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000013,
+          "mode": "list",
+          "cachedResultName": "31_REFERENCE_PROFILES"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically",
+              "readRowsUntil": "firstEmptyRow"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -600,
+        0
+      ],
+      "id": "4cb7b9fa-d221-45dc-8842-b1aa9dc9ae75",
+      "name": "READ — 31 SCORE POLICIES",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json),norm=x=>String(x??'').trim(),b=x=>typeof x==='boolean'?x:['TRUE','1','YES','SIM'].includes(norm(x).toUpperCase());const profiles=[];for(const r of rows){if(!b(r.AUTO_HARVEST))continue;const id=norm(r.REFERENCE_PROFILE_ID),h=norm(r.HANDLE).replace(/^@/,'').toLowerCase();if(!id||!h)continue;profiles.push({reference_profile_id:id,network:'instagram',handle:h,auto_harvest:true,promote_percentile:Number(r.HARVEST_PROMOTE_PERCENTILE||85),max_items_per_run:Number(r.HARVEST_MAX_ITEMS_PER_RUN||5),active:b(r.ACTIVE),human_priority:Number(r.HUMAN_PRIORITY||50)});}return [{json:{provider:'METRICOOL',network:'instagram',source_window_from:new Date(Date.now()-30*86400000).toISOString().slice(0,10),source_window_to:new Date().toISOString().slice(0,10),captured_at:new Date().toISOString(),configured_competitors:[],profiles,posts:[],promotion_enabled:true,notes:'09C1_PROVIDER_AGNOSTIC_SCORE'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        0
+      ],
+      "id": "0083f19b-e9a7-4d70-8961-c33e9fe3619f",
+      "name": "BUILD — PROVIDER AGNOSTIC SCORE REQUEST"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/production/reference-corpus/harvest/from-observations",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -140,
+        0
+      ],
+      "id": "bb39e0d8-3384-42ca-93ff-24455babe3bc",
+      "name": "WORKER — HARVEST FROM OBSERVATIONS"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,sm3_result:'SM3_09C1_PROVIDER_AGNOSTIC_HARVEST_PASS',run:$json.run}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        100,
+        0
+      ],
+      "id": "71c9cf08-a76e-4ce2-ae79-ef51560b6e53",
+      "name": "DONE — PROVIDER AGNOSTIC HARVEST"
+    }
+  ],
+  "connections": {
+    "MANUAL — SCORE OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "READ — 31 SCORE POLICIES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — 31 SCORE POLICIES": {
+      "main": [
+        [
+          {
+            "node": "BUILD — PROVIDER AGNOSTIC SCORE REQUEST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — PROVIDER AGNOSTIC SCORE REQUEST": {
+      "main": [
+        [
+          {
+            "node": "WORKER — HARVEST FROM OBSERVATIONS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — HARVEST FROM OBSERVATIONS": {
+      "main": [
+        [
+          {
+            "node": "DONE — PROVIDER AGNOSTIC HARVEST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "e839850d-15da-41c4-b6ba-cc7b973864aa",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

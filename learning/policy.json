@@ -1,0 +1,16 @@
+{
+  "windows": [
+    "24H",
+    "72H",
+    "7D"
+  ],
+  "minimum_comparable_posts": 5,
+  "protected_rules": [
+    "approval_required",
+    "never_delete_original",
+    "official_logo_stamp_immutable",
+    "semantic_crop",
+    "no_near_duplicates"
+  ],
+  "permanent_rule_change": "HUMAN_REVIEW"
+}

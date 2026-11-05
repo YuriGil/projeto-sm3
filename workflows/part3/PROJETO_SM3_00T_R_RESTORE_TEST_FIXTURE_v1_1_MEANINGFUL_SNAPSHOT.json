@@ -1,0 +1,1860 @@
+{
+  "name": "PROJETO SM3 — 00T-R — RESTORE TEST FIXTURE — v1.1 MEANINGFUL SNAPSHOT",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1160,
+        0
+      ],
+      "id": "db7abbb1-9034-4fc6-b684-84b7b9b99803",
+      "name": "MANUAL — RESTORE FIXTURE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{json:{\n  project_id:'TATTOO_0002',\n  reset_version:'SM3_TEST_FIXTURE_RESET_V1',\n  confirmation_token:'RESTORE_TATTOO_0002_LATEST_SNAPSHOT',\n  expected_confirmation_token:'RESTORE_TATTOO_0002_LATEST_SNAPSHOT'\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -940,
+        0
+      ],
+      "id": "2a2b8da0-a8a3-48bc-b8af-88e8082b4c0b",
+      "name": "CONFIG — RESTORE FIXTURE"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 580327213,
+          "mode": "list",
+          "cachedResultName": "18_TEST_FIXTURE_SNAPSHOTS"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -720,
+        0
+      ],
+      "id": "83e4c315-4aaf-4774-9b76-1171098b2ffa",
+      "name": "READ — FIXTURE SNAPSHOTS",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg=$('CONFIG — RESTORE FIXTURE').first().json;\nconst rows=$input.all().map(i=>i.json).filter(r=>String(r.PROJECT_ID||'').trim()===cfg.project_id);\n\nif(cfg.confirmation_token!==cfg.expected_confirmation_token) throw new Error('RESTORE_BLOCK: token mismatch');\nif(rows.length===0) throw new Error('RESTORE_BLOCK: no snapshots for fixture');\n\nconst groups={};\nfor(const r of rows){\n  const id=String(r.SNAPSHOT_ID||'').trim();\n  if(!id) continue;\n  if(!groups[id]) groups[id]=[];\n  groups[id].push(r);\n}\n\nfunction parsePayload(r){\n  try{return JSON.parse(String(r.PAYLOAD_JSON||'{}'));}catch(e){return null;}\n}\n\nfunction isMeaningfulGroup(rs){\n  if(rs.some(r=>String(r.RESTORE_STATUS||'').trim().toUpperCase()==='REDUNDANT_BASELINE')) return false;\n\n  for(const r of rs){\n    const p=parsePayload(r);\n    if(!p) continue;\n\n    if(r.ENTITY_TYPE==='MEDIA'){\n      const analysis=String(p.ANALYSIS_STATUS||'').trim().toUpperCase();\n      const proc=String(p.PROCESS_STATUS||'').trim().toUpperCase();\n      if(\n        analysis !== 'QUEUED' ||\n        proc !== 'READY' ||\n        String(p.ANALYSIS_VERSION||'').trim() ||\n        String(p.CURATION_STATUS||'').trim() ||\n        String(p.STRUCTURAL_ANALYSIS_VERSION||'').trim() ||\n        String(p.VIDEO_SAMPLING_MODE||'').trim()\n      ) return true;\n    }\n\n    if(r.ENTITY_TYPE==='PROJECT'){\n      if(String(p.CURATION_STATUS||'').trim() || String(p.CONTENT_PLAN_STATUS||'').trim()) return true;\n    }\n\n    if(r.ENTITY_TYPE==='CONTENT'){\n      const ps=String(p.PLAN_STATUS||'').trim().toUpperCase();\n      const pipe=String(p.PIPELINE_STATE||'').trim().toUpperCase();\n      if(ps !== 'TEST_ARCHIVED' || pipe !== 'TEST_ARCHIVED') return true;\n    }\n  }\n  return false;\n}\n\nconst candidates=Object.entries(groups)\n  .map(([id,rs])=>({\n    id,\n    rows:rs,\n    ts:Math.max(...rs.map(r=>Date.parse(String(r.CREATED_AT||''))||0)),\n    meaningful:isMeaningfulGroup(rs)\n  }))\n  .filter(g=>g.meaningful)\n  .sort((a,b)=>b.ts-a.ts);\n\nif(!candidates.length) throw new Error('RESTORE_BLOCK: no meaningful pre-reset snapshot found');\n\nconst chosen=candidates[0];\n\nconst mediaFields=[\n  \"TRIAGEM\",\"QUALIDADE\",\"CONTEÚDO_VISUAL\",\"MELHOR_TRECHO\",\"USAR_EM\",\"CONTENT_HASH\",\n  \"ANALYSIS_STATUS\",\"ANALYSIS_VERSION\",\"ANALYSIS_SOURCE\",\"VISION_PROVIDER\",\"VISION_MODEL\",\n  \"ANALYZED_AT\",\"ANALYSIS_ERROR\",\"DUPLICATE_GROUP\",\"EDITORIAL_SCORE\",\"PROXY_STATUS\",\n  \"PROXY_LINK\",\"PROXY_DRIVE_FILE_ID\",\"ANALYSIS_STAGE\",\"SHOT_TYPE\",\"TECHNICAL_NOTES\",\n  \"TECHNICAL_SCORE\",\"COMPOSITION_SCORE\",\"TATTOO_VISIBILITY\",\"ANALYSIS_CONFIDENCE\",\n  \"REDUNDANCY_HINT\",\"SCORE_SCALE_DETECTED\",\"SCORE_NORMALIZATION\",\"CURATION_STATUS\",\n  \"CURATION_VERSION\",\"CURATION_ROLE\",\"CURATION_RANK\",\"REDUNDANCY_GROUP\",\"REDUNDANCY_PREFERRED\",\n  \"REDUNDANCY_REASON\",\"CAROUSEL_POSITION\",\"REEL_CANDIDATE\",\"CURATED_AT\",\"CURATION_PROVIDER\",\n  \"CURATION_MODEL\",\"CURATION_CONFIDENCE\",\"CURATION_RUN_ID\",\"STRUCTURAL_ANALYSIS_VERSION\",\n  \"GEOMETRY_MODE\",\"BODY_REGION\",\"BODY_SUBREGION\",\"VIEW_ANGLE\",\"BODY_POSE\",\"TATTOO_ORIENTATION\",\n  \"TATTOO_STYLE_TAGS\",\"TATTOO_SUBJECT_PRIMARY\",\"TATTOO_SUBJECT_TAGS\",\"TATTOO_STAGE_STRUCTURAL\",\n  \"TATTOO_COVERAGE\",\"COMPOSITION_SHAPE\",\"FOCAL_DESCRIPTION\",\"FOCUS_POINT_NORM\",\n  \"TATTOO_BBOX_NORM\",\"CROP_GUIDANCE_JSON\",\"FORMAT_FIT_JSON\",\"BEST_FORMATS\",\n  \"STRUCTURAL_CONFIDENCE\",\"STRUCTURAL_NOTES\",\"CAPTURED_AT_SOURCE\",\"TECHNICAL_METADATA_JSON\",\n  \"PROCESS_STATUS\",\"RETRY_COUNT\",\"LAST_ATTEMPT_AT\",\"LAST_ERROR_CODE\",\"LAST_ERROR_MESSAGE\",\n  \"LAST_FAILURE_STAGE\",\"LAST_FAILURE_NODE\",\"NEXT_RETRY_AT\",\"DEAD_LETTER_AT\",\"DEAD_LETTER_ID\",\n  \"RELIABILITY_VERSION\",\"VIDEO_SAMPLING_MODE\",\"VIDEO_SAMPLING_VERSION\",\"SCENE_DETECTED_COUNT\",\n  \"SELECTED_FRAME_COUNT\",\"SAMPLING_FALLBACK_USED\",\"SAMPLING_FALLBACK_REASON\",\n  \"SAMPLING_DETAILS_JSON\",\"VIDEO_REANALYZED_AT\"\n];\n\nconst projectFields=[\n  \"CURATION_STATUS\",\"CURATION_VERSION\",\"CURATION_HERO_ID\",\"CURATION_SELECTED_IDS\",\n  \"CURATION_RESERVE_IDS\",\"CURATION_DISCARD_IDS\",\"CURATION_CAROUSEL_ORDER\",\"CURATION_REEL_IDS\",\n  \"CURATION_NARRATIVE\",\"CURATION_CONFIDENCE\",\"CURATED_AT\",\"CURATION_PROVIDER\",\"CURATION_MODEL\",\n  \"CURATION_RUN_ID\",\"CONTENT_PLAN_STATUS\",\"CONTENT_PLAN_VERSION\",\"CONTENT_PLAN_RUN_ID\",\n  \"CONTENT_PLAN_CURATED_FROM\",\"CONTENT_PLAN_AT\",\"CONTENT_PLAN_COUNT\",\"CONTENT_PLAN_PROVIDER\",\n  \"CONTENT_PLAN_MODEL\"\n];\n\nconst contentFields=[\n  \"PLAN_STATUS\",\"STATUS_EDIÇÃO\",\"STATUS_APROVAÇÃO\",\"EDITORIAL_APPROVAL_STATUS\",\n  \"EDITORIAL_COMMITTED_STATUS\",\"EDITORIAL_APPROVAL_NOTES\",\"EDITORIAL_DECIDED_AT\",\n  \"EDITORIAL_APPROVAL_VERSION\",\"EDITORIAL_APPROVAL_SOURCE\",\"FINAL_APPROVAL_STATUS\",\n  \"FINAL_COMMITTED_STATUS\",\"FINAL_APPROVAL_NOTES\",\"FINAL_APPROVAL_DECIDED_AT\",\n  \"FINAL_APPROVAL_VERSION\",\"FINAL_APPROVAL_SOURCE\",\"ROUTING_STATUS\",\"ROUTING_VERSION\",\n  \"ROUTING_DECISION\",\"ROUTING_TARGET\",\"ROUTED_AT\",\"ROUTING_SOURCE\",\"ROUTED_FROM_EDITORIAL_AT\",\n  \"PRODUCTION_STATUS\",\"REVISION_STATUS\",\"EDITORIAL_STATUS\",\"RENDER_STATUS\",\"RENDER_ID\",\n  \"RENDER_RECIPE_ID\",\"QA_STATUS\",\"QA_NOTES\",\"PIPELINE_STATE\",\"STATE_UPDATED_AT\",\"STATE_VERSION\",\n  \"FINAL_ARTIFACT_HASH\",\"OBSERVAÇÕES\"\n];\n\nconst media=[], projects=[], content=[];\nfor(const s of chosen.rows){\n  const payload=parsePayload(s);\n  if(!payload) throw new Error(`RESTORE_BLOCK: invalid payload for ${s.ENTITY_ID}`);\n\n  if(s.ENTITY_TYPE==='MEDIA'){\n    const u={ID_MIDIA:payload.ID_MIDIA};\n    for(const f of mediaFields) u[f]=payload[f] ?? '';\n    media.push(u);\n  } else if(s.ENTITY_TYPE==='PROJECT'){\n    const u={ID_PROJETO:payload.ID_PROJETO};\n    for(const f of projectFields) u[f]=payload[f] ?? '';\n    projects.push(u);\n  } else if(s.ENTITY_TYPE==='CONTENT'){\n    const u={ID_CONTEÚDO:payload.ID_CONTEÚDO};\n    for(const f of contentFields) u[f]=payload[f] ?? '';\n    content.push(u);\n  }\n}\n\nif(media.length<1 || projects.length!==1) throw new Error('RESTORE_BLOCK: incomplete meaningful snapshot');\n\nreturn [{json:{\n  status:'RESTORE_PREPARED',\n  project_id:cfg.project_id,\n  snapshot_id:chosen.id,\n  snapshot_created_at:new Date(chosen.ts).toISOString(),\n  meaningful_snapshot:true,\n  media_updates:media,\n  project_updates:projects,\n  content_updates:content\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "a00a2b71-328b-4e6d-b10e-4997f8760279",
+      "name": "BUILD — LATEST SNAPSHOT RESTORE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$input.first().json;\nif(x.project_id!=='TATTOO_0002') throw new Error('RESTORE_BLOCK: wrong project');\nif(!x.snapshot_id) throw new Error('RESTORE_BLOCK: missing snapshot id');\nreturn [{json:{...x,restore_guard:true}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "499f8b63-51e5-4a6a-8f76-7beb9e38f292",
+      "name": "GUARD — RESTORE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESTORE').first().json;\nreturn (x.media_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "814109e5-02dd-4441-9099-de3b90427a3f",
+      "name": "EXPAND — MEDIA RESTORE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 444966540,
+          "mode": "list",
+          "cachedResultName": "03_MIDIAS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_MIDIA": "={{ $json.ID_MIDIA }}",
+            "TRIAGEM": "={{ $json.TRIAGEM }}",
+            "QUALIDADE": "={{ $json.QUALIDADE }}",
+            "CONTEÚDO_VISUAL": "={{ $json.CONTEÚDO_VISUAL }}",
+            "MELHOR_TRECHO": "={{ $json.MELHOR_TRECHO }}",
+            "USAR_EM": "={{ $json.USAR_EM }}",
+            "ANALYSIS_STATUS": "={{ $json.ANALYSIS_STATUS }}",
+            "ANALYSIS_VERSION": "={{ $json.ANALYSIS_VERSION }}",
+            "ANALYSIS_SOURCE": "={{ $json.ANALYSIS_SOURCE }}",
+            "VISION_PROVIDER": "={{ $json.VISION_PROVIDER }}",
+            "VISION_MODEL": "={{ $json.VISION_MODEL }}",
+            "ANALYZED_AT": "={{ $json.ANALYZED_AT }}",
+            "ANALYSIS_ERROR": "={{ $json.ANALYSIS_ERROR }}",
+            "EDITORIAL_SCORE": "={{ $json.EDITORIAL_SCORE }}",
+            "PROXY_STATUS": "={{ $json.PROXY_STATUS }}",
+            "ANALYSIS_STAGE": "={{ $json.ANALYSIS_STAGE }}",
+            "SHOT_TYPE": "={{ $json.SHOT_TYPE }}",
+            "TECHNICAL_NOTES": "={{ $json.TECHNICAL_NOTES }}",
+            "TECHNICAL_SCORE": "={{ $json.TECHNICAL_SCORE }}",
+            "COMPOSITION_SCORE": "={{ $json.COMPOSITION_SCORE }}",
+            "TATTOO_VISIBILITY": "={{ $json.TATTOO_VISIBILITY }}",
+            "ANALYSIS_CONFIDENCE": "={{ $json.ANALYSIS_CONFIDENCE }}",
+            "REDUNDANCY_HINT": "={{ $json.REDUNDANCY_HINT }}",
+            "SCORE_SCALE_DETECTED": "={{ $json.SCORE_SCALE_DETECTED }}",
+            "SCORE_NORMALIZATION": "={{ $json.SCORE_NORMALIZATION }}",
+            "STRUCTURAL_ANALYSIS_VERSION": "={{ $json.STRUCTURAL_ANALYSIS_VERSION }}",
+            "GEOMETRY_MODE": "={{ $json.GEOMETRY_MODE }}",
+            "BODY_REGION": "={{ $json.BODY_REGION }}",
+            "BODY_SUBREGION": "={{ $json.BODY_SUBREGION }}",
+            "VIEW_ANGLE": "={{ $json.VIEW_ANGLE }}",
+            "BODY_POSE": "={{ $json.BODY_POSE }}",
+            "TATTOO_ORIENTATION": "={{ $json.TATTOO_ORIENTATION }}",
+            "TATTOO_STYLE_TAGS": "={{ $json.TATTOO_STYLE_TAGS }}",
+            "TATTOO_SUBJECT_PRIMARY": "={{ $json.TATTOO_SUBJECT_PRIMARY }}",
+            "TATTOO_SUBJECT_TAGS": "={{ $json.TATTOO_SUBJECT_TAGS }}",
+            "TATTOO_STAGE_STRUCTURAL": "={{ $json.TATTOO_STAGE_STRUCTURAL }}",
+            "TATTOO_COVERAGE": "={{ $json.TATTOO_COVERAGE }}",
+            "COMPOSITION_SHAPE": "={{ $json.COMPOSITION_SHAPE }}",
+            "FOCAL_DESCRIPTION": "={{ $json.FOCAL_DESCRIPTION }}",
+            "FOCUS_POINT_NORM": "={{ $json.FOCUS_POINT_NORM }}",
+            "TATTOO_BBOX_NORM": "={{ $json.TATTOO_BBOX_NORM }}",
+            "CROP_GUIDANCE_JSON": "={{ $json.CROP_GUIDANCE_JSON }}",
+            "FORMAT_FIT_JSON": "={{ $json.FORMAT_FIT_JSON }}",
+            "BEST_FORMATS": "={{ $json.BEST_FORMATS }}",
+            "STRUCTURAL_CONFIDENCE": "={{ $json.STRUCTURAL_CONFIDENCE }}",
+            "STRUCTURAL_NOTES": "={{ $json.STRUCTURAL_NOTES }}",
+            "DATA_CAPTURA": "={{ $json.DATA_CAPTURA }}",
+            "MIME_TYPE": "={{ $json.MIME_TYPE }}",
+            "FILE_SIZE_BYTES": "={{ $json.FILE_SIZE_BYTES }}",
+            "CONTENT_HASH": "={{ $json.CONTENT_HASH }}",
+            "CAPTURED_AT_SOURCE": "={{ $json.CAPTURED_AT_SOURCE }}",
+            "TECHNICAL_METADATA_JSON": "={{ $json.TECHNICAL_METADATA_JSON }}",
+            "PROCESS_STATUS": "={{ $json.PROCESS_STATUS }}",
+            "RETRY_COUNT": "={{ $json.RETRY_COUNT }}",
+            "LAST_ATTEMPT_AT": "={{ $json.LAST_ATTEMPT_AT }}",
+            "LAST_ERROR_CODE": "={{ $json.LAST_ERROR_CODE }}",
+            "LAST_ERROR_MESSAGE": "={{ $json.LAST_ERROR_MESSAGE }}",
+            "LAST_FAILURE_STAGE": "={{ $json.LAST_FAILURE_STAGE }}",
+            "LAST_FAILURE_NODE": "={{ $json.LAST_FAILURE_NODE }}",
+            "NEXT_RETRY_AT": "={{ $json.NEXT_RETRY_AT }}",
+            "DEAD_LETTER_AT": "={{ $json.DEAD_LETTER_AT }}",
+            "DEAD_LETTER_ID": "={{ $json.DEAD_LETTER_ID }}",
+            "RELIABILITY_VERSION": "={{ $json.RELIABILITY_VERSION }}",
+            "VIDEO_SAMPLING_MODE": "={{ $json.VIDEO_SAMPLING_MODE }}",
+            "VIDEO_SAMPLING_VERSION": "={{ $json.VIDEO_SAMPLING_VERSION }}",
+            "SCENE_DETECTED_COUNT": "={{ $json.SCENE_DETECTED_COUNT }}",
+            "SELECTED_FRAME_COUNT": "={{ $json.SELECTED_FRAME_COUNT }}",
+            "SAMPLING_FALLBACK_USED": "={{ $json.SAMPLING_FALLBACK_USED }}",
+            "SAMPLING_FALLBACK_REASON": "={{ $json.SAMPLING_FALLBACK_REASON }}",
+            "SAMPLING_DETAILS_JSON": "={{ $json.SAMPLING_DETAILS_JSON }}",
+            "VIDEO_REANALYZED_AT": "={{ $json.VIDEO_REANALYZED_AT }}",
+            "CURATION_STATUS": "={{ $json.CURATION_STATUS }}",
+            "CURATION_VERSION": "={{ $json.CURATION_VERSION }}",
+            "CURATION_ROLE": "={{ $json.CURATION_ROLE }}",
+            "CURATION_RANK": "={{ $json.CURATION_RANK }}",
+            "REDUNDANCY_GROUP": "={{ $json.REDUNDANCY_GROUP }}",
+            "REDUNDANCY_PREFERRED": "={{ $json.REDUNDANCY_PREFERRED }}",
+            "REDUNDANCY_REASON": "={{ $json.REDUNDANCY_REASON }}",
+            "CAROUSEL_POSITION": "={{ $json.CAROUSEL_POSITION }}",
+            "REEL_CANDIDATE": "={{ $json.REEL_CANDIDATE }}",
+            "CURATED_AT": "={{ $json.CURATED_AT }}",
+            "CURATION_PROVIDER": "={{ $json.CURATION_PROVIDER }}",
+            "CURATION_MODEL": "={{ $json.CURATION_MODEL }}",
+            "CURATION_CONFIDENCE": "={{ $json.CURATION_CONFIDENCE }}",
+            "CURATION_RUN_ID": "={{ $json.CURATION_RUN_ID }}"
+          },
+          "matchingColumns": [
+            "ID_MIDIA"
+          ],
+          "schema": [
+            {
+              "id": "ID_MIDIA",
+              "displayName": "ID_MIDIA",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRIAGEM",
+              "displayName": "TRIAGEM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QUALIDADE",
+              "displayName": "QUALIDADE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTEÚDO_VISUAL",
+              "displayName": "CONTEÚDO_VISUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MELHOR_TRECHO",
+              "displayName": "MELHOR_TRECHO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "USAR_EM",
+              "displayName": "USAR_EM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STATUS",
+              "displayName": "ANALYSIS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_VERSION",
+              "displayName": "ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_SOURCE",
+              "displayName": "ANALYSIS_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_PROVIDER",
+              "displayName": "VISION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VISION_MODEL",
+              "displayName": "VISION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYZED_AT",
+              "displayName": "ANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_ERROR",
+              "displayName": "ANALYSIS_ERROR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_SCORE",
+              "displayName": "EDITORIAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROXY_STATUS",
+              "displayName": "PROXY_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_STAGE",
+              "displayName": "ANALYSIS_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SHOT_TYPE",
+              "displayName": "SHOT_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_NOTES",
+              "displayName": "TECHNICAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_SCORE",
+              "displayName": "TECHNICAL_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SCORE",
+              "displayName": "COMPOSITION_SCORE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_VISIBILITY",
+              "displayName": "TATTOO_VISIBILITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ANALYSIS_CONFIDENCE",
+              "displayName": "ANALYSIS_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_HINT",
+              "displayName": "REDUNDANCY_HINT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_SCALE_DETECTED",
+              "displayName": "SCORE_SCALE_DETECTED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCORE_NORMALIZATION",
+              "displayName": "SCORE_NORMALIZATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_ANALYSIS_VERSION",
+              "displayName": "STRUCTURAL_ANALYSIS_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GEOMETRY_MODE",
+              "displayName": "GEOMETRY_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_REGION",
+              "displayName": "BODY_REGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_SUBREGION",
+              "displayName": "BODY_SUBREGION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIEW_ANGLE",
+              "displayName": "VIEW_ANGLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BODY_POSE",
+              "displayName": "BODY_POSE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_ORIENTATION",
+              "displayName": "TATTOO_ORIENTATION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STYLE_TAGS",
+              "displayName": "TATTOO_STYLE_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_PRIMARY",
+              "displayName": "TATTOO_SUBJECT_PRIMARY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_SUBJECT_TAGS",
+              "displayName": "TATTOO_SUBJECT_TAGS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_STAGE_STRUCTURAL",
+              "displayName": "TATTOO_STAGE_STRUCTURAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_COVERAGE",
+              "displayName": "TATTOO_COVERAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COMPOSITION_SHAPE",
+              "displayName": "COMPOSITION_SHAPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCAL_DESCRIPTION",
+              "displayName": "FOCAL_DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FOCUS_POINT_NORM",
+              "displayName": "FOCUS_POINT_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TATTOO_BBOX_NORM",
+              "displayName": "TATTOO_BBOX_NORM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CROP_GUIDANCE_JSON",
+              "displayName": "CROP_GUIDANCE_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FORMAT_FIT_JSON",
+              "displayName": "FORMAT_FIT_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BEST_FORMATS",
+              "displayName": "BEST_FORMATS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_CONFIDENCE",
+              "displayName": "STRUCTURAL_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STRUCTURAL_NOTES",
+              "displayName": "STRUCTURAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATA_CAPTURA",
+              "displayName": "DATA_CAPTURA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MIME_TYPE",
+              "displayName": "MIME_TYPE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FILE_SIZE_BYTES",
+              "displayName": "FILE_SIZE_BYTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_HASH",
+              "displayName": "CONTENT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPTURED_AT_SOURCE",
+              "displayName": "CAPTURED_AT_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TECHNICAL_METADATA_JSON",
+              "displayName": "TECHNICAL_METADATA_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PROCESS_STATUS",
+              "displayName": "PROCESS_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RETRY_COUNT",
+              "displayName": "RETRY_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ATTEMPT_AT",
+              "displayName": "LAST_ATTEMPT_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_MESSAGE",
+              "displayName": "LAST_ERROR_MESSAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_STAGE",
+              "displayName": "LAST_FAILURE_STAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_FAILURE_NODE",
+              "displayName": "LAST_FAILURE_NODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NEXT_RETRY_AT",
+              "displayName": "NEXT_RETRY_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_AT",
+              "displayName": "DEAD_LETTER_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DEAD_LETTER_ID",
+              "displayName": "DEAD_LETTER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RELIABILITY_VERSION",
+              "displayName": "RELIABILITY_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_SAMPLING_MODE",
+              "displayName": "VIDEO_SAMPLING_MODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_SAMPLING_VERSION",
+              "displayName": "VIDEO_SAMPLING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SCENE_DETECTED_COUNT",
+              "displayName": "SCENE_DETECTED_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SELECTED_FRAME_COUNT",
+              "displayName": "SELECTED_FRAME_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SAMPLING_FALLBACK_USED",
+              "displayName": "SAMPLING_FALLBACK_USED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SAMPLING_FALLBACK_REASON",
+              "displayName": "SAMPLING_FALLBACK_REASON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SAMPLING_DETAILS_JSON",
+              "displayName": "SAMPLING_DETAILS_JSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "VIDEO_REANALYZED_AT",
+              "displayName": "VIDEO_REANALYZED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_STATUS",
+              "displayName": "CURATION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_VERSION",
+              "displayName": "CURATION_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_ROLE",
+              "displayName": "CURATION_ROLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RANK",
+              "displayName": "CURATION_RANK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_GROUP",
+              "displayName": "REDUNDANCY_GROUP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_PREFERRED",
+              "displayName": "REDUNDANCY_PREFERRED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REDUNDANCY_REASON",
+              "displayName": "REDUNDANCY_REASON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAROUSEL_POSITION",
+              "displayName": "CAROUSEL_POSITION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REEL_CANDIDATE",
+              "displayName": "REEL_CANDIDATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATED_AT",
+              "displayName": "CURATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_PROVIDER",
+              "displayName": "CURATION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_MODEL",
+              "displayName": "CURATION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CONFIDENCE",
+              "displayName": "CURATION_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        240,
+        0
+      ],
+      "id": "ce541c02-5e98-4d4e-b68c-7ba58757c946",
+      "name": "RESTORE — 03_MIDIAS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESTORE').first().json;\nreturn (x.project_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "52237e7f-dab3-458f-b3aa-ab647ff1034b",
+      "name": "EXPAND — PROJECT RESTORE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1392162466,
+          "mode": "list",
+          "cachedResultName": "01_PROJETOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_PROJETO": "={{ $json.ID_PROJETO }}",
+            "CURATION_STATUS": "={{ $json.CURATION_STATUS }}",
+            "CURATION_VERSION": "={{ $json.CURATION_VERSION }}",
+            "CURATION_HERO_ID": "={{ $json.CURATION_HERO_ID }}",
+            "CURATION_SELECTED_IDS": "={{ $json.CURATION_SELECTED_IDS }}",
+            "CURATION_RESERVE_IDS": "={{ $json.CURATION_RESERVE_IDS }}",
+            "CURATION_DISCARD_IDS": "={{ $json.CURATION_DISCARD_IDS }}",
+            "CURATION_CAROUSEL_ORDER": "={{ $json.CURATION_CAROUSEL_ORDER }}",
+            "CURATION_REEL_IDS": "={{ $json.CURATION_REEL_IDS }}",
+            "CURATION_NARRATIVE": "={{ $json.CURATION_NARRATIVE }}",
+            "CURATION_CONFIDENCE": "={{ $json.CURATION_CONFIDENCE }}",
+            "CURATED_AT": "={{ $json.CURATED_AT }}",
+            "CURATION_PROVIDER": "={{ $json.CURATION_PROVIDER }}",
+            "CURATION_MODEL": "={{ $json.CURATION_MODEL }}",
+            "CURATION_RUN_ID": "={{ $json.CURATION_RUN_ID }}",
+            "CONTENT_PLAN_STATUS": "={{ $json.CONTENT_PLAN_STATUS }}",
+            "CONTENT_PLAN_VERSION": "={{ $json.CONTENT_PLAN_VERSION }}",
+            "CONTENT_PLAN_RUN_ID": "={{ $json.CONTENT_PLAN_RUN_ID }}",
+            "CONTENT_PLAN_CURATED_FROM": "={{ $json.CONTENT_PLAN_CURATED_FROM }}",
+            "CONTENT_PLAN_AT": "={{ $json.CONTENT_PLAN_AT }}",
+            "CONTENT_PLAN_COUNT": "={{ $json.CONTENT_PLAN_COUNT }}",
+            "CONTENT_PLAN_PROVIDER": "={{ $json.CONTENT_PLAN_PROVIDER }}",
+            "CONTENT_PLAN_MODEL": "={{ $json.CONTENT_PLAN_MODEL }}"
+          },
+          "matchingColumns": [
+            "ID_PROJETO"
+          ],
+          "schema": [
+            {
+              "id": "ID_PROJETO",
+              "displayName": "ID_PROJETO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_STATUS",
+              "displayName": "CURATION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_VERSION",
+              "displayName": "CURATION_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_HERO_ID",
+              "displayName": "CURATION_HERO_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_SELECTED_IDS",
+              "displayName": "CURATION_SELECTED_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RESERVE_IDS",
+              "displayName": "CURATION_RESERVE_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_DISCARD_IDS",
+              "displayName": "CURATION_DISCARD_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CAROUSEL_ORDER",
+              "displayName": "CURATION_CAROUSEL_ORDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_REEL_IDS",
+              "displayName": "CURATION_REEL_IDS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_NARRATIVE",
+              "displayName": "CURATION_NARRATIVE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_CONFIDENCE",
+              "displayName": "CURATION_CONFIDENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATED_AT",
+              "displayName": "CURATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_PROVIDER",
+              "displayName": "CURATION_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_MODEL",
+              "displayName": "CURATION_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CURATION_RUN_ID",
+              "displayName": "CURATION_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_STATUS",
+              "displayName": "CONTENT_PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_VERSION",
+              "displayName": "CONTENT_PLAN_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_RUN_ID",
+              "displayName": "CONTENT_PLAN_RUN_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_CURATED_FROM",
+              "displayName": "CONTENT_PLAN_CURATED_FROM",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_AT",
+              "displayName": "CONTENT_PLAN_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_COUNT",
+              "displayName": "CONTENT_PLAN_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_PROVIDER",
+              "displayName": "CONTENT_PLAN_PROVIDER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONTENT_PLAN_MODEL",
+              "displayName": "CONTENT_PLAN_MODEL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        720,
+        0
+      ],
+      "id": "2c186fea-d0ff-49f7-bd80-f0f31cd93576",
+      "name": "RESTORE — 01_PROJETOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESTORE').first().json;\nreturn (x.content_updates||[]).map(r=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "5061370d-b6ab-4620-ad9c-7bf95090e645",
+      "name": "EXPAND — CONTENT RESTORE"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 733071962,
+          "mode": "list",
+          "cachedResultName": "04_CONTEUDOS"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_CONTEÚDO": "={{ $json.ID_CONTEÚDO }}",
+            "PLAN_STATUS": "={{ $json.PLAN_STATUS }}",
+            "STATUS_EDIÇÃO": "={{ $json.STATUS_EDIÇÃO }}",
+            "STATUS_APROVAÇÃO": "={{ $json.STATUS_APROVAÇÃO }}",
+            "EDITORIAL_APPROVAL_STATUS": "={{ $json.EDITORIAL_APPROVAL_STATUS }}",
+            "EDITORIAL_COMMITTED_STATUS": "={{ $json.EDITORIAL_COMMITTED_STATUS }}",
+            "EDITORIAL_APPROVAL_NOTES": "={{ $json.EDITORIAL_APPROVAL_NOTES }}",
+            "EDITORIAL_DECIDED_AT": "={{ $json.EDITORIAL_DECIDED_AT }}",
+            "EDITORIAL_APPROVAL_VERSION": "={{ $json.EDITORIAL_APPROVAL_VERSION }}",
+            "EDITORIAL_APPROVAL_SOURCE": "={{ $json.EDITORIAL_APPROVAL_SOURCE }}",
+            "FINAL_APPROVAL_STATUS": "={{ $json.FINAL_APPROVAL_STATUS }}",
+            "FINAL_COMMITTED_STATUS": "={{ $json.FINAL_COMMITTED_STATUS }}",
+            "FINAL_APPROVAL_NOTES": "={{ $json.FINAL_APPROVAL_NOTES }}",
+            "FINAL_APPROVAL_DECIDED_AT": "={{ $json.FINAL_APPROVAL_DECIDED_AT }}",
+            "FINAL_APPROVAL_VERSION": "={{ $json.FINAL_APPROVAL_VERSION }}",
+            "FINAL_APPROVAL_SOURCE": "={{ $json.FINAL_APPROVAL_SOURCE }}",
+            "ROUTING_STATUS": "={{ $json.ROUTING_STATUS }}",
+            "ROUTING_VERSION": "={{ $json.ROUTING_VERSION }}",
+            "ROUTING_DECISION": "={{ $json.ROUTING_DECISION }}",
+            "ROUTING_TARGET": "={{ $json.ROUTING_TARGET }}",
+            "ROUTED_AT": "={{ $json.ROUTED_AT }}",
+            "ROUTING_SOURCE": "={{ $json.ROUTING_SOURCE }}",
+            "ROUTED_FROM_EDITORIAL_AT": "={{ $json.ROUTED_FROM_EDITORIAL_AT }}",
+            "PRODUCTION_STATUS": "={{ $json.PRODUCTION_STATUS }}",
+            "REVISION_STATUS": "={{ $json.REVISION_STATUS }}",
+            "EDITORIAL_STATUS": "={{ $json.EDITORIAL_STATUS }}",
+            "RENDER_STATUS": "={{ $json.RENDER_STATUS }}",
+            "RENDER_ID": "={{ $json.RENDER_ID }}",
+            "RENDER_RECIPE_ID": "={{ $json.RENDER_RECIPE_ID }}",
+            "QA_STATUS": "={{ $json.QA_STATUS }}",
+            "QA_NOTES": "={{ $json.QA_NOTES }}",
+            "PIPELINE_STATE": "={{ $json.PIPELINE_STATE }}",
+            "STATE_UPDATED_AT": "={{ $json.STATE_UPDATED_AT }}",
+            "STATE_VERSION": "={{ $json.STATE_VERSION }}",
+            "FINAL_ARTIFACT_HASH": "={{ $json.FINAL_ARTIFACT_HASH }}",
+            "OBSERVAÇÕES": "={{ $json.OBSERVAÇÕES }}"
+          },
+          "matchingColumns": [
+            "ID_CONTEÚDO"
+          ],
+          "schema": [
+            {
+              "id": "ID_CONTEÚDO",
+              "displayName": "ID_CONTEÚDO",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PLAN_STATUS",
+              "displayName": "PLAN_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_EDIÇÃO",
+              "displayName": "STATUS_EDIÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS_APROVAÇÃO",
+              "displayName": "STATUS_APROVAÇÃO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_STATUS",
+              "displayName": "EDITORIAL_APPROVAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_COMMITTED_STATUS",
+              "displayName": "EDITORIAL_COMMITTED_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_NOTES",
+              "displayName": "EDITORIAL_APPROVAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_DECIDED_AT",
+              "displayName": "EDITORIAL_DECIDED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_VERSION",
+              "displayName": "EDITORIAL_APPROVAL_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_APPROVAL_SOURCE",
+              "displayName": "EDITORIAL_APPROVAL_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_STATUS",
+              "displayName": "FINAL_APPROVAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_COMMITTED_STATUS",
+              "displayName": "FINAL_COMMITTED_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_NOTES",
+              "displayName": "FINAL_APPROVAL_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_DECIDED_AT",
+              "displayName": "FINAL_APPROVAL_DECIDED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_VERSION",
+              "displayName": "FINAL_APPROVAL_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_APPROVAL_SOURCE",
+              "displayName": "FINAL_APPROVAL_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_STATUS",
+              "displayName": "ROUTING_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_VERSION",
+              "displayName": "ROUTING_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_DECISION",
+              "displayName": "ROUTING_DECISION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_TARGET",
+              "displayName": "ROUTING_TARGET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_AT",
+              "displayName": "ROUTED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTING_SOURCE",
+              "displayName": "ROUTING_SOURCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ROUTED_FROM_EDITORIAL_AT",
+              "displayName": "ROUTED_FROM_EDITORIAL_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRODUCTION_STATUS",
+              "displayName": "PRODUCTION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "REVISION_STATUS",
+              "displayName": "REVISION_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EDITORIAL_STATUS",
+              "displayName": "EDITORIAL_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_STATUS",
+              "displayName": "RENDER_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_ID",
+              "displayName": "RENDER_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RENDER_RECIPE_ID",
+              "displayName": "RENDER_RECIPE_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QA_STATUS",
+              "displayName": "QA_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QA_NOTES",
+              "displayName": "QA_NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PIPELINE_STATE",
+              "displayName": "PIPELINE_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_UPDATED_AT",
+              "displayName": "STATE_UPDATED_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATE_VERSION",
+              "displayName": "STATE_VERSION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FINAL_ARTIFACT_HASH",
+              "displayName": "FINAL_ARTIFACT_HASH",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OBSERVAÇÕES",
+              "displayName": "OBSERVAÇÕES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "de905cd6-1f16-4ad0-8cdd-91ba18679a07",
+      "name": "RESTORE — 04_CONTEUDOS",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const x=$('GUARD — RESTORE').first().json;\nreturn [{json:{\n  status:'SM3_TEST_FIXTURE_RESTORE_PASS',\n  project_id:x.project_id,\n  snapshot_id:x.snapshot_id,\n  media_restored:x.media_updates.length,\n  projects_restored:x.project_updates.length,\n  content_restored:x.content_updates.length,\n  completed_at:new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "id": "40f0627f-cdb3-4335-83c7-9203fd9ae073",
+      "name": "ASSERT — RESTORE COMPLETE"
+    }
+  ],
+  "connections": {
+    "MANUAL — RESTORE FIXTURE": {
+      "main": [
+        [
+          {
+            "node": "CONFIG — RESTORE FIXTURE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG — RESTORE FIXTURE": {
+      "main": [
+        [
+          {
+            "node": "READ — FIXTURE SNAPSHOTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "READ — FIXTURE SNAPSHOTS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — LATEST SNAPSHOT RESTORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — LATEST SNAPSHOT RESTORE": {
+      "main": [
+        [
+          {
+            "node": "GUARD — RESTORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GUARD — RESTORE": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — MEDIA RESTORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — MEDIA RESTORE": {
+      "main": [
+        [
+          {
+            "node": "RESTORE — 03_MIDIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RESTORE — 03_MIDIAS": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — PROJECT RESTORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — PROJECT RESTORE": {
+      "main": [
+        [
+          {
+            "node": "RESTORE — 01_PROJETOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RESTORE — 01_PROJETOS": {
+      "main": [
+        [
+          {
+            "node": "EXPAND — CONTENT RESTORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXPAND — CONTENT RESTORE": {
+      "main": [
+        [
+          {
+            "node": "RESTORE — 04_CONTEUDOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RESTORE — 04_CONTEUDOS": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — RESTORE COMPLETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

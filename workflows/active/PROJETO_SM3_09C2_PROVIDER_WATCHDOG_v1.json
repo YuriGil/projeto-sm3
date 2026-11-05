@@ -1,0 +1,322 @@
+{
+  "name": "PROJETO SM3 — 09C.2 — PROVIDER WATCHDOG — v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -780,
+        0
+      ],
+      "id": "2ef93158-40fd-40ab-ac52-f9127ba6e0fd",
+      "name": "MANUAL — PROVIDER WATCHDOG"
+    },
+    {
+      "parameters": {
+        "url": "http://media-worker:8090/production/reference-corpus/providers",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -560,
+        0
+      ],
+      "id": "6b9b3001-c3e6-4956-b97d-0009ccd612e7",
+      "name": "WORKER — READ PROVIDERS"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst providers=$json.providers||[];\nreturn providers.map(p=>({json:{row:{\n PROVIDER_KEY:p.provider,\n ENABLED:p.enabled!==false,\n PRIORITY:p.priority??'',\n TRUST_WEIGHT:p.trust_weight??'',\n CAPABILITIES:Array.isArray(p.capabilities)?p.capabilities.join(','):(p.capabilities||''),\n CONFIG_STATUS:p.config_status||'',\n CIRCUIT_STATE:p.circuit_state||'CLOSED',\n FAILURE_COUNT:p.failure_count??0,\n SUCCESS_COUNT:p.success_count??0,\n LAST_PROBE_AT:p.last_probe_at||'',\n LAST_SUCCESS_AT:p.last_success_at||'',\n LAST_ERROR_AT:p.last_error_at||'',\n LAST_ERROR_CODE:p.last_error_code||'',\n COOLDOWN_UNTIL:p.cooldown_until||'',\n RATE_LIMIT_STATE:p.rate_limit_state||'UNKNOWN',\n NOTES:p.notes||''\n}}}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        0
+      ],
+      "id": "a47caeb4-0602-4139-a109-59ef76ccf77e",
+      "name": "BUILD — 39 PROVIDER STATE"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1HTR7qbWPom5kSoCFPiAvDsZnnPHqT6jG-79tthOell0",
+          "mode": "list",
+          "cachedResultName": "CONTROLE_MOLOTOV"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 190000021,
+          "mode": "list",
+          "cachedResultName": "39_REFERENCE_PROVIDER_STATE"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "PROVIDER_KEY": "={$json.row.PROVIDER_KEY}",
+            "ENABLED": "={$json.row.ENABLED}",
+            "PRIORITY": "={$json.row.PRIORITY}",
+            "TRUST_WEIGHT": "={$json.row.TRUST_WEIGHT}",
+            "CAPABILITIES": "={$json.row.CAPABILITIES}",
+            "CONFIG_STATUS": "={$json.row.CONFIG_STATUS}",
+            "CIRCUIT_STATE": "={$json.row.CIRCUIT_STATE}",
+            "FAILURE_COUNT": "={$json.row.FAILURE_COUNT}",
+            "SUCCESS_COUNT": "={$json.row.SUCCESS_COUNT}",
+            "LAST_PROBE_AT": "={$json.row.LAST_PROBE_AT}",
+            "LAST_SUCCESS_AT": "={$json.row.LAST_SUCCESS_AT}",
+            "LAST_ERROR_AT": "={$json.row.LAST_ERROR_AT}",
+            "LAST_ERROR_CODE": "={$json.row.LAST_ERROR_CODE}",
+            "COOLDOWN_UNTIL": "={$json.row.COOLDOWN_UNTIL}",
+            "RATE_LIMIT_STATE": "={$json.row.RATE_LIMIT_STATE}",
+            "NOTES": "={$json.row.NOTES}"
+          },
+          "matchingColumns": [
+            "PROVIDER_KEY"
+          ],
+          "schema": [
+            {
+              "id": "PROVIDER_KEY",
+              "displayName": "PROVIDER_KEY",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ENABLED",
+              "displayName": "ENABLED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRIORITY",
+              "displayName": "PRIORITY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TRUST_WEIGHT",
+              "displayName": "TRUST_WEIGHT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CAPABILITIES",
+              "displayName": "CAPABILITIES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CONFIG_STATUS",
+              "displayName": "CONFIG_STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CIRCUIT_STATE",
+              "displayName": "CIRCUIT_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FAILURE_COUNT",
+              "displayName": "FAILURE_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SUCCESS_COUNT",
+              "displayName": "SUCCESS_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_PROBE_AT",
+              "displayName": "LAST_PROBE_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_SUCCESS_AT",
+              "displayName": "LAST_SUCCESS_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_AT",
+              "displayName": "LAST_ERROR_AT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_ERROR_CODE",
+              "displayName": "LAST_ERROR_CODE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "COOLDOWN_UNTIL",
+              "displayName": "COOLDOWN_UNTIL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RATE_LIMIT_STATE",
+              "displayName": "RATE_LIMIT_STATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOTES",
+              "displayName": "NOTES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -100,
+        0
+      ],
+      "id": "f9af0ccb-1786-4f46-90ac-8ebe466d68af",
+      "name": "UPSERT — 39 PROVIDER STATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SGevrSN78ezpGMhn",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 6,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,sm3_result:'SM3_09C2_PROVIDER_WATCHDOG_SYNCED'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        0
+      ],
+      "id": "944c64a8-1bc6-47c7-af11-b1ab0acfe717",
+      "name": "DONE — PROVIDER WATCHDOG"
+    }
+  ],
+  "connections": {
+    "MANUAL — PROVIDER WATCHDOG": {
+      "main": [
+        [
+          {
+            "node": "WORKER — READ PROVIDERS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WORKER — READ PROVIDERS": {
+      "main": [
+        [
+          {
+            "node": "BUILD — 39 PROVIDER STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — 39 PROVIDER STATE": {
+      "main": [
+        [
+          {
+            "node": "UPSERT — 39 PROVIDER STATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT — 39 PROVIDER STATE": {
+      "main": [
+        [
+          {
+            "node": "DONE — PROVIDER WATCHDOG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "active": false,
+  "versionId": "0f0ee54a-ef29-49d3-9e16-afdf1ea73d79",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

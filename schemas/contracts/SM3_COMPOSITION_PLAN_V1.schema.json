@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_COMPOSITION_PLAN_V1",
+  "title": "Projeto SM3 Geometry-Aware Composition Plan V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ok", "composition_id", "contract_version", "planner_version", "renderer_version",
+    "project_id", "content_id", "edit_session_id", "revision", "state_etag",
+    "direction_profile_id", "direction_profile_sha256", "target_format",
+    "target_width", "target_height", "media_plans", "identity_decisions",
+    "text_policy", "geometry_records", "learning_evidence", "plan_sha256"
+  ],
+  "properties": {
+    "ok": {"const": true},
+    "composition_id": {"type": "string", "pattern": "^CP_[a-f0-9]{32}$"},
+    "contract_version": {"const": "SM3_COMPOSITION_PLAN_V1"},
+    "planner_version": {"const": "SM3_GEOMETRY_AWARE_COMPOSITOR_V1"},
+    "renderer_version": {"const": "2.12.0"},
+    "revision": {"type": "integer", "minimum": 2},
+    "state_etag": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "target_width": {"type": "integer", "minimum": 540},
+    "target_height": {"type": "integer", "minimum": 680},
+    "media_plans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["media_id", "geometry_record_sha256", "render_strategy", "crop_rect_norm", "protected_region"],
+        "properties": {
+          "media_id": {"type": "string", "pattern": "^M[0-9]{4,}$"},
+          "geometry_record_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "render_strategy": {"enum": ["SEMANTIC_CROP", "CONTAIN_SOLID"]},
+          "verified_protected_coverage_percent": {"type": "number", "minimum": 0, "maximum": 100},
+          "dynamic_required": {"type": "boolean"}
+        }
+      }
+    },
+    "identity_decisions": {
+      "type": "object",
+      "required": ["requested_roles", "applied", "suppressed", "policy", "identity_never_overlays_protected_tattoo"]
+    },
+    "plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

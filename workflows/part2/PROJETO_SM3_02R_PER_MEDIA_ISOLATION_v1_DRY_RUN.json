@@ -1,0 +1,225 @@
+{
+  "name": "PROJETO SM3 — 02R — PER MEDIA ISOLATION — v1 DRY RUN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        0
+      ],
+      "id": "16840a2b-a257-4ce4-b09e-21e61a3810bf",
+      "name": "MANUAL — ISOLATION TEST"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [\n {json:{ID_MIDIA:'TEST_OK_A',ID_PROJETO:'TEST',should_fail:false}},\n {json:{ID_MIDIA:'TEST_FAIL_B',ID_PROJETO:'TEST',should_fail:true}},\n {json:{ID_MIDIA:'TEST_OK_C',ID_PROJETO:'TEST',should_fail:false}}\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "935c98e3-380f-4608-bca7-60fd30327e51",
+      "name": "BUILD — 3 SYNTHETIC ITEMS"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.should_fail ? 'http://media-worker:8090/route-that-must-not-exist' : 'http://media-worker:8090/health' }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -220,
+        0
+      ],
+      "id": "02bf0fcc-a3f8-4b30-b325-05b4ce378768",
+      "name": "RISKY — SYNTHETIC HTTP",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(i=>({json:{kind:'SUCCESS',payload:i.json}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        -100
+      ],
+      "id": "cc0d2ee2-8e85-4a01-9e9a-c869a80af594",
+      "name": "AUDIT — SUCCESS ITEMS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now=new Date().toISOString();\nreturn $input.all().map(i=>{\n const x=i.json||{}; const e=x.error||x;\n return {json:{\n   kind:'FAILURE',\n   event_id:`DLQ_TEST_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,\n   created_at:now,\n   workflow:'PROJETO_SM3_02R_ISOLATION_TEST',\n   node:'RISKY — SYNTHETIC HTTP',\n   stage:'SYNTHETIC_PER_MEDIA',\n   entity_type:'SYSTEM_TEST',\n   entity_id:String(x.ID_MIDIA||'TEST_FAIL_B'),\n   project_id:'TEST',\n   media_id:String(x.ID_MIDIA||'TEST_FAIL_B'),\n   error_code:String(e.code||e.name||'EXPECTED_SYNTHETIC_FAILURE'),\n   error_message:String(e.message||'Expected synthetic failure'),\n   attempt_count:2,max_tries:2,retryable:false,disposition:'TEST_ONLY',\n   execution_id:String($execution.id||''),payload:{test_only:true},version:'SM3_RELIABILITY_V1'\n }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        120
+      ],
+      "id": "749767a4-b808-4d7b-ac42-18cd67dd1e2b",
+      "name": "BUILD — FAILURE EVENT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://media-worker:8090/ops/dead-letter",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        300,
+        220
+      ],
+      "id": "4ae137cd-2238-4d97-bc2a-98bed07dee70",
+      "name": "SINK — TEST DEAD LETTER",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        330,
+        0
+      ],
+      "id": "c209a96b-3369-40b9-9685-a3f3ce41fd67",
+      "name": "MERGE — TEST RESULTS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items=$input.all().map(i=>i.json);\nconst success=items.filter(x=>x.kind==='SUCCESS').length;\nconst failure=items.filter(x=>x.kind==='FAILURE').length;\nif(success!==2 || failure!==1 || items.length!==3){\n throw new Error(`SM3_ISOLATION_FAILED success=${success} failure=${failure} total=${items.length}`);\n}\nreturn [{json:{status:'SM3_PER_MEDIA_ISOLATION_PASS',total:items.length,success,failure,failed_item_isolated:true,checked_at:new Date().toISOString()}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        0
+      ],
+      "id": "f5ea8905-9f9b-454c-8716-dcec5d35f61a",
+      "name": "ASSERT — ITEM ISOLATION"
+    }
+  ],
+  "connections": {
+    "MANUAL — ISOLATION TEST": {
+      "main": [
+        [
+          {
+            "node": "BUILD — 3 SYNTHETIC ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — 3 SYNTHETIC ITEMS": {
+      "main": [
+        [
+          {
+            "node": "RISKY — SYNTHETIC HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RISKY — SYNTHETIC HTTP": {
+      "main": [
+        [
+          {
+            "node": "AUDIT — SUCCESS ITEMS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "BUILD — FAILURE EVENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIT — SUCCESS ITEMS": {
+      "main": [
+        [
+          {
+            "node": "MERGE — TEST RESULTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD — FAILURE EVENT": {
+      "main": [
+        [
+          {
+            "node": "MERGE — TEST RESULTS",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "SINK — TEST DEAD LETTER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MERGE — TEST RESULTS": {
+      "main": [
+        [
+          {
+            "node": "ASSERT — ITEM ISOLATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SINK — TEST DEAD LETTER": {
+      "main": [
+        [],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

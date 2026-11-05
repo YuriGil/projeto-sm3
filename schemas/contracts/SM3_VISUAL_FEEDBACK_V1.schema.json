@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SM3_VISUAL_FEEDBACK_V1",
+  "title": "Projeto SM3 Visual Feedback Request V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "content_id",
+    "edit_session_id",
+    "expected_revision",
+    "expected_state_etag",
+    "expected_preview_sha256",
+    "idempotency_key",
+    "verdict",
+    "overall_comment",
+    "issues",
+    "preserve",
+    "source"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "edit_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expected_state_etag": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expected_preview_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 200
+    },
+    "verdict": {
+      "enum": [
+        "APPROVED",
+        "REJECTED",
+        "NEEDS_REVISION"
+      ]
+    },
+    "overall_comment": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 5000
+    },
+    "correction_intent": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 5000
+    },
+    "preserve": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "source": {
+      "enum": [
+        "HUMAN_EDITOR",
+        "HUMAN_API",
+        "HUMAN_BOOTSTRAP"
+      ]
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "scope"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "GLOBAL",
+              "MEDIA",
+              "IDENTITY",
+              "FRAME",
+              "TEXT",
+              "COLOR",
+              "TIMELINE",
+              "TECHNICAL"
+            ]
+          },
+          "media_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identity_role": {
+            "enum": [
+              "logo",
+              "stamp",
+              "texture",
+              "frame",
+              null
+            ]
+          },
+          "start_seconds": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "end_seconds": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1200
+          }
+        }
+      }
+    }
+  }
+}
